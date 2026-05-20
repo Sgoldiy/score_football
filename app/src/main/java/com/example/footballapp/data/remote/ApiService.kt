@@ -32,22 +32,22 @@ interface ApiService {
     @GET("fixtures/lineups")
     suspend fun getFixtureLineups(
         @Query("fixture") fixtureId: Int
-    ): ApiResponse<List<Any>> // Simplified, actual type could be more specific
+    ): ApiResponse<List<FixtureLineup>>
 
     @GET("fixtures/events")
     suspend fun getFixtureEvents(
         @Query("fixture") fixtureId: Int
-    ): ApiResponse<List<Any>>
+    ): ApiResponse<List<FixtureEvent>>
 
     @GET("fixtures/statistics")
     suspend fun getFixtureStatistics(
         @Query("fixture") fixtureId: Int
-    ): ApiResponse<List<Any>>
+    ): ApiResponse<List<FixtureTeamStatistics>>
 
     @GET("fixtures/players")
     suspend fun getFixturePlayerStatistics(
         @Query("fixture") fixtureId: Int
-    ): ApiResponse<List<Any>>
+    ): ApiResponse<List<FixturePlayerStatisticsResponse>>
 
     // Standings
     @GET("standings")
@@ -60,7 +60,7 @@ interface ApiService {
     @GET("teams")
     suspend fun getTeamInfo(
         @Query("id") teamId: Int
-    ): ApiResponse<List<Any>>
+    ): ApiResponse<List<TeamInfoResponse>>
 
     @GET("teams/statistics")
     suspend fun getTeamStatistics(
@@ -70,19 +70,19 @@ interface ApiService {
     ): ApiResponse<TeamStatistics>
 
     @GET("venues")
-    suspend fun getVenues(
-        @Query("team") teamId: Int
+    suspend fun getVenueById(
+        @Query("id") venueId: Int
     ): ApiResponse<List<Venue>>
 
-    @GET("players/squad")
+    @GET("players/squads")
     suspend fun getTeamSquad(
         @Query("team") teamId: Int
-    ): ApiResponse<List<Any>>
+    ): ApiResponse<List<SquadResponse>>
 
     @GET("coachs")
     suspend fun getTeamCoaches(
         @Query("team") teamId: Int
-    ): ApiResponse<List<Any>>
+    ): ApiResponse<List<Coach>>
 
     @GET("transfers")
     suspend fun getTeamTransfers(
@@ -94,21 +94,21 @@ interface ApiService {
     suspend fun getPlayerStats(
         @Query("id") playerId: Int,
         @Query("season") season: Int
-    ): ApiResponse<List<PlayerStatistics>>
+    ): ApiResponse<List<PlayerProfileStatisticsResponse>>
 
     @GET("trophies")
     suspend fun getPlayerTrophies(
         @Query("player") playerId: Int
-    ): ApiResponse<List<Any>>
+    ): ApiResponse<List<PlayerTrophy>>
 
     @GET("sidelined")
     suspend fun getPlayerSidelined(
         @Query("player") playerId: Int
-    ): ApiResponse<List<Any>>
+    ): ApiResponse<List<PlayerSidelined>>
 
     // Leagues
     @GET("leagues")
-    suspend fun getLeagues(): ApiResponse<List<League>>
+    suspend fun getLeagues(): ApiResponse<List<LeagueResponse>>
 
     @GET("countries")
     suspend fun getCountries(): ApiResponse<List<Country>>
@@ -121,25 +121,25 @@ interface ApiService {
     suspend fun getTopScorers(
         @Query("league") leagueId: Int,
         @Query("season") season: Int
-    ): ApiResponse<List<PlayerStatistics>>
+    ): ApiResponse<List<PlayerProfileStatisticsResponse>>
 
     @GET("players/topassists")
     suspend fun getTopAssists(
         @Query("league") leagueId: Int,
         @Query("season") season: Int
-    ): ApiResponse<List<PlayerStatistics>>
+    ): ApiResponse<List<PlayerProfileStatisticsResponse>>
 
     @GET("players/topyellowcards")
     suspend fun getTopYellowCards(
         @Query("league") leagueId: Int,
         @Query("season") season: Int
-    ): ApiResponse<List<PlayerStatistics>>
+    ): ApiResponse<List<PlayerProfileStatisticsResponse>>
 
     @GET("players/topredcards")
     suspend fun getTopRedCards(
         @Query("league") leagueId: Int,
         @Query("season") season: Int
-    ): ApiResponse<List<PlayerStatistics>>
+    ): ApiResponse<List<PlayerProfileStatisticsResponse>>
 
     // Others
     @GET("predictions")

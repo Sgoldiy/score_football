@@ -3,8 +3,10 @@ package com.example.footballapp.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.footballapp.data.model.TeamStatistics
+import com.example.footballapp.data.model.TeamInfoResponse
 import com.example.footballapp.data.model.Transfer
-import com.example.footballapp.data.model.Venue
+import com.example.footballapp.data.model.SquadResponse
+import com.example.footballapp.data.model.Coach
 import com.example.footballapp.data.repository.TeamRepository
 import com.example.footballapp.data.util.ApiResult
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -30,22 +32,20 @@ class TeamViewModel @Inject constructor(
                 try {
                     val infoDef = async { repository.getTeamInfo(teamId) }
                     val statsDef = async { repository.getTeamStatistics(teamId, leagueId, season) }
-                    val venuesDef = async { repository.getVenues(teamId) }
                     val squadDef = async { repository.getSquad(teamId) }
                     val coachesDef = async { repository.getCoaches(teamId) }
                     val transfersDef = async { repository.getTransfers(teamId) }
 
                     val info = infoDef.await()
                     val stats = statsDef.await()
-                    val venues = venuesDef.await()
                     val squad = squadDef.await()
                     val coaches = coachesDef.await()
                     val transfers = transfersDef.await()
 
-                    if (info is ApiResult.Success && stats is ApiResult.Success && venues is ApiResult.Success &&
+                    if (info is ApiResult.Success && stats is ApiResult.Success &&
                         squad is ApiResult.Success && coaches is ApiResult.Success && transfers is ApiResult.Success) {
                         _teamState.value = ApiResult.Success(
-                            TeamData(info.data, stats.data, venues.data, squad.data, coaches.data, transfers.data)
+                            TeamData(info.data, stats.data, squad.data, coaches.data, transfers.data)
                         )
                     } else {
                         _teamState.value = ApiResult.Error("Failed to load team data")
@@ -60,10 +60,9 @@ class TeamViewModel @Inject constructor(
 }
 
 data class TeamData(
-    val teamInfo: List<Any>,
+    val teamInfo: List<TeamInfoResponse>,
     val statistics: TeamStatistics,
-    val venues: List<Venue>,
-    val squad: List<Any>,
-    val coaches: List<Any>,
+    val squad: List<SquadResponse>,
+    val coaches: List<Coach>,
     val transfers: List<Transfer>
 )

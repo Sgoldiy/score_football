@@ -71,10 +71,10 @@ class FixtureDetailViewModel @Inject constructor(
 
                 val detailData = FixtureDetailData(
                     fixture = fixture,
-                    lineups = (lineups as? ApiResult.Success<List<Any>>)?.data ?: emptyList(),
-                    events = (events as? ApiResult.Success<List<Any>>)?.data ?: emptyList(),
-                    statistics = (stats as? ApiResult.Success<List<Any>>)?.data ?: emptyList(),
-                    playerStats = (playerStats as? ApiResult.Success<List<Any>>)?.data ?: emptyList(),
+                    lineups = (lineups as? ApiResult.Success<List<com.example.footballapp.data.model.FixtureLineup>>)?.data ?: emptyList(),
+                    events = (events as? ApiResult.Success<List<com.example.footballapp.data.model.FixtureEvent>>)?.data ?: emptyList(),
+                    statistics = (stats as? ApiResult.Success<List<com.example.footballapp.data.model.FixtureTeamStatistics>>)?.data ?: emptyList(),
+                    playerStats = (playerStats as? ApiResult.Success<List<com.example.footballapp.data.model.FixturePlayerStatisticsResponse>>)?.data ?: emptyList(),
                     predictions = (predictions as? ApiResult.Success<List<com.example.footballapp.data.model.Prediction>>)?.data ?: emptyList(),
                     odds = (odds as? ApiResult.Success<List<com.example.footballapp.data.model.OddsResponse>>)?.data ?: emptyList(),
                     injuries = (injuries as? ApiResult.Success<List<com.example.footballapp.data.model.Injury>>)?.data ?: emptyList(),

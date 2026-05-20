@@ -1,45 +1,84 @@
 package com.example.footballapp.ui.screens.home
 
-import android.annotation.SuppressLint
-import androidx.compose.animation.*
-import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import coil.compose.AsyncImage
 import com.example.footballapp.data.model.FixtureResponse
+import com.example.footballapp.data.model.League
+import com.example.footballapp.data.model.PlayerProfileStatisticsResponse
+import com.example.footballapp.ui.components.BroadcastMatchCard
+import com.example.footballapp.ui.components.FootballLogo
+import com.example.footballapp.ui.components.InfoPill
+import com.example.footballapp.ui.components.PlayerAvatar
+import com.example.footballapp.ui.components.PremiumCard
+import com.example.footballapp.ui.components.ShimmerBlock
+import com.example.footballapp.ui.theme.*
 import com.example.footballapp.viewmodel.HomeUiState
 import com.example.footballapp.viewmodel.HomeViewModel
-import kotlinx.coroutines.launch
-import kotlin.math.abs
-import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
+
+private enum class MatchTab(val label: String) {
+    Live("Live"),
+    Upcoming("Upcoming"),
+    Finished("Finished")
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -49,424 +88,233 @@ fun HomeScreen(
     onNavigateToLeagues: () -> Unit,
     onNavigateToFavorites: () -> Unit,
     onNavigateToSettings: () -> Unit,
-    onNavigateToMatchDetails: (String) -> Unit
+    onNavigateToTopPlayers: () -> Unit,
+    onNavigateToMatchDetails: (String) -> Unit,
+    onNavigateToPlayerProfile: (Int) -> Unit = {}
 ) {
     val uiState by viewModel.homeState.collectAsState()
 
     Scaffold(
+        containerColor = PitchBlack,
         topBar = {
-            CenterAlignedTopAppBar(
-                title = {
-                    Text(
-                        text = "Football Plus",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 20.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth().padding(end = 48.dp)
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = { /* TODO: Open Menu */ }) {
-                        Icon(Icons.Default.Menu, contentDescription = "Menu")
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color.Black,
-                    titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
+            Box {
+                // Glassmorphism effect for Top Bar
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp)
+                        .blur(20.dp)
+                        .background(PitchBlack.copy(alpha = 0.4f))
                 )
-            )
-        },
-        containerColor = Color.Black
+                TopAppBar(
+                    title = {
+                        Column {
+                            Text(
+                                "Football Plus",
+                                fontWeight = FontWeight.Black,
+                                color = Color.White,
+                                letterSpacing = (-0.5).sp
+                            )
+                            Text(
+                                "Live scores, stats, lineups",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = TextSecondary
+                            )
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { onNavigateToFixtures() }) {
+                            Icon(Icons.Default.Search, contentDescription = "Search", tint = Color.White)
+                        }
+                        IconButton(onClick = { onNavigateToFavorites() }) {
+                            Icon(Icons.Default.Favorite, contentDescription = "Favorites", tint = Color.White)
+                        }
+                        IconButton(onClick = { onNavigateToSettings() }) {
+                            Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = Color.White)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent,
+                        titleContentColor = Color.White,
+                        actionIconContentColor = Color.White
+                    )
+                )
+            }
+        }
     ) { paddingValues ->
         Box(
-            modifier = Modifier
+            Modifier
                 .fillMaxSize()
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0xFF0A192F), // Deep Dark Blue
+                            PitchBlack,
+                            PitchBlack
+                        )
+                    )
+                )
                 .padding(paddingValues)
         ) {
             when (val state = uiState) {
-                is HomeUiState.Loading -> {
-                    CircularProgressIndicator(
-                        modifier = Modifier.align(Alignment.Center),
-                        color = Color(0xFF00FF57)
-                    )
-                }
-                is HomeUiState.Error -> {
-                    Text(
-                        text = state.message,
-                        color = Color.Red,
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .padding(16.dp),
-                        textAlign = TextAlign.Center
-                    )
-                }
-                is HomeUiState.Success -> {
-                    HomeContent(
-                        featuredMatches = state.featuredMatches,
-                        isLive = state.isLive,
-                        onMatchClick = { fixtureId -> onNavigateToMatchDetails(fixtureId.toString()) }
-                    )
-                }
+                HomeUiState.Loading -> HomeShimmer()
+                is HomeUiState.Error -> HomeError(state.message, onRetry = viewModel::fetchHomeContent)
+                is HomeUiState.Success -> HomeContent(
+                    state = state,
+                    onLeagueClick = onNavigateToLeagues,
+                    onTopPlayersClick = onNavigateToTopPlayers,
+                    onMatchClick = { onNavigateToMatchDetails(it.toString()) },
+                    onPlayerClick = onNavigateToPlayerProfile
+                )
             }
         }
     }
 }
 
 @Composable
-fun HomeContent(
-    featuredMatches: List<FixtureResponse>,
-    isLive: Boolean,
-    onMatchClick: (Int) -> Unit
+private fun HomeContent(
+    state: HomeUiState.Success,
+    onLeagueClick: () -> Unit,
+    onTopPlayersClick: () -> Unit,
+    onMatchClick: (Int) -> Unit,
+    onPlayerClick: (Int) -> Unit
 ) {
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val tabs = MatchTab.entries
+
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = 120.dp)
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 110.dp),
+        verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        // For You Section
         item {
-            Text(
-                text = "For You",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-        }
-
-        // Main Carousel (Simulated with LazyRow for now)
-        item {
-            StackedMatchCards(
-                matches = featuredMatches,
-                isLive = isLive,
-                modifier = Modifier.padding(horizontal = 16.dp),
+            Spacer(Modifier.height(4.dp))
+            HeroMatchCarousel(
+                matches = state.featuredMatches.take(8),
                 onMatchClick = onMatchClick
             )
         }
 
-        // Section: Continue Watching
         item {
-            Text(
-                text = "Continue Watching",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp)
+            PremiumLeagueSelector(
+                leagues = state.topLeagues.take(12),
+                onClick = onLeagueClick
             )
-            
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(5) { // Dummy items
-                    ContinueWatchingCard()
-                }
+        }
+
+        item {
+            if (state.topPlayers.isNotEmpty()) {
+                PremiumPlayersSection(state.topPlayers.take(10), onTopPlayersClick, onPlayerClick)
             }
         }
-        
-        // Section: Leagues
+
         item {
-            Text(
-                text = "Popular Leagues",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(start = 16.dp, top = 24.dp, bottom = 8.dp)
+            SegmentedMatchTabs(
+                tabs = tabs,
+                selectedIndex = selectedTab,
+                counts = listOf(state.liveMatches.size, state.upcomingMatches.size, state.finishedMatches.size),
+                onTabSelected = { selectedTab = it }
             )
-            
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(5) { // Dummy items
-                    LeagueSmallCard()
-                }
-            }
         }
-    }
-}
 
-@SuppressLint("UnusedBoxWithConstraintsScope")
-@Composable
-fun StackedMatchCards(
-    matches: List<FixtureResponse>,
-    isLive: Boolean,
-    modifier: Modifier = Modifier,
-    onMatchClick: (Int) -> Unit
-) {
-    if (matches.isEmpty()) return
-
-    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
-        var currentIndex by remember(matches) { mutableIntStateOf(0) }
-        val dragOffsetX = remember { Animatable(0f) }
-        val incomingPrevOffsetX = remember { Animatable(0f) }
-        var incomingPrevIndex by remember { mutableIntStateOf(-1) }
-        val scope = rememberCoroutineScope()
-        val swipeOutDistance = constraints.maxWidth.toFloat() * 0.9f
-        val swipeThreshold = constraints.maxWidth.toFloat() * 0.2f
-        var totalDragX by remember { mutableFloatStateOf(0f) }
-
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(420.dp)
-        ) {
-            val currentCard = matches[currentIndex]
-            val previousCard = if (matches.size > 1) matches[(currentIndex - 1 + matches.size) % matches.size] else null
-            val nextCard = if (matches.size > 1) matches[(currentIndex + 1) % matches.size] else null
-            val nextNextCard = if (matches.size > 2) matches[(currentIndex + 2) % matches.size] else null
-
-            if (previousCard != null) {
-                MatchCarouselCard(
-                    fixture = previousCard,
-                    isLive = isLive,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .offset(x = (-18).dp)
-                        .graphicsLayer {
-                            scaleX = 0.975f
-                            scaleY = 0.975f
-                            alpha = 0.58f
-                        },
-                    onClick = { previousCard.fixture?.id?.let(onMatchClick) }
-                )
-            }
-
-            if (nextNextCard != null) {
-                MatchCarouselCard(
-                    fixture = nextNextCard,
-                    isLive = isLive,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .offset(x = 30.dp)
-                        .graphicsLayer {
-                            scaleX = 0.95f
-                            scaleY = 0.95f
-                            alpha = 0.55f
-                        },
-                    onClick = { nextNextCard.fixture?.id?.let(onMatchClick) }
-                )
-            }
-
-            if (nextCard != null) {
-                MatchCarouselCard(
-                    fixture = nextCard,
-                    isLive = isLive,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .offset(x = 16.dp)
-                        .graphicsLayer {
-                            scaleX = 0.98f
-                            scaleY = 0.98f
-                            alpha = 0.74f
-                        },
-                    onClick = { nextCard.fixture?.id?.let(onMatchClick) }
-                )
-            }
-
-            MatchCarouselCard(
-                fixture = currentCard,
-                isLive = isLive,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .offset { IntOffset(dragOffsetX.value.roundToInt(), 0) }
-                    .pointerInput(currentIndex, matches.size) {
-                        detectDragGestures(
-                            onDrag = { change, dragAmount ->
-                                change.consume()
-                                totalDragX += dragAmount.x
-                                if (dragAmount.x < 0f) {
-                                    // Next card: current card moves left as before.
-                                    scope.launch { dragOffsetX.snapTo(dragOffsetX.value + dragAmount.x) }
-                                } else {
-                                    // Previous card: keep current card fixed.
-                                    scope.launch { dragOffsetX.snapTo(0f) }
-                                }
-                            },
-                            onDragEnd = {
-                                val currentDrag = totalDragX
-                                scope.launch {
-                                    when {
-                                        currentDrag <= -swipeThreshold -> {
-                                            dragOffsetX.animateTo(-swipeOutDistance, tween(220))
-                                            currentIndex = (currentIndex + 1) % matches.size
-                                            dragOffsetX.snapTo(0f)
-                                        }
-                                        currentDrag >= swipeThreshold -> {
-                                            // Previous card comes in; current card stays fixed.
-                                            val previousIndex = (currentIndex - 1 + matches.size) % matches.size
-                                            incomingPrevIndex = previousIndex
-                                            incomingPrevOffsetX.snapTo(-swipeOutDistance)
-                                            incomingPrevOffsetX.animateTo(0f, tween(240))
-                                            currentIndex = previousIndex
-                                            incomingPrevIndex = -1
-                                        }
-                                        else -> {
-                                            dragOffsetX.animateTo(0f, tween(220))
-                                        }
-                                    }
-                                    totalDragX = 0f
-                                }
-                            },
-                            onDragCancel = {
-                                scope.launch {
-                                    dragOffsetX.animateTo(0f, tween(220))
-                                    totalDragX = 0f
-                                }
-                            }
-                        )
+        item {
+            AnimatedContent(
+                targetState = selectedTab,
+                transitionSpec = {
+                    (slideInVertically { it * 50 } + fadeIn()).togetherWith(slideOutVertically { -it * 50 } + fadeOut())
+                },
+                label = "match-list"
+            ) { targetTab ->
+                val visibleMatches = when (tabs[targetTab]) {
+                    MatchTab.Live -> state.liveMatches
+                    MatchTab.Upcoming -> state.upcomingMatches
+                    MatchTab.Finished -> state.finishedMatches
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (visibleMatches.isEmpty()) {
+                        EmptyState(tabs[targetTab].label)
+                    } else {
+                        visibleMatches.take(24).forEach { match ->
+                            BroadcastMatchCard(
+                                match = match,
+                                modifier = Modifier.fillMaxWidth(),
+                                onClick = { match.fixture?.id?.let(onMatchClick) }
+                            )
+                        }
                     }
-                    .graphicsLayer {
-                        val progress = (abs(dragOffsetX.value) / swipeThreshold).coerceIn(0f, 1f)
-                        scaleX = 1f - (progress * 0.03f)
-                        scaleY = 1f - (progress * 0.03f)
-                    },
-                onClick = { currentCard.fixture?.id?.let(onMatchClick) }
-            )
-
-            if (incomingPrevIndex >= 0 && incomingPrevIndex < matches.size) {
-                MatchCarouselCard(
-                    fixture = matches[incomingPrevIndex],
-                    isLive = isLive,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .offset { IntOffset(incomingPrevOffsetX.value.roundToInt(), 0) },
-                    onClick = { matches[incomingPrevIndex].fixture?.id?.let(onMatchClick) }
-                )
+                }
             }
         }
     }
 }
 
 @Composable
-fun MatchCarouselCard(
-    fixture: FixtureResponse,
-    isLive: Boolean,
-    modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null
+private fun SegmentedMatchTabs(
+    tabs: List<MatchTab>,
+    selectedIndex: Int,
+    counts: List<Int>,
+    onTabSelected: (Int) -> Unit
 ) {
-    Card(
-        modifier = modifier
+    Box(
+        modifier = Modifier
             .fillMaxWidth()
-            .height(400.dp)
-            .let {
-                if (onClick != null) {
-                    it.clickable(onClick = onClick)
-                } else {
-                    it
-                }
-            },
-        shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF221326)),
-        border = androidx.compose.foundation.BorderStroke(1.4.dp, Color.White.copy(alpha = 0.14f))
+            .clip(RoundedCornerShape(16.dp))
+            .background(PitchSurfaceHigh)
+            .padding(4.dp)
     ) {
-        Box(modifier = Modifier.fillMaxSize()) {
-            // Background Image (Stadium or League logo)
-            AsyncImage(
-                model = fixture.league?.logo,
-                contentDescription = null,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop,
-                alpha = 0.4f
-            )
-            
-            // Gradient Overlay
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                Color(0xFFDF2E63).copy(alpha = 0.42f),
-                                Color(0xFF341B58).copy(alpha = 0.18f),
-                                Color.Black.copy(alpha = 0.92f)
-                            ),
-                            startY = 140f
-                        )
-                    )
-            )
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            tabs.forEachIndexed { index, tab ->
+                val isSelected = selectedIndex == index
+                val bgColor by animateColorAsState(
+                    targetValue = if (isSelected) Color.White.copy(alpha = 0.1f) else Color.Transparent,
+                    label = "tab-bg"
+                )
 
-            // Content
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(20.dp),
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                // Top Row: Live Indicator
-                if (isLive) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Color.Red.copy(alpha = 0.8f))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(bgColor)
+                        .clickable { onTabSelected(index) }
+                        .padding(vertical = 10.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (isSelected) {
                         Box(
                             modifier = Modifier
                                 .size(6.dp)
                                 .clip(CircleShape)
-                                .background(Color.White)
+                                .background(LiveGreen)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = "LIVE ${fixture.fixture?.status?.elapsed}'",
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Spacer(Modifier.width(6.dp))
                     }
-                }
-
-                // Middle: Teams and Score
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        TeamColumn(name = fixture.teams?.home?.name ?: "", logo = fixture.teams?.home?.logo ?: "")
-                        
-                        Text(
-                            text = "${fixture.goals?.home ?: 0} : ${fixture.goals?.away ?: 0}",
-                            color = Color.White,
-                            fontSize = 32.sp,
-                            fontWeight = FontWeight.Black
-                        )
-                        
-                        TeamColumn(name = fixture.teams?.away?.name ?: "", logo = fixture.teams?.away?.logo ?: "")
-                    }
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
                     Text(
-                        text = fixture.league?.name ?: "",
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 14.sp
+                        text = tab.label,
+                        color = if (isSelected) Color.White else TextSecondary,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        fontSize = if (isSelected) 13.sp else 12.sp
                     )
-                    Text(
-                        text = "${fixture.league?.country} • Football",
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 12.sp
-                    )
-                }
-
-                // Bottom: Action
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    IconButton(
-                        onClick = { },
-                        modifier = Modifier
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.2f))
-                    ) {
-                        Icon(Icons.Default.PlayArrow, contentDescription = "Play", tint = Color.White)
+                    if (counts.getOrElse(index) { 0 } > 0) {
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) LiveGreen.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.08f))
+                                .padding(horizontal = 7.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "${counts[index]}",
+                                color = if (isSelected) LiveGreen else TextSecondary,
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 10.sp
+                            )
+                        }
                     }
                 }
             }
@@ -475,70 +323,308 @@ fun MatchCarouselCard(
 }
 
 @Composable
-fun TeamColumn(name: String, logo: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        AsyncImage(
-            model = logo,
-            contentDescription = name,
-            modifier = Modifier.size(60.dp)
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = name,
-            color = Color.White,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.width(80.dp),
-            textAlign = TextAlign.Center
-        )
+private fun PremiumLeagueSelector(
+    leagues: List<League>,
+    onClick: () -> Unit
+) {
+    Column {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "Top leagues",
+                color = Color.White,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Black
+            )
+            Text(
+                "Follow",
+                color = LiveGreen,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable(onClick = onClick)
+            )
+        }
+        Spacer(Modifier.height(10.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(leagues, key = { it.id }) { league ->
+                PremiumLeagueChip(league)
+            }
+        }
     }
 }
 
 @Composable
-fun ContinueWatchingCard() {
-    Column(modifier = Modifier.width(160.dp)) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(90.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(Color(0xFF2B2B2B))
+private fun PremiumLeagueChip(league: League) {
+    val gradient = when (league.id) {
+        39 -> Brush.linearGradient(listOf(PremierLeaguePurple, PremierLeaguePink))
+        140 -> Brush.linearGradient(listOf(LaLigaRed, LaLigaOrange))
+        135 -> Brush.linearGradient(listOf(SerieABlue, ElectricBlue))
+        78 -> Brush.linearGradient(listOf(BundesligaRed, Color.Black))
+        61 -> Brush.linearGradient(listOf(Color(0xFF004170), Ligue1Yellow))
+        2 -> Brush.linearGradient(listOf(UCLDarkBlue, UCLGold))
+        3 -> Brush.linearGradient(listOf(Color(0xFF003399), Color(0xFF00BFFF)))
+        848 -> Brush.linearGradient(listOf(Color(0xFF004D40), Color(0xFF00C853)))
+        1 -> Brush.linearGradient(listOf(WorldCupGold, Color.Black))
+        4 -> Brush.linearGradient(listOf(Color(0xFF003399), Color(0xFFFFD700)))
+        9 -> Brush.linearGradient(listOf(Color(0xFFD52B1E), Color(0xFF003DA5)))
+        else -> Brush.linearGradient(listOf(PitchSurfaceHigh, PitchSurface))
+    }
+
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .background(gradient)
+            .border(
+                1.dp,
+                Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.2f), Color.Transparent)),
+                RoundedCornerShape(20.dp)
+            )
+            .clickable(onClick = {})
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        FootballLogo(
+            url = league.logo,
+            contentDescription = league.name,
+            modifier = Modifier.size(32.dp),
+            glow = Color.White.copy(alpha = 0.3f)
+        )
+        Spacer(Modifier.width(10.dp))
+        Column {
+            Text(
+                league.name ?: "League",
+                color = Color.White,
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Black,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (league.country != null) {
+                Text(
+                    league.country.uppercase(),
+                    color = Color.White.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.5.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PremiumPlayersSection(
+    players: List<PlayerProfileStatisticsResponse>,
+    onViewAll: () -> Unit,
+    onPlayerClick: (Int) -> Unit
+) {
+    Column {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                Icons.Default.PlayArrow,
-                contentDescription = null,
-                modifier = Modifier.align(Alignment.BottomStart).padding(8.dp).size(20.dp),
-                tint = Color.White
+            Text(
+                "Players to watch",
+                color = Color.White,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Black
+            )
+            Text(
+                "Explore",
+                color = LiveGreen,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable(onClick = onViewAll)
             )
         }
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            items(players, key = { it.player?.id ?: it.hashCode() }) { player ->
+                PlayerSpotlightCard(player, onPlayerClick)
+            }
+        }
+    }
+}
+
+@Composable
+private fun PlayerSpotlightCard(player: PlayerProfileStatisticsResponse, onPlayerClick: (Int) -> Unit) {
+    val stats = player.statistics?.firstOrNull()
+    val ratingFloat = stats?.games?.rating?.toFloatOrNull()
+    val formColor = when {
+        ratingFloat != null && ratingFloat >= 7.5f -> LiveGreen
+        ratingFloat != null && ratingFloat >= 6.5f -> Color(0xFFFFC857)
+        else -> TextSecondary
+    }
+    val formattedRating = ratingFloat?.let { "%.2f".format(it) } ?: "-"
+
+    PremiumCard(
+        modifier = Modifier.width(164.dp),
+        brush = Brush.linearGradient(listOf(Color(0xFF0A1E38), PitchSurfaceHigh, PitchSurface)),
+        onClick = { player.player?.id?.let(onPlayerClick) }
+    ) {
+        Column(
+            Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            PlayerAvatar(
+                url = player.player?.photo,
+                name = player.player?.name,
+                modifier = Modifier.size(68.dp),
+                ringColor = formColor.copy(alpha = 0.45f)
+            )
+            Text(
+                player.player?.name ?: "Player",
+                color = Color.White,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                stats?.team?.name ?: "",
+                color = TextSecondary,
+                style = MaterialTheme.typography.labelMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                MiniStat("G", stats?.goals?.total?.toString() ?: "-")
+                MiniStat("A", stats?.goals?.assists?.toString() ?: "-")
+                MiniStat("R", formattedRating)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MiniStat(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            text = "Match Highlights",
+            value,
             color = Color.White,
-            fontSize = 12.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Black,
+            maxLines = 1
         )
         Text(
-            text = "15m left",
-            color = Color.White.copy(alpha = 0.5f),
+            label,
+            color = TextSecondary,
+            style = MaterialTheme.typography.labelMedium,
             fontSize = 10.sp
         )
     }
 }
 
 @Composable
-fun LeagueSmallCard() {
-    Box(
-        modifier = Modifier
-            .size(100.dp)
-            .clip(CircleShape)
-            .background(Color(0xFF1A1A1A)),
-        contentAlignment = Alignment.Center
+private fun HeroMatchCarousel(
+    matches: List<FixtureResponse>,
+    onMatchClick: (Int) -> Unit
+) {
+    if (matches.isEmpty()) {
+        EmptyState("Matches")
+        return
+    }
+
+    val listState = rememberLazyListState()
+    LaunchedEffect(matches.size) {
+        if (matches.size > 1) {
+            while (true) {
+                delay(4_500)
+                val next = (listState.firstVisibleItemIndex + 1) % matches.size
+                listState.animateScrollToItem(next)
+            }
+        }
+    }
+    LazyRow(
+        state = listState,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(end = 16.dp)
     ) {
-        // Placeholder for league logo
-        Text(text = "L", color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
+        items(matches, key = { it.fixture?.id ?: it.hashCode() }) { match ->
+            BroadcastMatchCard(
+                match = match,
+                modifier = Modifier.width(328.dp),
+                expandedByDefault = true,
+                onClick = { match.fixture?.id?.let(onMatchClick) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyState(label: String) {
+    PremiumCard(
+        modifier = Modifier.fillMaxWidth(),
+        brush = Brush.linearGradient(listOf(PitchSurface, PitchSurfaceHigh))
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(vertical = 8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                "No $label matches",
+                color = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                "Check another tab",
+                color = TextSecondary,
+                style = MaterialTheme.typography.labelMedium
+            )
+        }
+    }
+}
+
+@Composable
+private fun HomeShimmer() {
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item { ShimmerBlock(Modifier.fillMaxWidth().height(240.dp), RoundedCornerShape(24.dp)) }
+        item {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                repeat(3) { ShimmerBlock(Modifier.weight(1f).height(48.dp), RoundedCornerShape(18.dp)) }
+            }
+        }
+        items(4) { ShimmerBlock(Modifier.fillMaxWidth().height(180.dp), RoundedCornerShape(24.dp)) }
+    }
+}
+
+@Composable
+private fun HomeError(message: String, onRetry: () -> Unit) {
+    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+        PremiumCard(brush = Brush.linearGradient(listOf(PitchSurfaceHigh, PitchSurface))) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    "Unable to load scores",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    fontWeight = FontWeight.Black
+                )
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    message,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextSecondary
+                )
+                Spacer(Modifier.height(16.dp))
+                InfoPill(
+                    "Retry",
+                    modifier = Modifier.clickable(onClick = onRetry)
+                )
+            }
+        }
     }
 }

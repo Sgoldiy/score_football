@@ -25,13 +25,15 @@ data class Periods(
 data class FixtureStatus(
     val long: String?,
     val short: String?,
-    val elapsed: Int?
+    val elapsed: Int?,
+    val extra: Int?
 )
 
 @JsonClass(generateAdapter = true)
 data class Venue(
     val id: Int?,
     val name: String?,
+    val address: String?,
     val city: String?,
     val capacity: Int?,
     val surface: String?,
@@ -44,7 +46,146 @@ data class FixtureResponse(
     val league: League?,
     val teams: FixtureTeams?,
     val goals: FixtureGoals?,
-    val score: FixtureScore?
+    val score: FixtureScore?,
+    val events: List<FixtureEvent>?,
+    val lineups: List<FixtureLineup>?,
+    val statistics: List<FixtureTeamStatistics>?,
+    val players: List<FixturePlayerStatisticsResponse>?
+)
+
+@JsonClass(generateAdapter = true)
+data class FixtureEvent(
+    val time: EventTime?,
+    val team: EventTeam?,
+    val player: EventPlayer?,
+    val assist: EventPlayer?,
+    val type: String?,
+    val detail: String?,
+    val comments: String?
+)
+
+@JsonClass(generateAdapter = true)
+data class EventTime(
+    val elapsed: Int?,
+    val extra: Int?
+)
+
+@JsonClass(generateAdapter = true)
+data class EventTeam(
+    val id: Int?,
+    val name: String?,
+    val logo: String?
+)
+
+@JsonClass(generateAdapter = true)
+data class EventPlayer(
+    val id: Int?,
+    val name: String?
+)
+
+@JsonClass(generateAdapter = true)
+data class FixtureTeamStatistics(
+    val team: FixtureTeam?,
+    val statistics: List<StatisticItem>?
+)
+
+@JsonClass(generateAdapter = true)
+data class StatisticItem(
+    val type: String?,
+    val value: StatisticValue?
+)
+
+@JsonClass(generateAdapter = true)
+data class StatisticValue(
+    val display: String,
+    val numeric: Float?
+)
+
+@JsonClass(generateAdapter = true)
+data class FixtureLineup(
+    val team: FixtureTeam?,
+    val coach: LineupCoach?,
+    val formation: String?,
+    val startXI: List<LineupPlayerWrapper>?,
+    val substitutes: List<LineupPlayerWrapper>?
+)
+
+@JsonClass(generateAdapter = true)
+data class LineupCoach(
+    val id: Int?,
+    val name: String?,
+    val photo: String?
+)
+
+@JsonClass(generateAdapter = true)
+data class LineupPlayerWrapper(
+    val player: LineupPlayer?
+)
+
+@JsonClass(generateAdapter = true)
+data class LineupPlayer(
+    val id: Int?,
+    val name: String?,
+    val number: Int?,
+    val pos: String?,
+    val grid: String?
+)
+
+@JsonClass(generateAdapter = true)
+data class FixturePlayerStatisticsResponse(
+    val team: FixtureTeam?,
+    val players: List<FixturePlayerEntry>?
+)
+
+@JsonClass(generateAdapter = true)
+data class FixturePlayerEntry(
+    val player: Player?,
+    val statistics: List<PlayerStatistics>?
+)
+
+@JsonClass(generateAdapter = true)
+data class TeamInfoResponse(
+    val team: Team?,
+    val venue: Venue?
+)
+
+@JsonClass(generateAdapter = true)
+data class SquadResponse(
+    val team: FixtureTeam?,
+    val players: List<SquadPlayer>?
+)
+
+@JsonClass(generateAdapter = true)
+data class SquadPlayer(
+    val id: Int?,
+    val name: String?,
+    val age: Int?,
+    val number: Int?,
+    val position: String?,
+    val photo: String?
+)
+
+@JsonClass(generateAdapter = true)
+data class Coach(
+    val id: Int?,
+    val name: String?,
+    val firstname: String?,
+    val lastname: String?,
+    val age: Int?,
+    val birth: PlayerBirth?,
+    val nationality: String?,
+    val height: String?,
+    val weight: String?,
+    val photo: String?,
+    val team: Team?,
+    val career: List<CoachCareer>?
+)
+
+@JsonClass(generateAdapter = true)
+data class CoachCareer(
+    val team: Team?,
+    val start: String?,
+    val end: String?
 )
 
 @JsonClass(generateAdapter = true)
@@ -58,7 +199,22 @@ data class FixtureTeam(
     val id: Int?,
     val name: String?,
     val logo: String?,
-    val winner: Boolean?
+    val winner: Boolean?,
+    val update: String?,
+    val colors: TeamKitColors?
+)
+
+@JsonClass(generateAdapter = true)
+data class TeamKitColors(
+    val player: KitColor?,
+    val goalkeeper: KitColor?
+)
+
+@JsonClass(generateAdapter = true)
+data class KitColor(
+    val primary: String?,
+    val number: String?,
+    val border: String?
 )
 
 @JsonClass(generateAdapter = true)
@@ -79,11 +235,20 @@ data class FixtureScore(
 data class League(
     val id: Int,
     val name: String?,
+    val type: String?,
     val country: String?,
     val logo: String?,
     val flag: String?,
     val season: Int?,
-    val round: String?
+    val round: String?,
+    val standings: Boolean?
+)
+
+@JsonClass(generateAdapter = true)
+data class LeagueResponse(
+    val league: League?,
+    val country: Country?,
+    val seasons: List<Season>?
 )
 
 @JsonClass(generateAdapter = true)
@@ -133,7 +298,13 @@ data class TeamStatistics(
     val team: Team?,
     val form: String?,
     val fixtures: TeamFixturesStats?,
-    val goals: TeamGoalsStats?
+    val goals: TeamGoalsStats?,
+    val biggest: TeamBiggestStats?,
+    val clean_sheet: FixtureCount?,
+    val failed_to_score: FixtureCount?,
+    val penalty: TeamPenaltyStats?,
+    val lineups: List<TeamLineupStat>?,
+    val cards: TeamCardsByMinute?
 )
 
 @JsonClass(generateAdapter = true)
@@ -160,7 +331,9 @@ data class TeamGoalsStats(
 @JsonClass(generateAdapter = true)
 data class GoalStatsDetail(
     val total: FixtureCount?,
-    val average: FixtureAverage?
+    val average: FixtureAverage?,
+    val minute: Map<String, PercentageTotal?>?,
+    val under_over: Map<String, UnderOverTotal?>?
 )
 
 @JsonClass(generateAdapter = true)
@@ -168,6 +341,70 @@ data class FixtureAverage(
     val home: String?,
     val away: String?,
     val total: String?
+)
+
+@JsonClass(generateAdapter = true)
+data class TeamBiggestStats(
+    val streak: TeamStreak?,
+    val wins: HomeAwayString?,
+    val loses: HomeAwayString?,
+    val goals: TeamBiggestGoals?
+)
+
+@JsonClass(generateAdapter = true)
+data class TeamStreak(
+    val wins: Int?,
+    val draws: Int?,
+    val loses: Int?
+)
+
+@JsonClass(generateAdapter = true)
+data class HomeAwayString(
+    val home: String?,
+    val away: String?
+)
+
+@JsonClass(generateAdapter = true)
+data class TeamBiggestGoals(
+    @Json(name = "for") val goalsFor: HomeAwayInt?,
+    val against: HomeAwayInt?
+)
+
+@JsonClass(generateAdapter = true)
+data class HomeAwayInt(
+    val home: Int?,
+    val away: Int?
+)
+
+@JsonClass(generateAdapter = true)
+data class PercentageTotal(
+    val total: Int?,
+    val percentage: String?
+)
+
+@JsonClass(generateAdapter = true)
+data class UnderOverTotal(
+    val over: Int?,
+    val under: Int?
+)
+
+@JsonClass(generateAdapter = true)
+data class TeamPenaltyStats(
+    val scored: PercentageTotal?,
+    val missed: PercentageTotal?,
+    val total: Int?
+)
+
+@JsonClass(generateAdapter = true)
+data class TeamLineupStat(
+    val formation: String?,
+    val played: Int?
+)
+
+@JsonClass(generateAdapter = true)
+data class TeamCardsByMinute(
+    val yellow: Map<String, PercentageTotal?>?,
+    val red: Map<String, PercentageTotal?>?
 )
 
 @JsonClass(generateAdapter = true)
@@ -182,7 +419,9 @@ data class Player(
     val height: String?,
     val weight: String?,
     val injured: Boolean?,
-    val photo: String?
+    val photo: String?,
+    val type: String?,
+    val reason: String?
 )
 
 @JsonClass(generateAdapter = true)
@@ -194,9 +433,11 @@ data class PlayerBirth(
 
 @JsonClass(generateAdapter = true)
 data class PlayerStatistics(
+    val player: Player? = null,
     val team: Team?,
     val league: League?,
     val games: PlayerGames?,
+    val offsides: Int?,
     val substitutes: PlayerSubstitutes?,
     val shots: PlayerShots?,
     val goals: PlayerGoals?,
@@ -211,7 +452,7 @@ data class PlayerStatistics(
 
 @JsonClass(generateAdapter = true)
 data class PlayerGames(
-    val appearances: Int?,
+    @Json(name = "appearences") val appearances: Int?,
     val lineups: Int?,
     val minutes: Int?,
     val number: Int?,
@@ -340,6 +581,7 @@ data class StandingGoalsDetail(
 @JsonClass(generateAdapter = true)
 data class Transfer(
     val player: PlayerBrief?,
+    val update: String?,
     val transfers: List<TransferEntry>?
 )
 
@@ -366,7 +608,7 @@ data class TransferTeams(
 data class Injury(
     val player: Player?,
     val team: Team?,
-    val fixture: FixtureBrief?,
+    val fixture: InjuryFixture?,
     val league: League?
 )
 
@@ -376,10 +618,20 @@ data class FixtureBrief(
 )
 
 @JsonClass(generateAdapter = true)
+data class InjuryFixture(
+    val id: Int?,
+    val timezone: String?,
+    val date: String?,
+    val timestamp: Long?
+)
+
+@JsonClass(generateAdapter = true)
 data class Prediction(
     val predictions: PredictionDetail?,
+    val league: League?,
     val teams: PredictionTeams?,
-    val comparison: PredictionComparison?
+    val comparison: PredictionComparison?,
+    val h2h: List<FixtureResponse>?
 )
 
 @JsonClass(generateAdapter = true)
@@ -388,6 +640,7 @@ data class PredictionDetail(
     val win_or_draw: Boolean?,
     val under_over: String?,
     val goals: PredictionGoals?,
+    val advice: String?,
     val percent: PredictionPercent?
 )
 
@@ -428,6 +681,7 @@ data class TeamPrediction(
 
 @JsonClass(generateAdapter = true)
 data class TeamPredictionLast5(
+    val played: Int?,
     val form: String?,
     val att: String?,
     val def: String?,
@@ -450,7 +704,13 @@ data class TeamPredictionGoalDetail(
 data class TeamPredictionLeagueStats(
     val form: String?,
     val fixtures: TeamFixturesStats?,
-    val goals: TeamGoalsStats?
+    val goals: TeamGoalsStats?,
+    val biggest: TeamBiggestStats?,
+    val clean_sheet: FixtureCount?,
+    val failed_to_score: FixtureCount?,
+    val penalty: TeamPenaltyStats?,
+    val lineups: List<TeamLineupStat>?,
+    val cards: TeamCardsByMinute?
 )
 
 @JsonClass(generateAdapter = true)
@@ -502,6 +762,27 @@ data class Country(
     val name: String,
     val code: String?,
     val flag: String?
+)
+
+@JsonClass(generateAdapter = true)
+data class PlayerProfileStatisticsResponse(
+    val player: Player?,
+    val statistics: List<PlayerStatistics>?
+)
+
+@JsonClass(generateAdapter = true)
+data class PlayerTrophy(
+    val league: String?,
+    val country: String?,
+    val season: String?,
+    val place: String?
+)
+
+@JsonClass(generateAdapter = true)
+data class PlayerSidelined(
+    val type: String?,
+    val start: String?,
+    val end: String?
 )
 
 @JsonClass(generateAdapter = true)

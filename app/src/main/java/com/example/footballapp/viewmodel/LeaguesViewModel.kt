@@ -3,7 +3,7 @@ package com.example.footballapp.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.footballapp.data.model.Country
-import com.example.footballapp.data.model.League
+import com.example.footballapp.data.model.LeagueResponse
 import com.example.footballapp.data.repository.LeagueRepository
 import com.example.footballapp.data.util.ApiResult
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -55,7 +55,7 @@ class LeaguesViewModel @Inject constructor(
 }
 
 data class LeaguesData(
-    val leagues: List<League>,
+    val leagues: List<LeagueResponse>,
     val countries: List<Country>,
     val seasons: List<Int>
 )

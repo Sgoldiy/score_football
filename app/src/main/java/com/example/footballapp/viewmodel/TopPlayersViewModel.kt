@@ -2,13 +2,11 @@ package com.example.footballapp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.footballapp.data.model.PlayerStatistics
-import com.example.footballapp.data.repository.PlayerRepository
+import com.example.footballapp.data.model.PlayerProfileStatisticsResponse
 import com.example.footballapp.data.remote.ApiService
 import com.example.footballapp.data.util.ApiResult
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.async
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -19,45 +17,123 @@ class TopPlayersViewModel @Inject constructor(
     private val apiService: ApiService
 ) : ViewModel() {
 
-    private val _topPlayersState = MutableStateFlow<ApiResult<TopPlayersData>>(ApiResult.Loading)
-    val topPlayersState: StateFlow<ApiResult<TopPlayersData>> = _topPlayersState
+    data class CompetitionTab(
+        val id: String,
+        val label: String,
+        val leagueIds: List<Int>,
+        val season: Int
+    )
 
-    fun loadTopPlayers(leagueId: Int, season: Int) {
+    val tabs = listOf(
+        CompetitionTab("europe", "Europe", listOf(39, 140, 135, 78, 61), 2024),
+        CompetitionTab("premier_league", "Premier League", listOf(39), 2024),
+        CompetitionTab("la_liga", "La Liga", listOf(140), 2024),
+        CompetitionTab("serie_a", "Serie A", listOf(135), 2024),
+        CompetitionTab("bundesliga", "Bundesliga", listOf(78), 2024),
+        CompetitionTab("ligue_1", "Ligue 1", listOf(61), 2024),
+        CompetitionTab("ucl", "UCL", listOf(2), 2024),
+        CompetitionTab("uel", "UEL", listOf(3), 2024),
+        CompetitionTab("uecl", "UECL", listOf(848), 2024),
+        CompetitionTab("world_cup", "World Cup", listOf(1), 2022),
+        CompetitionTab("euro", "Euro", listOf(4), 2024),
+        CompetitionTab("copa_america", "Copa America", listOf(9), 2024),
+    )
+
+    private val _tabData = MutableStateFlow<Map<String, ApiResult<TopPlayersData>>>(emptyMap())
+    val tabData: StateFlow<Map<String, ApiResult<TopPlayersData>>> = _tabData
+
+    private val _selectedTabIndex = MutableStateFlow(0)
+    val selectedTabIndex: StateFlow<Int> = _selectedTabIndex
+
+    init {
+        selectTab(0)
+    }
+
+    fun selectTab(index: Int) {
+        if (index !in tabs.indices) return
+        _selectedTabIndex.value = index
+        val tab = tabs[index]
+        if (_tabData.value[tab.id] == null || _tabData.value[tab.id] is ApiResult.Loading) {
+            loadDataForTab(tab)
+        }
+    }
+
+    private fun loadDataForTab(tab: CompetitionTab) {
         viewModelScope.launch {
-            _topPlayersState.value = ApiResult.Loading
-            while (true) {
-                try {
-                    val scorersDef = async { apiService.getTopScorers(leagueId, season) }
-                    val assistsDef = async { apiService.getTopAssists(leagueId, season) }
-                    val yellowCardsDef = async { apiService.getTopYellowCards(leagueId, season) }
-                    val redCardsDef = async { apiService.getTopRedCards(leagueId, season) }
+            _tabData.value = _tabData.value + (tab.id to ApiResult.Loading)
+            try {
+                if (tab.leagueIds.size > 1) {
+                    val scorersDefs = tab.leagueIds.map { leagueId ->
+                        async { apiService.getTopScorers(leagueId, tab.season).response }
+                    }
+                    val assistsDefs = tab.leagueIds.map { leagueId ->
+                        async { apiService.getTopAssists(leagueId, tab.season).response }
+                    }
+                    val yellowDefs = tab.leagueIds.map { leagueId ->
+                        async { apiService.getTopYellowCards(leagueId, tab.season).response }
+                    }
+                    val redDefs = tab.leagueIds.map { leagueId ->
+                        async { apiService.getTopRedCards(leagueId, tab.season).response }
+                    }
+
+                    _tabData.value = _tabData.value + (tab.id to ApiResult.Success(
+                        TopPlayersData(
+                            scorers = scorersDefs.flatMap { it.await() }
+                                .distinctBy { it.player?.id }
+                                .sortedByDescending { it.statistics?.firstOrNull()?.goals?.total ?: 0 }
+                                .take(30),
+                            assists = assistsDefs.flatMap { it.await() }
+                                .distinctBy { it.player?.id }
+                                .sortedByDescending { it.statistics?.firstOrNull()?.goals?.assists ?: 0 }
+                                .take(30),
+                            yellowCards = yellowDefs.flatMap { it.await() }
+                                .distinctBy { it.player?.id }
+                                .sortedByDescending { it.statistics?.firstOrNull()?.cards?.yellow ?: 0 }
+                                .take(20),
+                            redCards = redDefs.flatMap { it.await() }
+                                .distinctBy { it.player?.id }
+                                .sortedByDescending { it.statistics?.firstOrNull()?.cards?.red ?: 0 }
+                                .take(20)
+                        )
+                    ))
+                } else {
+                    val leagueId = tab.leagueIds.first()
+                    val scorersDef = async { apiService.getTopScorers(leagueId, tab.season) }
+                    val assistsDef = async { apiService.getTopAssists(leagueId, tab.season) }
+                    val yellowDef = async { apiService.getTopYellowCards(leagueId, tab.season) }
+                    val redDef = async { apiService.getTopRedCards(leagueId, tab.season) }
 
                     val scorers = scorersDef.await()
                     val assists = assistsDef.await()
-                    val yellow = yellowCardsDef.await()
-                    val red = redCardsDef.await()
+                    val yellow = yellowDef.await()
+                    val red = redDef.await()
 
-                    // Here we extract from ApiResponse directly as we used apiService directly for this VM
-                    _topPlayersState.value = ApiResult.Success(
+                    _tabData.value = _tabData.value + (tab.id to ApiResult.Success(
                         TopPlayersData(
-                            scorers.response,
-                            assists.response,
-                            yellow.response,
-                            red.response
+                            scorers = scorers.response.sortedByDescending { it.statistics?.firstOrNull()?.goals?.total ?: 0 }.take(30),
+                            assists = assists.response.sortedByDescending { it.statistics?.firstOrNull()?.goals?.assists ?: 0 }.take(30),
+                            yellowCards = yellow.response.sortedByDescending { it.statistics?.firstOrNull()?.cards?.yellow ?: 0 }.take(20),
+                            redCards = red.response.sortedByDescending { it.statistics?.firstOrNull()?.cards?.red ?: 0 }.take(20)
                         )
-                    )
-                } catch (e: Exception) {
-                    _topPlayersState.value = ApiResult.Error(e.message ?: "Unknown error")
+                    ))
                 }
-                delay(1_800_000) // 30 minutes refresh
+            } catch (e: Exception) {
+                _tabData.value = _tabData.value + (tab.id to ApiResult.Error(e.message ?: "Unknown error"))
             }
         }
     }
 }
 
 data class TopPlayersData(
-    val scorers: List<PlayerStatistics>,
-    val assists: List<PlayerStatistics>,
-    val yellowCards: List<PlayerStatistics>,
-    val redCards: List<PlayerStatistics>
-)
+    val scorers: List<PlayerProfileStatisticsResponse>,
+    val assists: List<PlayerProfileStatisticsResponse>,
+    val yellowCards: List<PlayerProfileStatisticsResponse>,
+    val redCards: List<PlayerProfileStatisticsResponse>
+) {
+    fun topRated(): List<PlayerProfileStatisticsResponse> {
+        return (scorers + assists)
+            .distinctBy { it.player?.id }
+            .sortedByDescending { it.statistics?.firstOrNull()?.games?.rating?.toFloatOrNull() ?: 0f }
+            .take(20)
+    }
+}

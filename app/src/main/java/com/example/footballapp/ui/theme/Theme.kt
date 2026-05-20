@@ -14,37 +14,30 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Color(0xFF00FF57), // Neon Football Green for a modern look
-    secondary = Color(0xFF1A1A1A),
-    tertiary = Color(0xFF2B2B2B),
-    background = Color(0xFF000000), // True Black
-    surface = Color(0xFF000000),
+    primary = LiveGreen,
+    secondary = IceBlue,
+    tertiary = SignalAmber,
+    background = PitchBlack,
+    surface = PitchSurface,
     onPrimary = Color.Black,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color.White,
-    onSurface = Color.White,
-    surfaceVariant = Color(0xFF1A1A1A)
+    onSecondary = PitchBlack,
+    onTertiary = PitchBlack,
+    onBackground = TextPrimary,
+    onSurface = TextPrimary,
+    surfaceVariant = PitchSurfaceHigh,
+    outline = PitchLine,
+    error = DangerRed
 )
 
 private val LightColorScheme = DarkColorScheme // Force dark theme for now as requested
 
 @Composable
 fun FootballAppTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    darkTheme: Boolean = true, // Force dark theme for the premium look
+    dynamicColor: Boolean = false, // Disable dynamic color to maintain the strict premium identity
     content: @Composable () -> Unit
 ) {
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-            val context = LocalContext.current
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        }
-
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
-    }
+    val colorScheme = DarkColorScheme
 
     MaterialTheme(
         colorScheme = colorScheme,

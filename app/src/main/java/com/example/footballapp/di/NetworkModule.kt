@@ -2,6 +2,7 @@ package com.example.footballapp.di
 
 import com.example.footballapp.data.remote.ApiService
 import com.example.footballapp.data.remote.AuthInterceptor
+import com.example.footballapp.data.remote.FlexibleJsonAdapters
 import com.example.footballapp.data.remote.provideLoggingInterceptor
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
@@ -22,6 +23,7 @@ object NetworkModule {
     @Singleton
     fun provideMoshi(): Moshi {
         return Moshi.Builder()
+            .add(FlexibleJsonAdapters())
             .add(KotlinJsonAdapterFactory())
             .build()
     }

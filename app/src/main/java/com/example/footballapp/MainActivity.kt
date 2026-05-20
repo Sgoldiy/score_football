@@ -40,7 +40,8 @@ class MainActivity : ComponentActivity() {
                 val noBottomBarScreens = listOf(
                     Screen.Splash.route,
                     Screen.Onboarding.route,
-                    Screen.Details.route
+                    Screen.Details.route,
+                    Screen.TopPlayers.route
                 )
 
                 Scaffold(

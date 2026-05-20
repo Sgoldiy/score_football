@@ -2,7 +2,9 @@ package com.example.footballapp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.footballapp.data.model.PlayerStatistics
+import com.example.footballapp.data.model.PlayerProfileStatisticsResponse
+import com.example.footballapp.data.model.PlayerSidelined
+import com.example.footballapp.data.model.PlayerTrophy
 import com.example.footballapp.data.repository.PlayerRepository
 import com.example.footballapp.data.util.ApiResult
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -51,7 +53,7 @@ class PlayerViewModel @Inject constructor(
 }
 
 data class PlayerData(
-    val stats: List<PlayerStatistics>,
-    val trophies: List<Any>,
-    val sidelined: List<Any>
+    val stats: List<PlayerProfileStatisticsResponse>,
+    val trophies: List<PlayerTrophy>,
+    val sidelined: List<PlayerSidelined>
 )

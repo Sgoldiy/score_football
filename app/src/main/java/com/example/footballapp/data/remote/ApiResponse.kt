@@ -5,8 +5,8 @@ import com.squareup.moshi.JsonClass
 @JsonClass(generateAdapter = true)
 data class ApiResponse<T>(
     val get: String?,
-    val parameters: Any?, // Changed from Map<String, String>? to Any? to handle [] vs {}
-    val errors: Any?,     // Changed to Any? to handle [] vs {}
+    val parameters: ApiParameters?,
+    val errors: ApiErrors?,
     val results: Int?,
     val paging: Paging?,
     val response: T
@@ -17,3 +17,13 @@ data class Paging(
     val current: Int?,
     val total: Int?
 )
+
+data class ApiParameters(
+    val values: Map<String, String> = emptyMap()
+)
+
+data class ApiErrors(
+    val messages: List<String> = emptyList()
+) {
+    val isNotEmpty: Boolean get() = messages.isNotEmpty()
+}

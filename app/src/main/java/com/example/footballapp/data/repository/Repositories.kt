@@ -54,8 +54,8 @@ class FixturesRepository @Inject constructor(
     private suspend fun <T> safeApiCall(call: suspend () -> com.example.footballapp.data.remote.ApiResponse<T>): ApiResult<T> {
         return try {
             val response = call()
-            if (response.errors is Map<*, *> && (response.errors as Map<*, *>).isNotEmpty()) {
-                ApiResult.Error((response.errors as Map<*, *>).toString())
+            if (response.errors?.isNotEmpty == true) {
+                ApiResult.Error(response.errors.messages.joinToString())
             } else {
                 ApiResult.Success(response.response)
             }
@@ -74,10 +74,10 @@ class FixturesRepository @Inject constructor(
 
 data class FixtureDetailData(
     val fixture: FixtureResponse?,
-    val lineups: List<Any>,
-    val events: List<Any>,
-    val statistics: List<Any>,
-    val playerStats: List<Any>,
+    val lineups: List<FixtureLineup>,
+    val events: List<FixtureEvent>,
+    val statistics: List<FixtureTeamStatistics>,
+    val playerStats: List<FixturePlayerStatisticsResponse>,
     val predictions: List<Prediction>,
     val odds: List<OddsResponse>,
     val injuries: List<Injury>,
@@ -89,7 +89,7 @@ data class FixtureDetailData(
 class TeamRepository @Inject constructor(private val apiService: ApiService) {
     suspend fun getTeamInfo(teamId: Int) = safeApiCall { apiService.getTeamInfo(teamId) }
     suspend fun getTeamStatistics(teamId: Int, leagueId: Int, season: Int) = safeApiCall { apiService.getTeamStatistics(teamId, leagueId, season) }
-    suspend fun getVenues(teamId: Int) = safeApiCall { apiService.getVenues(teamId) }
+    suspend fun getVenueById(venueId: Int) = safeApiCall { apiService.getVenueById(venueId) }
     suspend fun getSquad(teamId: Int) = safeApiCall { apiService.getTeamSquad(teamId) }
     suspend fun getCoaches(teamId: Int) = safeApiCall { apiService.getTeamCoaches(teamId) }
     suspend fun getTransfers(teamId: Int) = safeApiCall { apiService.getTeamTransfers(teamId) }

@@ -6,7 +6,6 @@ import com.example.footballapp.data.model.FixtureResponse
 import com.example.footballapp.data.repository.FixturesRepository
 import com.example.footballapp.data.util.ApiResult
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -23,20 +22,14 @@ class FixturesViewModel @Inject constructor(
     fun getFixturesByDate(date: String) {
         viewModelScope.launch {
             _fixturesState.value = ApiResult.Loading
-            while (true) {
-                _fixturesState.value = repository.getFixturesByDate(date)
-                delay(60_000)
-            }
+            _fixturesState.value = repository.getFixturesByDate(date)
         }
     }
 
     fun getFixturesByLeagueSeason(leagueId: Int, season: Int) {
         viewModelScope.launch {
             _fixturesState.value = ApiResult.Loading
-            while (true) {
-                _fixturesState.value = repository.getFixturesByLeagueSeason(leagueId, season)
-                delay(60_000)
-            }
+            _fixturesState.value = repository.getFixturesByLeagueSeason(leagueId, season)
         }
     }
 }
