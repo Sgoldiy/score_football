@@ -1,99 +1,54 @@
 package com.example.footballapp.ui.screens.leagues
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import com.example.footballapp.data.model.LeagueResponse
 import com.example.footballapp.data.util.ApiResult
-import com.example.footballapp.ui.components.FootballLogo
-import com.example.footballapp.ui.components.InfoPill
-import com.example.footballapp.ui.components.PremiumCard
-import com.example.footballapp.ui.components.ShimmerBlock
-import com.example.footballapp.ui.theme.IceBlue
-import com.example.footballapp.ui.theme.LiveGreen
-import com.example.footballapp.ui.theme.PitchBlack
-import com.example.footballapp.ui.theme.PitchSurface
-import com.example.footballapp.ui.theme.PitchSurfaceHigh
-import com.example.footballapp.ui.theme.TextSecondary
-import com.example.footballapp.viewmodel.LeaguesData
+import com.example.footballapp.ui.components.MatchRowShimmer
+import com.example.footballapp.ui.components.SectionHeader
 import com.example.footballapp.viewmodel.LeaguesViewModel
 
 @Composable
 fun LeaguesScreen(
-    onBackClick: () -> Unit,
+    onNavigateToLeagueDetail: (Int) -> Unit,
     viewModel: LeaguesViewModel = hiltViewModel()
 ) {
-    val state by viewModel.leaguesState.collectAsState()
+    val leaguesState by viewModel.leaguesState.collectAsState()
 
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Color(0xFF0A192F), PitchBlack)))
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 110.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            item {
-                LeagueHero()
+        SectionHeader(title = "All Leagues")
+        
+        when (val state = leaguesState) {
+            is ApiResult.Loading -> {
+                LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(16.dp)) {
+                    items(10) { MatchRowShimmer() }
+                }
             }
-
-            when (val current = state) {
-                ApiResult.Loading -> {
-                    items(6) {
-                        Box(Modifier.padding(horizontal = 16.dp)) {
-                            ShimmerBlock(Modifier.fillMaxWidth().height(100.dp))
-                        }
-                    }
-                }
-                is ApiResult.Error -> {
-                    item {
-                        Box(Modifier.padding(16.dp)) {
-                            PremiumCard(Modifier.fillMaxWidth()) {
-                                Text(current.message, color = MaterialTheme.colorScheme.error)
-                            }
-                        }
-                    }
-                }
-                is ApiResult.Success -> {
-                    item {
-                        CoverageSummary(current.data)
-                    }
-                    items(current.data.leagues.take(80), key = { it.league?.id ?: it.hashCode() }) { league ->
-                        Box(Modifier.padding(horizontal = 16.dp)) {
-                            LeagueRow(league)
-                        }
-                    }
+            is ApiResult.Success -> {
+                LeaguesList(state.data.leagues, onNavigateToLeagueDetail)
+            }
+            is ApiResult.Error -> {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(state.message, color = MaterialTheme.colorScheme.error)
                 }
             }
         }
@@ -101,135 +56,58 @@ fun LeaguesScreen(
 }
 
 @Composable
-private fun LeagueHero() {
-    Box(
+fun LeaguesList(leagues: List<LeagueResponse>, onLeagueClick: (Int) -> Unit) {
+    LazyColumn(
+        contentPadding = PaddingValues(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(leagues) { leagueItem ->
+            LeagueItem(leagueItem, onClick = { leagueItem.league?.id?.let(onLeagueClick) })
+        }
+    }
+}
+
+@Composable
+fun LeagueItem(leagueItem: LeagueResponse, onClick: () -> Unit) {
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(240.dp)
-            .clip(RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp))
+            .clickable { onClick() },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(Color(0xFF003366), Color(0xFF0A192F))
-                    )
-                )
-        )
-        Column(
+        Row(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(24.dp),
-            verticalArrangement = Arrangement.Bottom
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                "Leagues",
-                color = Color.White,
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Black
-            )
-            Text(
-                "Explore world football competitions",
-                color = TextSecondary,
-                style = MaterialTheme.typography.bodyLarge
-            )
-        }
-    }
-}
-
-@Composable
-private fun CoverageSummary(data: LeaguesData) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        SummaryMetricCard("Leagues", data.leagues.size.toString(), Modifier.weight(1f))
-        SummaryMetricCard("Countries", data.countries.size.toString(), Modifier.weight(1f))
-        SummaryMetricCard("Active", data.leagues.count { it.seasons.orEmpty().any { s -> s.current == true } }.toString(), Modifier.weight(1f))
-    }
-}
-
-@Composable
-private fun SummaryMetricCard(label: String, value: String, modifier: Modifier = Modifier) {
-    PremiumCard(
-        modifier = modifier,
-        brush = Brush.linearGradient(listOf(PitchSurfaceHigh, PitchSurface))
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(value, color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-            Text(label, color = TextSecondary, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-        }
-    }
-}
-
-@Composable
-private fun LeagueRow(response: LeagueResponse) {
-    val league = response.league
-    val currentSeason = response.seasons.orEmpty().firstOrNull { it.current == true } ?: response.seasons.orEmpty().maxByOrNull { it.year }
-    
-    PremiumCard(
-        modifier = Modifier.fillMaxWidth(),
-        brush = Brush.linearGradient(listOf(PitchSurfaceHigh.copy(alpha = 0.5f), PitchSurface.copy(alpha = 0.5f)))
-    ) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Box(
                 modifier = Modifier
-                    .size(64.dp)
+                    .size(48.dp)
                     .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.05f))
-                    .padding(12.dp)
+                    .background(Color.White.copy(alpha = 0.1f)),
+                contentAlignment = Alignment.Center
             ) {
-                FootballLogo(
-                    url = league?.logo,
-                    contentDescription = league?.name,
-                    modifier = Modifier.fillMaxSize(),
-                    glow = IceBlue.copy(alpha = 0.2f)
+                AsyncImage(
+                    model = leagueItem.league?.logo,
+                    contentDescription = null,
+                    modifier = Modifier.size(32.dp)
                 )
             }
-            Spacer(Modifier.width(16.dp))
-            Column(Modifier.weight(1f)) {
+            Spacer(modifier = Modifier.width(16.dp))
+            Column {
                 Text(
-                    league?.name ?: "Competition",
-                    color = Color.White,
+                    text = leagueItem.league?.name ?: "Unknown League",
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Black,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    listOfNotNull(response.country?.name, currentSeason?.year?.toString()).joinToString(" • "),
-                    color = TextSecondary,
-                    style = MaterialTheme.typography.bodySmall,
                     fontWeight = FontWeight.Bold
                 )
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    val coverage = currentSeason?.coverage
-                    if (coverage?.standings == true) CoverageBadge("TABLE", LiveGreen)
-                    if (coverage?.fixtures?.events == true) CoverageBadge("EVENTS", IceBlue)
-                    if (coverage?.players == true) CoverageBadge("DATA", Color.White)
-                }
+                Text(
+                    text = leagueItem.country?.name ?: "International",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
-    }
-}
-
-@Composable
-private fun CoverageBadge(text: String, color: Color) {
-    Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(4.dp))
-            .background(color.copy(alpha = 0.1f))
-            .padding(horizontal = 6.dp, vertical = 2.dp)
-    ) {
-        Text(
-            text,
-            color = color,
-            fontSize = 8.sp,
-            fontWeight = FontWeight.Black
-        )
     }
 }

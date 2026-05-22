@@ -1,630 +1,403 @@
 package com.example.footballapp.ui.screens.home
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.hilt.navigation.compose.hiltViewModel
-import com.example.footballapp.data.model.FixtureResponse
-import com.example.footballapp.data.model.League
-import com.example.footballapp.data.model.PlayerProfileStatisticsResponse
-import com.example.footballapp.ui.components.BroadcastMatchCard
-import com.example.footballapp.ui.components.FootballLogo
-import com.example.footballapp.ui.components.InfoPill
-import com.example.footballapp.ui.components.PlayerAvatar
-import com.example.footballapp.ui.components.PremiumCard
-import com.example.footballapp.ui.components.ShimmerBlock
-import com.example.footballapp.ui.theme.*
-import com.example.footballapp.viewmodel.HomeUiState
-import com.example.footballapp.viewmodel.HomeViewModel
-import kotlinx.coroutines.delay
+import coil.compose.AsyncImage
+import com.example.footballapp.ui.components.LiveBadge
+import com.example.footballapp.ui.components.MatchRow
+import com.example.footballapp.ui.components.SectionHeader
 
-private enum class MatchTab(val label: String) {
-    Live("Live"),
-    Upcoming("Upcoming"),
-    Finished("Finished")
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    viewModel: HomeViewModel = hiltViewModel(),
-    onNavigateToFixtures: () -> Unit,
+    onNavigateToSearch: () -> Unit,
+    onNavigateToFavourites: () -> Unit,
+    onNavigateToNotifications: () -> Unit,
+    onNavigateToMatchCenter: (String) -> Unit,
     onNavigateToLeagues: () -> Unit,
-    onNavigateToFavorites: () -> Unit,
-    onNavigateToSettings: () -> Unit,
-    onNavigateToTopPlayers: () -> Unit,
-    onNavigateToMatchDetails: (String) -> Unit,
-    onNavigateToPlayerProfile: (Int) -> Unit = {}
+    onNavigateToPlayerProfile: (Int) -> Unit
 ) {
-    val uiState by viewModel.homeState.collectAsState()
-
-    Scaffold(
-        containerColor = PitchBlack,
-        topBar = {
-            Box {
-                // Glassmorphism effect for Top Bar
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(64.dp)
-                        .blur(20.dp)
-                        .background(PitchBlack.copy(alpha = 0.4f))
-                )
-                TopAppBar(
-                    title = {
-                        Column {
-                            Text(
-                                "Football Plus",
-                                fontWeight = FontWeight.Black,
-                                color = Color.White,
-                                letterSpacing = (-0.5).sp
-                            )
-                            Text(
-                                "Live scores, stats, lineups",
-                                style = MaterialTheme.typography.labelMedium,
-                                color = TextSecondary
-                            )
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { onNavigateToFixtures() }) {
-                            Icon(Icons.Default.Search, contentDescription = "Search", tint = Color.White)
-                        }
-                        IconButton(onClick = { onNavigateToFavorites() }) {
-                            Icon(Icons.Default.Favorite, contentDescription = "Favorites", tint = Color.White)
-                        }
-                        IconButton(onClick = { onNavigateToSettings() }) {
-                            Icon(Icons.Default.Notifications, contentDescription = "Notifications", tint = Color.White)
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent,
-                        titleContentColor = Color.White,
-                        actionIconContentColor = Color.White
-                    )
-                )
-            }
-        }
-    ) { paddingValues ->
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            Color(0xFF0A192F), // Deep Dark Blue
-                            PitchBlack,
-                            PitchBlack
-                        )
-                    )
-                )
-                .padding(paddingValues)
-        ) {
-            when (val state = uiState) {
-                HomeUiState.Loading -> HomeShimmer()
-                is HomeUiState.Error -> HomeError(state.message, onRetry = viewModel::fetchHomeContent)
-                is HomeUiState.Success -> HomeContent(
-                    state = state,
-                    onLeagueClick = onNavigateToLeagues,
-                    onTopPlayersClick = onNavigateToTopPlayers,
-                    onMatchClick = { onNavigateToMatchDetails(it.toString()) },
-                    onPlayerClick = onNavigateToPlayerProfile
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun HomeContent(
-    state: HomeUiState.Success,
-    onLeagueClick: () -> Unit,
-    onTopPlayersClick: () -> Unit,
-    onMatchClick: (Int) -> Unit,
-    onPlayerClick: (Int) -> Unit
-) {
-    var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = MatchTab.entries
-
     LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 110.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
-    ) {
-        item {
-            Spacer(Modifier.height(4.dp))
-            HeroMatchCarousel(
-                matches = state.featuredMatches.take(8),
-                onMatchClick = onMatchClick
-            )
-        }
-
-        item {
-            PremiumLeagueSelector(
-                leagues = state.topLeagues.take(12),
-                onClick = onLeagueClick
-            )
-        }
-
-        item {
-            if (state.topPlayers.isNotEmpty()) {
-                PremiumPlayersSection(state.topPlayers.take(10), onTopPlayersClick, onPlayerClick)
-            }
-        }
-
-        item {
-            SegmentedMatchTabs(
-                tabs = tabs,
-                selectedIndex = selectedTab,
-                counts = listOf(state.liveMatches.size, state.upcomingMatches.size, state.finishedMatches.size),
-                onTabSelected = { selectedTab = it }
-            )
-        }
-
-        item {
-            AnimatedContent(
-                targetState = selectedTab,
-                transitionSpec = {
-                    (slideInVertically { it * 50 } + fadeIn()).togetherWith(slideOutVertically { -it * 50 } + fadeOut())
-                },
-                label = "match-list"
-            ) { targetTab ->
-                val visibleMatches = when (tabs[targetTab]) {
-                    MatchTab.Live -> state.liveMatches
-                    MatchTab.Upcoming -> state.upcomingMatches
-                    MatchTab.Finished -> state.finishedMatches
-                }
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    if (visibleMatches.isEmpty()) {
-                        EmptyState(tabs[targetTab].label)
-                    } else {
-                        visibleMatches.take(24).forEach { match ->
-                            BroadcastMatchCard(
-                                match = match,
-                                modifier = Modifier.fillMaxWidth(),
-                                onClick = { match.fixture?.id?.let(onMatchClick) }
-                            )
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun SegmentedMatchTabs(
-    tabs: List<MatchTab>,
-    selectedIndex: Int,
-    counts: List<Int>,
-    onTabSelected: (Int) -> Unit
-) {
-    Box(
         modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(PitchSurfaceHigh)
-            .padding(4.dp)
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly
-        ) {
-            tabs.forEachIndexed { index, tab ->
-                val isSelected = selectedIndex == index
-                val bgColor by animateColorAsState(
-                    targetValue = if (isSelected) Color.White.copy(alpha = 0.1f) else Color.Transparent,
-                    label = "tab-bg"
-                )
-
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(bgColor)
-                        .clickable { onTabSelected(index) }
-                        .padding(vertical = 10.dp),
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (isSelected) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .clip(CircleShape)
-                                .background(LiveGreen)
-                        )
-                        Spacer(Modifier.width(6.dp))
-                    }
-                    Text(
-                        text = tab.label,
-                        color = if (isSelected) Color.White else TextSecondary,
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        fontSize = if (isSelected) 13.sp else 12.sp
-                    )
-                    if (counts.getOrElse(index) { 0 } > 0) {
-                        Spacer(Modifier.width(6.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(if (isSelected) LiveGreen.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.08f))
-                                .padding(horizontal = 7.dp, vertical = 2.dp)
-                        ) {
-                            Text(
-                                text = "${counts[index]}",
-                                color = if (isSelected) LiveGreen else TextSecondary,
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 10.sp
-                            )
-                        }
-                    }
-                }
-            }
+        // A. Top App Bar
+        item {
+            HomeTopBar(
+                onSearchClick = onNavigateToSearch,
+                onFavouritesClick = onNavigateToFavourites,
+                onNotificationsClick = onNavigateToNotifications
+            )
         }
+
+        // B. Live Match Hero Card
+        item {
+            LiveMatchHeroCard(
+                onClick = { onNavigateToMatchCenter("live_1") }
+            )
+        }
+
+        // C. Featured Matches Carousel
+        item {
+            SectionHeader(title = "Featured", actionText = "See all", onAction = {})
+            FeaturedMatchesCarousel(onMatchClick = onNavigateToMatchCenter)
+        }
+
+        // D. Top Leagues Horizontal Scroll
+        item {
+            SectionHeader(title = "Top Leagues", actionText = "Follow", onAction = onNavigateToLeagues)
+            TopLeaguesRow()
+        }
+
+        // E. Players to Watch
+        item {
+            SectionHeader(title = "Players to watch", actionText = "Explore", onAction = {})
+            PlayersToWatchRow(onPlayerClick = onNavigateToPlayerProfile)
+        }
+
+        // F. Filter Tabs
+        item {
+            FilterTabs()
+        }
+
+        // G. Match List
+        items(5) { // Placeholder for grouped matches
+            MatchGroup(onMatchClick = onNavigateToMatchCenter)
+        }
+        
+        item { Spacer(modifier = Modifier.height(80.dp)) }
     }
 }
 
 @Composable
-private fun PremiumLeagueSelector(
-    leagues: List<League>,
-    onClick: () -> Unit
+fun HomeTopBar(
+    onSearchClick: () -> Unit,
+    onFavouritesClick: () -> Unit,
+    onNotificationsClick: () -> Unit
 ) {
-    Column {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                "Top leagues",
-                color = Color.White,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Black
-            )
-            Text(
-                "Follow",
-                color = LiveGreen,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable(onClick = onClick)
-            )
-        }
-        Spacer(Modifier.height(10.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(leagues, key = { it.id }) { league ->
-                PremiumLeagueChip(league)
-            }
-        }
-    }
-}
-
-@Composable
-private fun PremiumLeagueChip(league: League) {
-    val gradient = when (league.id) {
-        39 -> Brush.linearGradient(listOf(PremierLeaguePurple, PremierLeaguePink))
-        140 -> Brush.linearGradient(listOf(LaLigaRed, LaLigaOrange))
-        135 -> Brush.linearGradient(listOf(SerieABlue, ElectricBlue))
-        78 -> Brush.linearGradient(listOf(BundesligaRed, Color.Black))
-        61 -> Brush.linearGradient(listOf(Color(0xFF004170), Ligue1Yellow))
-        2 -> Brush.linearGradient(listOf(UCLDarkBlue, UCLGold))
-        3 -> Brush.linearGradient(listOf(Color(0xFF003399), Color(0xFF00BFFF)))
-        848 -> Brush.linearGradient(listOf(Color(0xFF004D40), Color(0xFF00C853)))
-        1 -> Brush.linearGradient(listOf(WorldCupGold, Color.Black))
-        4 -> Brush.linearGradient(listOf(Color(0xFF003399), Color(0xFFFFD700)))
-        9 -> Brush.linearGradient(listOf(Color(0xFFD52B1E), Color(0xFF003DA5)))
-        else -> Brush.linearGradient(listOf(PitchSurfaceHigh, PitchSurface))
-    }
-
     Row(
         modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(gradient)
-            .border(
-                1.dp,
-                Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.2f), Color.Transparent)),
-                RoundedCornerShape(20.dp)
-            )
-            .clickable(onClick = {})
-            .padding(horizontal = 14.dp, vertical = 12.dp),
+            .fillMaxWidth()
+            .padding(16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        FootballLogo(
-            url = league.logo,
-            contentDescription = league.name,
-            modifier = Modifier.size(32.dp),
-            glow = Color.White.copy(alpha = 0.3f)
-        )
-        Spacer(Modifier.width(10.dp))
         Column {
             Text(
-                league.name ?: "League",
-                color = Color.White,
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Black,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                text = "Football Plus",
+                style = MaterialTheme.typography.headlineMedium,
+                color = MaterialTheme.colorScheme.primary
             )
-            if (league.country != null) {
+            Text(
+                text = "Live scores, stats, lineups",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            TopBarIcon(Icons.Rounded.Search, onSearchClick)
+            TopBarIcon(Icons.Rounded.FavoriteBorder, onFavouritesClick)
+            TopBarIcon(Icons.Rounded.Notifications, onNotificationsClick)
+        }
+    }
+}
+
+@Composable
+fun TopBarIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(20.dp))
+    }
+}
+
+@Composable
+fun LiveMatchHeroCard(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AsyncImage(
+                        model = "", // Competition Logo
+                        contentDescription = null,
+                        modifier = Modifier.size(32.dp).clip(CircleShape)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Premier League", style = MaterialTheme.typography.labelLarge)
+                }
+                LiveBadge(minute = "64")
+            }
+            
+            Spacer(modifier = Modifier.height(24.dp))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TeamHeroColumn("Arsenal", "")
                 Text(
-                    league.country.uppercase(),
-                    color = Color.White.copy(alpha = 0.7f),
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.5.sp
+                    text = "2 - 1",
+                    style = MaterialTheme.typography.displayLarge.copy(
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 )
+                TeamHeroColumn("Chelsea", "")
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            Text(
+                text = "Second Half",
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+fun TeamHeroColumn(name: String, logoUrl: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        AsyncImage(
+            model = logoUrl,
+            contentDescription = null,
+            modifier = Modifier.size(52.dp).clip(CircleShape)
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(name, style = MaterialTheme.typography.labelMedium)
+    }
+}
+
+@Composable
+fun FeaturedMatchesCarousel(onMatchClick: (String) -> Unit) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        items(5) {
+            FeaturedMatchCard(onClick = { onMatchClick("featured_$it") })
+        }
+    }
+}
+
+@Composable
+fun FeaturedMatchCard(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .width(180.dp)
+            .height(120.dp)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("La Liga", style = MaterialTheme.typography.labelSmall, fontSize = 11.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AsyncImage(model = "", contentDescription = null, modifier = Modifier.size(32.dp))
+                Text(" 21:00 ", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                AsyncImage(model = "", contentDescription = null, modifier = Modifier.size(32.dp))
+            }
+            Spacer(modifier = Modifier.weight(1f))
+            Text("Upcoming", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+fun TopLeaguesRow() {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        val leagues = listOf("Premier League", "La Liga", "Bundesliga", "Serie A", "Ligue 1", "Champions League")
+        items(leagues) { league ->
+            Surface(
+                shape = RoundedCornerShape(50.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.size(28.dp).clip(CircleShape).background(Color.Gray))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(league, style = MaterialTheme.typography.labelLarge)
+                }
             }
         }
     }
 }
 
 @Composable
-private fun PremiumPlayersSection(
-    players: List<PlayerProfileStatisticsResponse>,
-    onViewAll: () -> Unit,
-    onPlayerClick: (Int) -> Unit
-) {
-    Column {
+fun PlayersToWatchRow(onPlayerClick: (Int) -> Unit) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        items(5) {
+            PlayerCard(onPlayerClick = onPlayerClick)
+        }
+    }
+}
+
+@Composable
+fun PlayerCard(onPlayerClick: (Int) -> Unit) {
+    Column(
+        modifier = Modifier
+            .width(140.dp)
+            .clickable { onPlayerClick(1) },
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        AsyncImage(
+            model = "",
+            contentDescription = null,
+            modifier = Modifier.size(56.dp).clip(CircleShape),
+            contentScale = ContentScale.Crop
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text("Erling Haaland", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+        Text("Manchester City", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(modifier = Modifier.height(4.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StatItem("G", "25")
+            StatItem("A", "5")
+            StatItem("R", "8.2")
+        }
+    }
+}
+
+@Composable
+fun StatItem(label: String, value: String) {
+    Row {
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(modifier = Modifier.width(2.dp))
+        Text(value, style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
+    }
+}
+
+@Composable
+fun FilterTabs() {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        FilterTab("● Live 28", isSelected = true)
+        FilterTab("Upcoming 57", isSelected = false)
+        FilterTab("Finished 80", isSelected = false)
+    }
+}
+
+@Composable
+fun FilterTab(label: String, isSelected: Boolean) {
+    Surface(
+        shape = RoundedCornerShape(50.dp),
+        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            style = MaterialTheme.typography.labelLarge,
+            color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+fun MatchGroup(onMatchClick: (String) -> Unit) {
+    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
         Row(
-            Modifier.fillMaxWidth(),
+            modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                "Players to watch",
-                color = Color.White,
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Black
-            )
-            Text(
-                "Explore",
-                color = LiveGreen,
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.clickable(onClick = onViewAll)
-            )
-        }
-        Spacer(Modifier.height(10.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(players, key = { it.player?.id ?: it.hashCode() }) { player ->
-                PlayerSpotlightCard(player, onPlayerClick)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.size(24.dp).clip(CircleShape).background(Color.Gray))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Premier League", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
             }
+            Text("3 matches", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-    }
-}
-
-@Composable
-private fun PlayerSpotlightCard(player: PlayerProfileStatisticsResponse, onPlayerClick: (Int) -> Unit) {
-    val stats = player.statistics?.firstOrNull()
-    val ratingFloat = stats?.games?.rating?.toFloatOrNull()
-    val formColor = when {
-        ratingFloat != null && ratingFloat >= 7.5f -> LiveGreen
-        ratingFloat != null && ratingFloat >= 6.5f -> Color(0xFFFFC857)
-        else -> TextSecondary
-    }
-    val formattedRating = ratingFloat?.let { "%.2f".format(it) } ?: "-"
-
-    PremiumCard(
-        modifier = Modifier.width(164.dp),
-        brush = Brush.linearGradient(listOf(Color(0xFF0A1E38), PitchSurfaceHigh, PitchSurface)),
-        onClick = { player.player?.id?.let(onPlayerClick) }
-    ) {
-        Column(
-            Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+        Spacer(modifier = Modifier.height(8.dp))
+        Card(
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
         ) {
-            PlayerAvatar(
-                url = player.player?.photo,
-                name = player.player?.name,
-                modifier = Modifier.size(68.dp),
-                ringColor = formColor.copy(alpha = 0.45f)
-            )
-            Text(
-                player.player?.name ?: "Player",
-                color = Color.White,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Center
-            )
-            Text(
-                stats?.team?.name ?: "",
-                color = TextSecondary,
-                style = MaterialTheme.typography.labelMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                MiniStat("G", stats?.goals?.total?.toString() ?: "-")
-                MiniStat("A", stats?.goals?.assists?.toString() ?: "-")
-                MiniStat("R", formattedRating)
+            Column {
+                MatchRowPlaceholder(onMatchClick)
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), thickness = 0.5.dp, color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                MatchRowPlaceholder(onMatchClick)
             }
         }
     }
 }
 
 @Composable
-private fun MiniStat(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            value,
-            color = Color.White,
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Black,
-            maxLines = 1
-        )
-        Text(
-            label,
-            color = TextSecondary,
-            style = MaterialTheme.typography.labelMedium,
-            fontSize = 10.sp
-        )
-    }
-}
-
-@Composable
-private fun HeroMatchCarousel(
-    matches: List<FixtureResponse>,
-    onMatchClick: (Int) -> Unit
-) {
-    if (matches.isEmpty()) {
-        EmptyState("Matches")
-        return
-    }
-
-    val listState = rememberLazyListState()
-    LaunchedEffect(matches.size) {
-        if (matches.size > 1) {
-            while (true) {
-                delay(4_500)
-                val next = (listState.firstVisibleItemIndex + 1) % matches.size
-                listState.animateScrollToItem(next)
-            }
-        }
-    }
-    LazyRow(
-        state = listState,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        contentPadding = PaddingValues(end = 16.dp)
+fun MatchRowPlaceholder(onMatchClick: (String) -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onMatchClick("match_1") }
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        items(matches, key = { it.fixture?.id ?: it.hashCode() }) { match ->
-            BroadcastMatchCard(
-                match = match,
-                modifier = Modifier.width(328.dp),
-                expandedByDefault = true,
-                onClick = { match.fixture?.id?.let(onMatchClick) }
-            )
+        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            AsyncImage(model = "", contentDescription = null, modifier = Modifier.size(32.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Arsenal", style = MaterialTheme.typography.bodyMedium)
         }
-    }
-}
-
-@Composable
-private fun EmptyState(label: String) {
-    PremiumCard(
-        modifier = Modifier.fillMaxWidth(),
-        brush = Brush.linearGradient(listOf(PitchSurface, PitchSurfaceHigh))
-    ) {
-        Column(
-            Modifier.fillMaxWidth().padding(vertical = 8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                "No $label matches",
-                color = MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                "Check another tab",
-                color = TextSecondary,
-                style = MaterialTheme.typography.labelMedium
-            )
-        }
-    }
-}
-
-@Composable
-private fun HomeShimmer() {
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item { ShimmerBlock(Modifier.fillMaxWidth().height(240.dp), RoundedCornerShape(24.dp)) }
-        item {
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                repeat(3) { ShimmerBlock(Modifier.weight(1f).height(48.dp), RoundedCornerShape(18.dp)) }
-            }
-        }
-        items(4) { ShimmerBlock(Modifier.fillMaxWidth().height(180.dp), RoundedCornerShape(24.dp)) }
-    }
-}
-
-@Composable
-private fun HomeError(message: String, onRetry: () -> Unit) {
-    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-        PremiumCard(brush = Brush.linearGradient(listOf(PitchSurfaceHigh, PitchSurface))) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    "Unable to load scores",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontWeight = FontWeight.Black
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    message,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextSecondary
-                )
-                Spacer(Modifier.height(16.dp))
-                InfoPill(
-                    "Retry",
-                    modifier = Modifier.clickable(onClick = onRetry)
-                )
-            }
+        
+        Text("2 : 1", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+        
+        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.End) {
+            Text("Chelsea", style = MaterialTheme.typography.bodyMedium)
+            Spacer(modifier = Modifier.width(8.dp))
+            AsyncImage(model = "", contentDescription = null, modifier = Modifier.size(32.dp))
         }
     }
 }

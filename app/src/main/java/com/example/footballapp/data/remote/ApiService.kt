@@ -141,6 +141,24 @@ interface ApiService {
         @Query("season") season: Int
     ): ApiResponse<List<PlayerProfileStatisticsResponse>>
 
+    // Search
+    @GET("teams")
+    suspend fun searchTeams(
+        @Query("search") query: String
+    ): ApiResponse<List<TeamInfoResponse>>
+
+    @GET("leagues")
+    suspend fun searchLeagues(
+        @Query("search") query: String
+    ): ApiResponse<List<LeagueResponse>>
+
+    @GET("players")
+    suspend fun searchPlayers(
+        @Query("search") query: String,
+        @Query("league") leagueId: Int? = null,
+        @Query("season") season: Int? = null
+    ): ApiResponse<List<PlayerProfileStatisticsResponse>>
+
     // Others
     @GET("predictions")
     suspend fun getPredictions(

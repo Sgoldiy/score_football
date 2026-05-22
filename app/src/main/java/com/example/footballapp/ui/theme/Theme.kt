@@ -1,47 +1,65 @@
 package com.example.footballapp.ui.theme
 
 import android.app.Activity
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
-
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+
+// Expose a global theme state that ANY composable can read
+val LocalIsDarkTheme = compositionLocalOf { true }
 
 private val DarkColorScheme = darkColorScheme(
-    primary = LiveGreen,
-    secondary = IceBlue,
-    tertiary = SignalAmber,
-    background = PitchBlack,
-    surface = PitchSurface,
-    onPrimary = Color.Black,
-    onSecondary = PitchBlack,
-    onTertiary = PitchBlack,
-    onBackground = TextPrimary,
-    onSurface = TextPrimary,
-    surfaceVariant = PitchSurfaceHigh,
-    outline = PitchLine,
-    error = DangerRed
+    primary          = DarkAccentGreen,
+    onPrimary        = Color(0xFF003319),
+    primaryContainer = DarkAccentDim,
+    background       = DarkBackground,
+    surface          = DarkSurface,
+    surfaceVariant   = DarkCard,
+    onBackground     = DarkTextPrimary,
+    onSurface        = DarkTextPrimary,
+    onSurfaceVariant = DarkTextSecondary,
+    outline          = DarkBorder,
+    error            = DarkRedCard,
 )
 
-private val LightColorScheme = DarkColorScheme // Force dark theme for now as requested
+private val LightColorScheme = lightColorScheme(
+    primary          = LightAccentGreen,
+    onPrimary        = Color(0xFFFFFFFF),
+    primaryContainer = LightAccentDim,
+    background       = LightBackground,
+    surface          = LightSurface,
+    surfaceVariant   = LightCard,
+    onBackground     = LightTextPrimary,
+    onSurface        = LightTextPrimary,
+    onSurfaceVariant = LightTextSecondary,
+    outline          = LightBorder,
+    error            = LightRedCard,
+)
 
 @Composable
-fun FootballAppTheme(
-    darkTheme: Boolean = true, // Force dark theme for the premium look
-    dynamicColor: Boolean = false, // Disable dynamic color to maintain the strict premium identity
+fun FootballPlusTheme(
+    darkTheme: Boolean,          // pass this from your ViewModel/DataStore
     content: @Composable () -> Unit
 ) {
-    val colorScheme = DarkColorScheme
-
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            window.statusBarColor = colorScheme.background.toArgb()
+            WindowCompat.getInsetsController(window, view)
+                .isAppearanceLightStatusBars = !darkTheme
+        }
+    }
+    CompositionLocalProvider(LocalIsDarkTheme provides darkTheme) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography  = AppTypography,
+            content     = content
+        )
+    }
 }

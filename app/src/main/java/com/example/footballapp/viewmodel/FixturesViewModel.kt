@@ -2,34 +2,37 @@ package com.example.footballapp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.footballapp.data.model.FixtureResponse
-import com.example.footballapp.data.repository.FixturesRepository
 import com.example.footballapp.data.util.ApiResult
+import com.example.footballapp.domain.model.Match
+import com.example.footballapp.domain.repository.FootballRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class FixturesViewModel @Inject constructor(
-    private val repository: FixturesRepository
+    private val repository: FootballRepository
 ) : ViewModel() {
 
-    private val _fixturesState = MutableStateFlow<ApiResult<List<FixtureResponse>>>(ApiResult.Loading)
-    val fixturesState: StateFlow<ApiResult<List<FixtureResponse>>> = _fixturesState
+    private val _fixturesState = MutableStateFlow<ApiResult<List<Match>>>(ApiResult.Loading)
+    val fixturesState: StateFlow<ApiResult<List<Match>>> = _fixturesState
 
     fun getFixturesByDate(date: String) {
         viewModelScope.launch {
-            _fixturesState.value = ApiResult.Loading
-            _fixturesState.value = repository.getFixturesByDate(date)
+            repository.getFixturesByDate(date).collectLatest {
+                _fixturesState.value = it
+            }
         }
     }
 
     fun getFixturesByLeagueSeason(leagueId: Int, season: Int) {
         viewModelScope.launch {
-            _fixturesState.value = ApiResult.Loading
-            _fixturesState.value = repository.getFixturesByLeagueSeason(leagueId, season)
+            repository.getFixturesByLeagueSeason(leagueId, season).collectLatest {
+                _fixturesState.value = it
+            }
         }
     }
 }
