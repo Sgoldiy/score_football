@@ -2,69 +2,184 @@ package com.example.footballapp.ui.screens.onboarding
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.footballapp.data.local.AppSettingsDataStore
+import com.example.footballapp.data.local.OnboardingDataStore
+import com.example.footballapp.data.util.ApiResult
+import com.example.footballapp.domain.model.LeagueInfo
+import com.example.footballapp.domain.model.StandingItem
+import com.example.footballapp.domain.repository.FootballRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.async
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import java.util.*
 import javax.inject.Inject
+
+data class OnboardingState(
+    val step: Int = 1,
+    val topLeagues: List<LeagueInfo> = emptyList(),
+    val selectedLeague: LeagueInfo? = null,
+    val leagueClubs: List<ClubItem> = emptyList(),
+    val allClubs: List<ClubItem> = emptyList(),
+    val primaryClub: ClubItem? = null,
+    val followedClubIds: Set<Int> = emptySet(),
+    val isLoading: Boolean = false,
+    val error: String? = null
+)
+
+data class ClubItem(
+    val id: Int,
+    val name: String,
+    val crestUrl: String?,
+    val leagueId: Int,
+    val leagueName: String = ""
+)
+
+private val TOP_5_LEAGUE_IDS = setOf(39, 140, 135, 78, 61)
 
 @HiltViewModel
 class OnboardingViewModel @Inject constructor(
-    private val appSettingsDataStore: AppSettingsDataStore
+    private val repository: FootballRepository,
+    private val dataStore: OnboardingDataStore
 ) : ViewModel() {
 
-    private val _selectedLeagues = MutableStateFlow<Set<Int>>(emptySet())
-    val selectedLeagues: StateFlow<Set<Int>> = _selectedLeagues.asStateFlow()
+    private val _state = MutableStateFlow(OnboardingState())
+    val state: StateFlow<OnboardingState> = _state.asStateFlow()
 
-    private val _selectedTeams = MutableStateFlow<Set<Int>>(emptySet())
-    val selectedTeams: StateFlow<Set<Int>> = _selectedTeams.asStateFlow()
-
-    private val _notificationSettings = MutableStateFlow<Map<String, Boolean>>(
-        mapOf(
-            "match_start" to true,
-            "goal" to true,
-            "halftime_fulltime" to true,
-            "red_card" to true,
-            "var_decisions" to true,
-            "lineup_released" to true
-        )
-    )
-    val notificationSettings: StateFlow<Map<String, Boolean>> = _notificationSettings.asStateFlow()
-
-    fun toggleLeague(leagueId: Int) {
-        val current = _selectedLeagues.value
-        _selectedLeagues.value = if (current.contains(leagueId)) {
-            current - leagueId
-        } else {
-            current + leagueId
-        }
+    init {
+        loadTopLeagues()
     }
 
-    fun toggleTeam(teamId: Int) {
-        val current = _selectedTeams.value
-        _selectedTeams.value = if (current.contains(teamId)) {
-            current - teamId
-        } else {
-            current + teamId
-        }
-    }
-
-    fun toggleNotificationSetting(key: String, enabled: Boolean) {
-        val current = _notificationSettings.value.toMutableMap()
-        current[key] = enabled
-        _notificationSettings.value = current
-    }
-
-    fun completeOnboarding() {
+    fun loadTopLeagues() {
         viewModelScope.launch {
-            appSettingsDataStore.saveOnboardingCompleted(true)
-            appSettingsDataStore.setLeaguesFollowed(_selectedLeagues.value)
-            appSettingsDataStore.setTeamsFollowed(_selectedTeams.value)
-            _notificationSettings.value.forEach { (key, enabled) ->
-                appSettingsDataStore.saveNotificationSetting(key, enabled)
+            _state.update { it.copy(isLoading = true, error = null) }
+            when (val result = repository.getLeagues()) {
+                is ApiResult.Success -> {
+                    val filtered = result.data.filter { it.id in TOP_5_LEAGUE_IDS }
+                    _state.update { it.copy(topLeagues = filtered, isLoading = false) }
+                }
+                is ApiResult.Error -> {
+                    _state.update { it.copy(isLoading = false, error = result.message) }
+                }
+                is ApiResult.Loading -> {}
             }
         }
     }
+
+    fun selectLeague(league: LeagueInfo) {
+        _state.update { it.copy(selectedLeague = league) }
+    }
+
+    fun loadLeagueClubs() {
+        val league = _state.value.selectedLeague ?: return
+        val season = league.season ?: Calendar.getInstance().get(Calendar.YEAR)
+
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true, error = null) }
+            repository.getStandings(league.id, season).first().let { result ->
+                when (result) {
+                    is ApiResult.Success -> {
+                        val clubs = result.data.take(5).map { standing ->
+                            ClubItem(
+                                id = standing.team.id,
+                                name = standing.team.name,
+                                crestUrl = standing.team.logo,
+                                leagueId = league.id,
+                                leagueName = league.name
+                            )
+                        }
+                        _state.update { it.copy(leagueClubs = clubs, isLoading = false) }
+                    }
+                    is ApiResult.Error -> {
+                        _state.update { it.copy(isLoading = false, error = result.message) }
+                    }
+                    is ApiResult.Loading -> {}
+                }
+            }
+        }
+    }
+
+    fun setPrimaryClub(club: ClubItem) {
+        _state.update {
+            it.copy(
+                primaryClub = club,
+                followedClubIds = setOf(club.id)
+            )
+        }
+    }
+
+    fun loadAllClubs() {
+        viewModelScope.launch {
+            _state.update { it.copy(isLoading = true, error = null) }
+
+            val leagues = _state.value.topLeagues
+            val season = Calendar.getInstance().get(Calendar.YEAR)
+
+            val deferred = leagues.map { league ->
+                async {
+                    try {
+                        val flow = repository.getStandings(league.id, season)
+                        val result = flow.first()
+                        if (result is ApiResult.Success) {
+                            result.data.take(5).map { standing ->
+                                ClubItem(
+                                    id = standing.team.id,
+                                    name = standing.team.name,
+                                    crestUrl = standing.team.logo,
+                                    leagueId = league.id,
+                                    leagueName = league.name
+                                )
+                            }
+                        } else emptyList()
+                    } catch (_: Exception) {
+                        emptyList()
+                    }
+                }
+            }
+
+            val allClubs = deferred.flatMap { it.await() }
+            _state.update { it.copy(allClubs = allClubs, isLoading = false) }
+        }
+    }
+
+    fun toggleFollowClub(clubId: Int) {
+        val current = _state.value.followedClubIds
+        val primaryId = _state.value.primaryClub?.id
+        if (clubId == primaryId) return
+
+        _state.update {
+            if (current.contains(clubId)) {
+                it.copy(followedClubIds = current - clubId)
+            } else if (current.size < 10) {
+                it.copy(followedClubIds = current + clubId)
+            } else it
+        }
+    }
+
+    fun isClubLocked(clubId: Int): Boolean =
+        clubId == _state.value.primaryClub?.id
+
+    fun isMaxReached(): Boolean =
+        _state.value.followedClubIds.size >= 10
+
+    fun goToStep(step: Int) {
+        _state.update { it.copy(step = step) }
+    }
+
+    fun completeOnboarding(onDone: () -> Unit) {
+        viewModelScope.launch {
+            dataStore.saveOnboardingCompleted(true)
+            dataStore.saveOnboardingResult(
+                state.value.selectedLeague,
+                state.value.primaryClub,
+                state.value.followedClubIds
+            )
+            onDone()
+        }
+    }
 }
+
+data class OnboardingResult(
+    val league: LeagueInfo?,
+    val primaryClub: ClubItem?,
+    val followedClubIds: Set<Int>
+)

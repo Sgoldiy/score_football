@@ -1,9 +1,11 @@
 package com.example.footballapp.ui.screens.favorites
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Favorite
@@ -12,12 +14,14 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import coil.compose.AsyncImage
 import com.example.footballapp.ui.theme.PitchBlack
 import com.example.footballapp.ui.theme.PitchSurface
 import com.example.footballapp.ui.theme.PitchSurfaceHigh
@@ -74,18 +78,90 @@ fun FavoritesScreen(
                             fontWeight = FontWeight.Bold
                         )
                     }
-                    
-                    // Here we'd show the list of followed items
-                    // Since we don't have the names/logos in the state yet (only IDs), 
-                    // we'd typically need to fetch them or have them cached.
-                    item {
-                        Text(
-                            "Following ${state.favoriteTeams.size} teams and ${state.favoriteLeagues.size} leagues",
-                            color = TextSecondary,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+
+                    if (state.leagueDetails.isNotEmpty()) {
+                        item {
+                            Text(
+                                "Leagues",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = TextSecondary,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        }
+                        items(state.leagueDetails) { league ->
+                            FavoritedItem(
+                                name = league.name,
+                                logo = league.logo,
+                                subtitle = league.country
+                            )
+                        }
+                    }
+
+                    if (state.teamDetails.isNotEmpty()) {
+                        item {
+                            Text(
+                                "Teams",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = TextSecondary,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(top = 8.dp)
+                            )
+                        }
+                        items(state.teamDetails) { team ->
+                            FavoritedItem(
+                                name = team.name,
+                                logo = team.logo,
+                                subtitle = null
+                            )
+                        }
+                    }
+
+                    if (state.leagueDetails.isEmpty() && state.teamDetails.isEmpty() && !state.isLoading) {
+                        item {
+                            Text(
+                                "Following ${state.favoriteTeams.size} teams and ${state.favoriteLeagues.size} leagues",
+                                color = TextSecondary,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FavoritedItem(
+    name: String,
+    logo: String?,
+    subtitle: String?
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(PitchSurface),
+            contentAlignment = Alignment.Center
+        ) {
+            AsyncImage(
+                model = logo,
+                contentDescription = null,
+                modifier = Modifier.size(32.dp)
+            )
+        }
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text(name, color = Color.White, fontWeight = FontWeight.Medium)
+            if (subtitle != null) {
+                Text(subtitle, color = TextSecondary, style = MaterialTheme.typography.bodySmall)
             }
         }
     }

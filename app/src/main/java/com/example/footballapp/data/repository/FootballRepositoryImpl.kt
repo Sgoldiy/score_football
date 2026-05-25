@@ -64,7 +64,6 @@ class FootballRepositoryImpl @Inject constructor(
         return try {
             val response = apiService.getFixtureById(fixtureId).response.firstOrNull()
                 ?: return ApiResult.Error("Match not found")
-            
             val events = apiService.getFixtureEvents(fixtureId).response
             val lineups = apiService.getFixtureLineups(fixtureId).response
             val stats = apiService.getFixtureStatistics(fixtureId).response
@@ -185,7 +184,6 @@ class FootballRepositoryImpl @Inject constructor(
             ApiResult.Error(e.message ?: "Search failed")
         }
     }
-
 
     override suspend fun getLeagues(): ApiResult<List<LeagueInfo>> {
         return try {

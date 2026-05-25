@@ -1,249 +1,177 @@
 package com.example.footballapp.ui.screens.onboarding
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.example.footballapp.ui.theme.DeepNavy
+import com.example.footballapp.ui.theme.GlassGlowGreen
+import com.example.footballapp.ui.theme.TextSecondary
 
-data class OnboardingTeam(
-    val id: Int,
-    val name: String,
-    val country: String,
-    val logoUrl: String
-)
-
-val POPULAR_TEAMS = listOf(
-    OnboardingTeam(33, "Manchester United", "England", "https://media.api-sports.io/football/teams/33.png"),
-    OnboardingTeam(50, "Manchester City", "England", "https://media.api-sports.io/football/teams/50.png"),
-    OnboardingTeam(40, "Liverpool", "England", "https://media.api-sports.io/football/teams/40.png"),
-    OnboardingTeam(42, "Arsenal", "England", "https://media.api-sports.io/football/teams/42.png"),
-    OnboardingTeam(49, "Chelsea", "England", "https://media.api-sports.io/football/teams/49.png"),
-    OnboardingTeam(541, "Real Madrid", "Spain", "https://media.api-sports.io/football/teams/541.png"),
-    OnboardingTeam(529, "Barcelona", "Spain", "https://media.api-sports.io/football/teams/529.png"),
-    OnboardingTeam(157, "Bayern Munich", "Germany", "https://media.api-sports.io/football/teams/157.png"),
-    OnboardingTeam(165, "Borussia Dortmund", "Germany", "https://media.api-sports.io/football/teams/165.png"),
-    OnboardingTeam(85, "Paris Saint Germain", "France", "https://media.api-sports.io/football/teams/85.png"),
-    OnboardingTeam(496, "Juventus", "Italy", "https://media.api-sports.io/football/teams/496.png"),
-    OnboardingTeam(489, "AC Milan", "Italy", "https://media.api-sports.io/football/teams/489.png"),
-    OnboardingTeam(492, "Inter Milan", "Italy", "https://media.api-sports.io/football/teams/492.png"),
-    OnboardingTeam(530, "Atletico Madrid", "Spain", "https://media.api-sports.io/football/teams/530.png")
-)
-
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OnboardingPageTwo(
-    viewModel: OnboardingViewModel,
+fun ClubSelectionPage(
+    state: OnboardingState,
+    onSelectClub: (ClubItem) -> Unit,
     onBack: () -> Unit,
     onNext: () -> Unit
 ) {
-    val selectedTeams by viewModel.selectedTeams.collectAsState()
-    var searchQuery by remember { mutableStateOf("") }
-
-    val filteredTeams = remember(searchQuery) {
-        if (searchQuery.isBlank()) {
-            POPULAR_TEAMS
-        } else {
-            POPULAR_TEAMS.filter {
-                it.name.contains(searchQuery, ignoreCase = true) ||
-                it.country.contains(searchQuery, ignoreCase = true)
-            }
-        }
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(12.dp))
-        
-        // Header with Back Button
+        Spacer(Modifier.height(12.dp))
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
                 Icon(
-                    imageVector = Icons.Default.ArrowBack,
+                    Icons.AutoMirrored.Rounded.ArrowBack,
                     contentDescription = "Back",
-                    tint = MaterialTheme.colorScheme.onBackground
+                    tint = Color.White.copy(alpha = 0.6f)
                 )
             }
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(Modifier.weight(1f))
             Text(
-                text = "Step 2 of 3",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = "2 of 3",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = TextSecondary
             )
-            Spacer(modifier = Modifier.width(48.dp)) // Offset back button width
+            Spacer(Modifier.width(48.dp))
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
-        
-        // Progress indicator
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Box(modifier = Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colorScheme.primary))
-            Box(modifier = Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colorScheme.primary))
-            Box(modifier = Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colorScheme.surfaceVariant))
-        }
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        
+        Spacer(Modifier.height(16.dp))
+
         Text(
-            text = "FOLLOW YOUR TEAMS",
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground,
-            letterSpacing = 1.sp
+            text = "YOUR CLUB",
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Black,
+            letterSpacing = 2.sp,
+            color = Color.White
         )
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        
+        Spacer(Modifier.height(8.dp))
         Text(
-            text = "Follow the best clubs in the world to receive live matches, stats and details.",
+            text = "Pick your primary club from ${state.selectedLeague?.name ?: ""}",
             fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 16.dp)
+            color = TextSecondary,
+            textAlign = TextAlign.Center
         )
-        
-        Spacer(modifier = Modifier.height(20.dp))
 
-        // Search Bar
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
-            placeholder = { Text("Search your club...") },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
-                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
-            ),
-            singleLine = true
-        )
-        
-        // Scrollable List of Teams
-        LazyColumn(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(filteredTeams) { team ->
-                val isSelected = selectedTeams.contains(team.id)
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    ),
-                    border = BorderStroke(
-                        width = if (isSelected) 2.dp else 1.dp,
-                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+        Spacer(Modifier.height(28.dp))
+
+        if (state.isLoading && state.leagueClubs.isEmpty()) {
+            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = GlassGlowGreen)
+            }
+        } else {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                state.leagueClubs.forEach { club ->
+                    val isSelected = state.primaryClub?.id == club.id
+                    val borderColor by animateColorAsState(
+                        targetValue = if (isSelected) GlassGlowGreen else Color.White.copy(alpha = 0.10f),
+                        animationSpec = tween(300),
+                        label = "club-border"
                     )
-                ) {
-                    Row(
+                    val bgColor by animateColorAsState(
+                        targetValue = if (isSelected) GlassGlowGreen.copy(alpha = 0.08f) else Color.White.copy(alpha = 0.04f),
+                        animationSpec = tween(300),
+                        label = "club-bg"
+                    )
+
+                    Card(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .height(80.dp)
+                            .clickable { onSelectClub(club) },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = bgColor),
+                        border = BorderStroke(if (isSelected) 2.dp else 1.dp, borderColor)
                     ) {
                         Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 20.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            AsyncImage(
-                                model = team.logoUrl,
-                                contentDescription = team.name,
+                            Box(
                                 modifier = Modifier
-                                    .size(40.dp)
-                                    .padding(2.dp),
-                                contentScale = ContentScale.Fit
-                            )
-                            Spacer(modifier = Modifier.width(16.dp))
-                            Column {
-                                Text(
-                                    text = team.name,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = team.country,
-                                    fontSize = 12.sp,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    .size(48.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(Color.White.copy(alpha = 0.06f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                AsyncImage(
+                                    model = club.crestUrl,
+                                    contentDescription = club.name,
+                                    modifier = Modifier.size(36.dp)
                                 )
                             }
-                        }
-                        
-                        Button(
-                            onClick = { viewModel.toggleTeam(team.id) },
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
-                                contentColor = if (isSelected) Color.Black else MaterialTheme.colorScheme.onSurfaceVariant
-                            ),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-                            modifier = Modifier.height(36.dp)
-                        ) {
+                            Spacer(Modifier.width(16.dp))
                             Text(
-                                text = if (isSelected) "FOLLOWING" else "FOLLOW",
-                                fontSize = 11.sp,
+                                text = club.name,
+                                modifier = Modifier.weight(1f),
+                                fontSize = 17.sp,
                                 fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
+                                color = Color.White
                             )
+                            if (isSelected) {
+                                Text(
+                                    text = "\u2713",
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = GlassGlowGreen
+                                )
+                            }
                         }
                     }
                 }
             }
         }
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        
+
+        Spacer(Modifier.height(24.dp))
+
         Button(
             onClick = onNext,
+            enabled = state.primaryClub != null,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp),
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.Black
+                containerColor = GlassGlowGreen,
+                contentColor = DeepNavy,
+                disabledContainerColor = Color.White.copy(alpha = 0.08f),
+                disabledContentColor = TextSecondary
             )
         ) {
             Text(
-                text = if (selectedTeams.isEmpty()) "SKIP FOR NOW" else "CONTINUE",
+                text = "CONTINUE",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp
+                letterSpacing = 1.5.sp
             )
         }
     }

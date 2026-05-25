@@ -1,15 +1,19 @@
 package com.example.footballapp.ui.screens.onboarding
 
-import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,185 +24,120 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.AsyncImage
+import com.example.footballapp.ui.theme.DeepNavy
+import com.example.footballapp.ui.theme.GlassGlowGreen
+import com.example.footballapp.ui.theme.TextSecondary
 
 @Composable
-fun OnboardingPageThree(
-    viewModel: OnboardingViewModel,
+fun FollowClubsPage(
+    state: OnboardingState,
+    onToggleClub: (Int) -> Unit,
     onBack: () -> Unit,
     onGetStarted: () -> Unit
 ) {
-    val notificationSettings by viewModel.notificationSettings.collectAsState()
-    val scrollState = rememberScrollState()
-
-    // Pulse animation for the notification bell container
-    val infiniteTransition = rememberInfiniteTransition(label = "bell_pulse")
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.12f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulse_scale"
-    )
+    val maxClubs = 10
+    val selectedCount = state.followedClubIds.size
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(12.dp))
-        
-        // Header with Back Button
+        Spacer(Modifier.height(12.dp))
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
                 Icon(
-                    imageVector = Icons.Default.ArrowBack,
+                    Icons.AutoMirrored.Rounded.ArrowBack,
                     contentDescription = "Back",
-                    tint = MaterialTheme.colorScheme.onBackground
+                    tint = Color.White.copy(alpha = 0.6f)
                 )
             }
-            Spacer(modifier = Modifier.weight(1f))
-            Text(
-                text = "Step 3 of 3",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.width(48.dp))
+            Spacer(Modifier.weight(1f))
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
-        
-        // Progress indicator
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Box(modifier = Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colorScheme.primary))
-            Box(modifier = Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colorScheme.primary))
-            Box(modifier = Modifier.weight(1f).height(4.dp).clip(RoundedCornerShape(2.dp)).background(MaterialTheme.colorScheme.primary))
-        }
-        
-        Spacer(modifier = Modifier.height(20.dp))
-        
-        // Circular animated pulse container with Notification Bell Icon
+        Text(
+            text = "FOLLOW MORE",
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Black,
+            letterSpacing = 2.sp,
+            color = Color.White
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = "Follow up to $maxClubs clubs across all leagues",
+            fontSize = 14.sp,
+            color = TextSecondary,
+            textAlign = TextAlign.Center
+        )
+
+        Spacer(Modifier.height(16.dp))
+
+        // Counter
         Box(
             modifier = Modifier
-                .size(72.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f * pulseScale))
-                .padding(12.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Notifications,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(28.dp)
+                .clip(RoundedCornerShape(50.dp))
+                .background(
+                    if (selectedCount >= maxClubs) GlassGlowGreen.copy(alpha = 0.15f)
+                    else Color.White.copy(alpha = 0.06f)
                 )
-            }
-        }
-        
-        Spacer(modifier = Modifier.height(16.dp))
-        
-        Text(
-            text = "ENABLE NOTIFICATIONS",
-            fontSize = 22.sp,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground,
-            letterSpacing = 1.sp
-        )
-        
-        Spacer(modifier = Modifier.height(8.dp))
-        
-        Text(
-            text = "Never miss a single moment. Configure custom push notifications for your matching events.",
-            fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        
-        // Notification settings scrollable list
-        Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(scrollState),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 20.dp, vertical = 10.dp)
         ) {
-            val settingsItems = listOf(
-                NotificationItem("match_start", "Match Start", "Get notified when the referee blows the whistle"),
-                NotificationItem("goal", "Goals", "Instant notifications for goals, assists, and VAR validation"),
-                NotificationItem("halftime_fulltime", "Halftime / Fulltime", "Match summaries at the break and final whistle"),
-                NotificationItem("red_card", "Red Cards", "Instant updates on sending offs and bookings"),
-                NotificationItem("var_decisions", "VAR Decisions", "Stay updated with VAR reviews and decisions"),
-                NotificationItem("lineup_released", "Lineup Released", "Be the first to see the starting XI, 1 hour before kick-off")
+            Text(
+                text = "$selectedCount / $maxClubs selected",
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                color = if (selectedCount >= maxClubs) GlassGlowGreen else Color.White.copy(alpha = 0.7f)
             )
+        }
 
-            settingsItems.forEach { item ->
-                val isEnabled = notificationSettings[item.key] ?: true
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f).padding(end = 16.dp)) {
-                            Text(
-                                text = item.title,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = item.description,
-                                fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                lineHeight = 16.sp
-                            )
-                        }
-                        
-                        Switch(
-                            checked = isEnabled,
-                            onCheckedChange = { viewModel.toggleNotificationSetting(item.key, it) },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = Color.Black,
-                                checkedTrackColor = MaterialTheme.colorScheme.primary,
-                                uncheckedThumbColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                uncheckedTrackColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
+        Spacer(Modifier.height(20.dp))
+
+        if (state.isLoading && state.allClubs.isEmpty()) {
+            Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(color = GlassGlowGreen)
+            }
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                val maxReached = state.followedClubIds.size >= 10
+                val primaryClubId = state.primaryClub?.id
+                val grouped = state.allClubs.groupBy { it.leagueName }
+                grouped.forEach { (leagueName, clubs) ->
+                    item(span = { GridItemSpan(2) }) {
+                        Text(
+                            text = leagueName.uppercase(),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.5.sp,
+                            color = TextSecondary,
+                            modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
+                        )
+                    }
+                    items(clubs, key = { it.id }) { club ->
+                        ClubGridCard(
+                            club = club,
+                            isSelected = state.followedClubIds.contains(club.id),
+                            isLocked = club.id == primaryClubId,
+                            isMaxReached = maxReached,
+                            onClick = { onToggleClub(club.id) }
                         )
                     }
                 }
             }
         }
-        
-        Spacer(modifier = Modifier.height(24.dp))
-        
+
+        Spacer(Modifier.height(16.dp))
+
         Button(
             onClick = onGetStarted,
             modifier = Modifier
@@ -206,22 +145,88 @@ fun OnboardingPageThree(
                 .height(56.dp),
             shape = RoundedCornerShape(16.dp),
             colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = Color.Black
+                containerColor = GlassGlowGreen,
+                contentColor = DeepNavy
             )
         ) {
             Text(
                 text = "GET STARTED",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = 1.sp
+                letterSpacing = 1.5.sp
             )
         }
     }
 }
 
-data class NotificationItem(
-    val key: String,
-    val title: String,
-    val description: String
-)
+@Composable
+private fun ClubGridCard(
+    club: ClubItem,
+    isSelected: Boolean,
+    isLocked: Boolean,
+    isMaxReached: Boolean,
+    onClick: () -> Unit
+) {
+    val dimmed = !isSelected && !isLocked && isMaxReached
+    val alpha = if (dimmed) 0.4f else 1f
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(100.dp)
+            .then(
+                if (!isLocked) Modifier.clickable { onClick() }
+                else Modifier
+            ),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) GlassGlowGreen.copy(alpha = 0.10f * alpha)
+            else Color.White.copy(alpha = 0.04f * alpha)
+        ),
+        border = BorderStroke(
+            width = if (isSelected) 2.dp else 1.dp,
+            color = if (isSelected) GlassGlowGreen.copy(alpha = alpha)
+            else Color.White.copy(alpha = 0.08f * alpha)
+        )
+    ) {
+        Box(modifier = Modifier.fillMaxSize().padding(10.dp)) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.06f * alpha)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    AsyncImage(
+                        model = club.crestUrl,
+                        contentDescription = club.name,
+                        modifier = Modifier.size(30.dp)
+                    )
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = club.name,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = Color.White.copy(alpha = alpha),
+                    maxLines = 1,
+                    textAlign = TextAlign.Center
+                )
+            }
+            if (isLocked) {
+                    Icon(
+                        Icons.Rounded.Lock,
+                        contentDescription = "Primary club",
+                        tint = GlassGlowGreen,
+                        modifier = Modifier.size(14.dp).align(Alignment.TopEnd)
+                    )
+            }
+        }
+    }
+}
+

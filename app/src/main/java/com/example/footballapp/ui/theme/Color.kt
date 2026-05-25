@@ -47,3 +47,13 @@ val PitchSurface = DarkSurface
 val PitchSurfaceHigh = DarkCard
 val PitchLine = DarkBorder
 val TextSecondary = DarkTextSecondary
+
+// Dark Glass Design Tokens
+val GlassBg = Color(0x0DFFFFFF)         // very subtle white overlay
+val GlassBorder = Color(0x1AFFFFFF)    // subtle white border
+val GlassGlowGreen = Color(0xFF00FF87) // electric green glow for live
+val GlassGlowDim = Color(0x33FFFFFF)   // dimmed grey glow for finished
+val DeepNavy = Color(0xFF0A0E1A)       // base background
+val ScoreGreen = Color(0xFF00FF87)     // live score electric green
+val ScoreDim = Color(0x66FFFFFF)       // dimmed score for finished games
+val CardOverlay = Color(0x08FFFFFF)    // ultra-subtle card base
