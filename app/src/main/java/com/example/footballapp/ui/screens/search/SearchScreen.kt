@@ -31,6 +31,8 @@ import com.example.footballapp.viewmodel.SearchViewModel
 @Composable
 fun SearchScreen(
     onBack: () -> Unit,
+    onLeagueClick: (Int) -> Unit = {},
+    onTeamClick: (Int) -> Unit = {},
     viewModel: SearchViewModel = hiltViewModel()
 ) {
     val query by viewModel.searchQuery.collectAsState()
@@ -94,7 +96,9 @@ fun SearchScreen(
                     val data = (uiState as SearchUiState.Success)
                     SearchResultList(
                         teams = data.teams,
-                        leagues = data.leagues
+                        leagues = data.leagues,
+                        onLeagueClick = onLeagueClick,
+                        onTeamClick = onTeamClick
                     )
                 }
                 is SearchUiState.Error -> {
@@ -188,7 +192,9 @@ private fun SuggestionItem(name: String) {
 @Composable
 private fun SearchResultList(
     teams: List<com.example.footballapp.domain.model.TeamInfo>,
-    leagues: List<com.example.footballapp.domain.model.LeagueInfo>
+    leagues: List<com.example.footballapp.domain.model.LeagueInfo>,
+    onLeagueClick: (Int) -> Unit,
+    onTeamClick: (Int) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -209,7 +215,8 @@ private fun SearchResultList(
                 SearchResultItem(
                     name = team.name,
                     logo = team.logo,
-                    subtitle = null
+                    subtitle = null,
+                    onClick = { onTeamClick(team.id) }
                 )
             }
         }
@@ -228,7 +235,8 @@ private fun SearchResultList(
                 SearchResultItem(
                     name = league.name,
                     logo = league.logo,
-                    subtitle = league.country
+                    subtitle = league.country,
+                    onClick = { onLeagueClick(league.id) }
                 )
             }
         }
@@ -239,11 +247,13 @@ private fun SearchResultList(
 private fun SearchResultItem(
     name: String,
     logo: String?,
-    subtitle: String?
+    subtitle: String?,
+    onClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable { onClick() }
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {

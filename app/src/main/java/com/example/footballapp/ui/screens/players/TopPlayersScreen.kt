@@ -6,8 +6,11 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +32,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -42,11 +47,15 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -190,7 +199,15 @@ private fun PremiumTabBar(
 
 @Composable
 private fun TopPlayersContent(data: TopPlayersData, onPlayerClick: (Int) -> Unit) {
-    val heroPlayer = data.scorers.firstOrNull()
+    var selectedPosition by remember { mutableStateOf("All") }
+    val positions = listOf("All", "Forwards", "Midfielders", "Defenders", "Goalkeepers")
+    
+    val filteredScorers = data.scorers.filter { matchesPosition(it, selectedPosition) }
+    val filteredAssists = data.assists.filter { matchesPosition(it, selectedPosition) }
+    val filteredRated = data.topRated().filter { matchesPosition(it, selectedPosition) }
+    val filteredYellow = data.yellowCards.filter { matchesPosition(it, selectedPosition) }
+
+    val heroPlayer = filteredScorers.firstOrNull()
     val listState = rememberLazyListState()
 
     LazyColumn(
@@ -199,55 +216,68 @@ private fun TopPlayersContent(data: TopPlayersData, onPlayerClick: (Int) -> Unit
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 100.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
+        item(key = "position_filters") {
+            PositionFilterRail(
+                positions = positions,
+                selectedPosition = selectedPosition,
+                onSelect = { selectedPosition = it }
+            )
+        }
+
+        if (filteredScorers.isNotEmpty()) {
+            item(key = "comparative_chart") {
+                ComparativePerformanceChart(players = filteredScorers)
+            }
+        }
+
         if (heroPlayer != null) {
             item(key = "hero") {
                 HeroPlayerSection(heroPlayer, onPlayerClick)
             }
         }
 
-        if (data.scorers.isNotEmpty()) {
+        if (filteredScorers.isNotEmpty()) {
             item(key = "scorers") {
                 PlayerSection(
                     title = "Top scorers",
                     subtitle = "Goals this season",
-                    players = data.scorers.take(20),
+                    players = filteredScorers.take(20),
                     mode = "goals",
                     onPlayerClick = onPlayerClick
                 )
             }
         }
 
-        if (data.assists.isNotEmpty()) {
+        if (filteredAssists.isNotEmpty()) {
             item(key = "assists") {
                 PlayerSection(
                     title = "Assist leaders",
                     subtitle = "Creative force",
-                    players = data.assists.take(20),
+                    players = filteredAssists.take(20),
                     mode = "assists",
                     onPlayerClick = onPlayerClick
                 )
             }
         }
 
-        val topRated = data.topRated()
-        if (topRated.isNotEmpty()) {
+        if (filteredRated.isNotEmpty()) {
             item(key = "rated") {
                 PlayerSection(
                     title = "Top rated",
                     subtitle = "Highest match ratings",
-                    players = topRated.take(20),
+                    players = filteredRated.take(20),
                     mode = "rating",
                     onPlayerClick = onPlayerClick
                 )
             }
         }
 
-        if (data.yellowCards.isNotEmpty()) {
+        if (filteredYellow.isNotEmpty()) {
             item(key = "discipline") {
                 PlayerSection(
                     title = "Discipline watch",
                     subtitle = "Most yellow cards",
-                    players = data.yellowCards.take(20),
+                    players = filteredYellow.take(20),
                     mode = "cards",
                     onPlayerClick = onPlayerClick
                 )
@@ -338,10 +368,23 @@ private fun HeroStat(label: String, value: String, accent: Color) {
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .background(accent.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
-            .padding(horizontal = 14.dp, vertical = 8.dp)
+            .padding(horizontal = 8.dp, vertical = 6.dp)
     ) {
-        Text(value, color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-        Text(label, color = accent, style = MaterialTheme.typography.labelMedium)
+        Text(
+            text = value,
+            color = Color.White,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Black,
+            maxLines = 1,
+            softWrap = false
+        )
+        Text(
+            text = label,
+            color = accent,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+            softWrap = false
+        )
     }
 }
 
@@ -364,10 +407,22 @@ private fun PlayerSection(
                 Text(subtitle, color = TextSecondary, style = MaterialTheme.typography.labelMedium)
             }
         }
-        Spacer(Modifier.height(10.dp))
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            items(players, key = { it.player?.id ?: it.hashCode() }) { player ->
-                PlayerRankCard(player, mode, onPlayerClick)
+        
+        Spacer(Modifier.height(12.dp))
+        
+        if (players.size >= 3) {
+            TopPlayersPodium(players = players, mode = mode, onPlayerClick = onPlayerClick)
+            Spacer(Modifier.height(12.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(players.drop(3), key = { it.player?.id ?: it.hashCode() }) { player ->
+                    PlayerRankCard(player, mode, onPlayerClick)
+                }
+            }
+        } else {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                items(players, key = { it.player?.id ?: it.hashCode() }) { player ->
+                    PlayerRankCard(player, mode, onPlayerClick)
+                }
             }
         }
     }
@@ -510,6 +565,358 @@ private fun TopPlayersError(message: String) {
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold
             )
+        }
+    }
+}
+
+private fun matchesPosition(player: PlayerProfileStatisticsResponse, filter: String): Boolean {
+    if (filter == "All") return true
+    val pos = player.statistics?.firstOrNull()?.games?.position ?: return false
+    return when (filter) {
+        "Forwards" -> pos.equals("Attacker", ignoreCase = true)
+        "Midfielders" -> pos.equals("Midfielder", ignoreCase = true)
+        "Defenders" -> pos.equals("Defender", ignoreCase = true)
+        "Goalkeepers" -> pos.equals("Goalkeeper", ignoreCase = true)
+        else -> false
+    }
+}
+
+@Composable
+private fun PositionFilterRail(
+    positions: List<String>,
+    selectedPosition: String,
+    onSelect: (String) -> Unit
+) {
+    LazyRow(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        contentPadding = PaddingValues(vertical = 4.dp)
+    ) {
+        items(positions) { pos ->
+            val isSelected = pos == selectedPosition
+            val borderGlow = if (isSelected) LiveGreen else Color.White.copy(alpha = 0.15f)
+            val bg = if (isSelected) LiveGreen.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.02f)
+            
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(bg)
+                    .border(1.dp, borderGlow, RoundedCornerShape(12.dp))
+                    .clickable { onSelect(pos) }
+                    .padding(horizontal = 14.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = pos,
+                    color = if (isSelected) LiveGreen else Color.White.copy(alpha = 0.6f),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ComparativePerformanceChart(players: List<PlayerProfileStatisticsResponse>) {
+    val top5 = players.take(5)
+    if (top5.isEmpty()) return
+
+    Card(
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.06f)),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp)
+    ) {
+        Column(modifier = Modifier.padding(18.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text("Top 5 Performance Chart", color = Color.White, fontWeight = FontWeight.Black, fontSize = 16.sp)
+                    Text("Comparative Goals vs Assists Analysis", color = TextSecondary, fontSize = 11.sp)
+                }
+                
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(LiveGreen))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Goals", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(8.dp).clip(CircleShape).background(IceBlue))
+                        Spacer(Modifier.width(4.dp))
+                        Text("Assists", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            
+            Spacer(Modifier.height(24.dp))
+            
+            val maxVal = top5.maxOfOrNull {
+                val stats = it.statistics?.firstOrNull()
+                val g = stats?.goals?.total ?: 0
+                val a = stats?.goals?.assists ?: 0
+                maxOf(g, a, 1)
+            } ?: 1
+            
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(180.dp)
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val canvasWidth = size.width
+                    val canvasHeight = size.height
+                    
+                    val barWidth = 14.dp.toPx()
+                    val groupGap = 24.dp.toPx()
+                    val totalGroups = top5.size
+                    
+                    val groupWidth = (canvasWidth - (totalGroups - 1) * groupGap) / totalGroups
+                    
+                    val baselineY = canvasHeight - 30.dp.toPx()
+                    val chartHeight = canvasHeight - 40.dp.toPx()
+                    
+                    // Draw grid lines
+                    val gridLineCount = 3
+                    for (i in 1..gridLineCount) {
+                        val fraction = i.toFloat() / (gridLineCount + 1).toFloat()
+                        val y = baselineY - fraction * chartHeight
+                        drawLine(
+                            color = Color.White.copy(alpha = 0.04f),
+                            start = androidx.compose.ui.geometry.Offset(0f, y),
+                            end = androidx.compose.ui.geometry.Offset(canvasWidth, y),
+                            strokeWidth = 1.dp.toPx(),
+                            pathEffect = androidx.compose.ui.graphics.PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
+                        )
+                    }
+                    
+                    drawLine(
+                        color = Color.White.copy(alpha = 0.1f),
+                        start = androidx.compose.ui.geometry.Offset(0f, baselineY),
+                        end = androidx.compose.ui.geometry.Offset(canvasWidth, baselineY),
+                        strokeWidth = 1.dp.toPx()
+                    )
+                    
+                    top5.forEachIndexed { index, player ->
+                        val stats = player.statistics?.firstOrNull()
+                        val goals = stats?.goals?.total ?: 0
+                        val assists = stats?.goals?.assists ?: 0
+                        
+                        val goalsBarHeight = (goals.toFloat() / maxVal.toFloat()) * chartHeight
+                        val assistsBarHeight = (assists.toFloat() / maxVal.toFloat()) * chartHeight
+                        
+                        val groupStartX = index * (groupWidth + groupGap)
+                        
+                        val goalsStartX = groupStartX + (groupWidth / 2f) - barWidth - 2.dp.toPx()
+                        val assistsStartX = groupStartX + (groupWidth / 2f) + 2.dp.toPx()
+                        
+                        if (goalsBarHeight > 0) {
+                            drawRoundRect(
+                                color = LiveGreen,
+                                topLeft = androidx.compose.ui.geometry.Offset(goalsStartX, baselineY - goalsBarHeight),
+                                size = androidx.compose.ui.geometry.Size(barWidth, goalsBarHeight),
+                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx(), 4.dp.toPx())
+                            )
+                        }
+                        
+                        if (assistsBarHeight > 0) {
+                            drawRoundRect(
+                                color = IceBlue,
+                                topLeft = androidx.compose.ui.geometry.Offset(assistsStartX, baselineY - assistsBarHeight),
+                                size = androidx.compose.ui.geometry.Size(barWidth, assistsBarHeight),
+                                cornerRadius = androidx.compose.ui.geometry.CornerRadius(4.dp.toPx(), 4.dp.toPx())
+                            )
+                        }
+                    }
+                }
+                
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    top5.forEach { player ->
+                        val lastName = player.player?.name?.split(" ")?.lastOrNull() ?: "Player"
+                        Text(
+                            text = lastName,
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TopPlayersPodium(
+    players: List<PlayerProfileStatisticsResponse>,
+    mode: String,
+    onPlayerClick: (Int) -> Unit
+) {
+    val p1 = players.getOrNull(0) ?: return
+    val p2 = players.getOrNull(1) ?: return
+    val p3 = players.getOrNull(2) ?: return
+    
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        PodiumCol(
+            player = p2,
+            rank = 2,
+            mode = mode,
+            color = Color(0xFFC0C0C0),
+            modifier = Modifier.weight(1f),
+            onPlayerClick = onPlayerClick
+        )
+        
+        PodiumCol(
+            player = p1,
+            rank = 1,
+            mode = mode,
+            color = Color(0xFFFFD700),
+            modifier = Modifier.weight(1.1f),
+            onPlayerClick = onPlayerClick
+        )
+        
+        PodiumCol(
+            player = p3,
+            rank = 3,
+            mode = mode,
+            color = Color(0xFFCD7F32),
+            modifier = Modifier.weight(1f),
+            onPlayerClick = onPlayerClick
+        )
+    }
+}
+
+@Composable
+private fun PodiumCol(
+    player: PlayerProfileStatisticsResponse,
+    rank: Int,
+    mode: String,
+    color: Color,
+    modifier: Modifier = Modifier,
+    onPlayerClick: (Int) -> Unit
+) {
+    val stats = player.statistics?.firstOrNull()
+    val value = when (mode) {
+        "goals" -> stats?.goals?.total?.toString()
+        "assists" -> stats?.goals?.assists?.toString()
+        "cards" -> stats?.cards?.yellow?.toString()
+        "rating" -> stats?.games?.rating?.let { formatRating(it) }
+        else -> "-"
+    } ?: "-"
+
+    val colHeight = when (rank) {
+        1 -> 180.dp
+        2 -> 155.dp
+        else -> 140.dp
+    }
+    
+    val medal = when (rank) {
+        1 -> "👑"
+        2 -> "🥈"
+        else -> "🥉"
+    }
+
+    Card(
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 16.dp, bottomEnd = 16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.3f)),
+        modifier = modifier
+            .height(colHeight)
+            .clickable { player.player?.id?.let(onPlayerClick) }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(contentAlignment = Alignment.BottomEnd) {
+                    PlayerAvatar(
+                        url = player.player?.photo,
+                        name = player.player?.name,
+                        modifier = Modifier.size(if (rank == 1) 56.dp else 46.dp),
+                        ringColor = color.copy(alpha = 0.6f)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .offset(x = 4.dp, y = 4.dp)
+                            .size(20.dp)
+                            .clip(CircleShape)
+                            .background(color),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = medal,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = player.player?.name ?: "Player",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    text = stats?.team?.name ?: "",
+                    color = TextSecondary,
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center
+                )
+            }
+            
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = value,
+                    color = color,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 16.sp
+                )
+                Text(
+                    text = when (mode) {
+                        "goals" -> "Goals"
+                        "assists" -> "Assists"
+                        "cards" -> "Cards"
+                        "rating" -> "Rating"
+                        else -> ""
+                    },
+                    color = TextSecondary,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
         }
     }
 }

@@ -7,13 +7,17 @@ import androidx.room.RoomDatabase
     entities = [
         FixtureEntity::class,
         StandingEntity::class,
-        LeagueEntity::class
+        LeagueEntity::class,
+        FavouriteClubEntity::class,
+        FavouritePlayerEntity::class
     ],
-    version = 1,
+    version = 3,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
     abstract fun fixtureDao(): FixtureDao
     abstract fun standingDao(): StandingDao
     abstract fun leagueDao(): LeagueDao
+    abstract fun favouriteClubDao(): FavouriteClubDao
+    abstract fun favouritePlayerDao(): FavouritePlayerDao
 }

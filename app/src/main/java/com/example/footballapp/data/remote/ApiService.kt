@@ -13,6 +13,13 @@ interface ApiService {
     ): ApiResponse<List<FixtureResponse>>
 
     @GET("fixtures")
+    suspend fun getFixturesByTeamSeasonLeague(
+        @Query("team") teamId: Int,
+        @Query("season") season: Int,
+        @Query("league") leagueId: Int
+    ): ApiResponse<List<FixtureResponse>>
+
+    @GET("fixtures")
     suspend fun getFixturesByLeagueSeason(
         @Query("league") leagueId: Int,
         @Query("season") season: Int

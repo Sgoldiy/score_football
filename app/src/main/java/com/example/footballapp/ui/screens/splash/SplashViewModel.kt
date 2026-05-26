@@ -2,41 +2,32 @@ package com.example.footballapp.ui.screens.splash
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.footballapp.data.local.AppSettingsDataStore
+import com.example.footballapp.data.local.DataStoreManager
+import com.example.footballapp.navigation.Screen
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
 class SplashViewModel @Inject constructor(
-    private val appSettingsDataStore: AppSettingsDataStore
+    private val dataStoreManager: DataStoreManager
 ) : ViewModel() {
 
-    private val _navigationEvent = MutableSharedFlow<SplashNavigation>()
-    val navigationEvent = _navigationEvent.asSharedFlow()
+    private val _startDestination = MutableStateFlow<String?>(null)
+    val startDestination: StateFlow<String?> = _startDestination.asStateFlow()
 
     init {
-        checkOnboardingStatus()
+        resolveStartDestination()
     }
 
-    private fun checkOnboardingStatus() {
+    private fun resolveStartDestination() {
         viewModelScope.launch {
-            delay(2000) // Show splash for 2 seconds
-            val isCompleted = appSettingsDataStore.isOnboardingCompleted.first()
-            if (isCompleted) {
-                _navigationEvent.emit(SplashNavigation.NavigateToHome)
-            } else {
-                _navigationEvent.emit(SplashNavigation.NavigateToOnboarding)
-            }
+            val isCompleted = dataStoreManager.isOnboardingCompleted.first()
+            _startDestination.value = if (isCompleted) Screen.Home.route else Screen.Onboarding.route
         }
     }
-}
-
-sealed class SplashNavigation {
-    object NavigateToOnboarding : SplashNavigation()
-    object NavigateToHome : SplashNavigation()
 }

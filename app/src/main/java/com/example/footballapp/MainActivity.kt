@@ -17,6 +17,8 @@ import androidx.navigation.compose.rememberNavController
 import com.example.footballapp.navigation.Screen
 import com.example.footballapp.navigation.SetupNavGraph
 import com.example.footballapp.ui.components.BottomNavigationBar
+import com.example.footballapp.ui.screens.splash.SplashScreen
+import com.example.footballapp.ui.screens.splash.SplashViewModel
 import com.example.footballapp.ui.theme.FootballPlusTheme
 import com.example.footballapp.viewmodel.ThemeViewModel
 import dagger.hilt.android.AndroidEntryPoint
@@ -35,6 +37,8 @@ class MainActivity : ComponentActivity() {
                 val navController = rememberNavController()
                 val navBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = navBackStackEntry?.destination?.route
+                val splashViewModel: SplashViewModel = hiltViewModel()
+                val startDestination by splashViewModel.startDestination.collectAsState()
 
                 val noBottomBarScreens = listOf(
                     Screen.Onboarding.route,
@@ -67,7 +71,16 @@ class MainActivity : ComponentActivity() {
                     }
                 ) { innerPadding ->
                     Box(modifier = androidx.compose.ui.Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
-                        SetupNavGraph(navController = navController, themeViewModel = themeViewModel)
+                        if (startDestination == null) {
+                            // Prevent any nav graph from composing until we know where to start.
+                            SplashScreen()
+                        } else {
+                            SetupNavGraph(
+                                navController = navController,
+                                themeViewModel = themeViewModel,
+                                startDestination = startDestination!!
+                            )
+                        }
                     }
                 }
             }

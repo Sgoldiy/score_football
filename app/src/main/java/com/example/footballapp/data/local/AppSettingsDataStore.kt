@@ -19,6 +19,9 @@ class AppSettingsDataStore @Inject constructor(
     companion object {
         private val ONBOARDING_COMPLETED_KEY = booleanPreferencesKey("onboarding_completed")
         private val IS_DARK_THEME_KEY = booleanPreferencesKey("is_dark_theme")
+        // Onboarding favourites (used across the app)
+        private val FAVOURITE_LEAGUE_ID_KEY = intPreferencesKey("favourite_league_id")
+        private val FAVOURITE_LEAGUE_NAME_KEY = stringPreferencesKey("favourite_league_name")
         private val FOLLOWED_LEAGUES_KEY = stringSetPreferencesKey("followed_leagues")
         private val FOLLOWED_TEAMS_KEY = stringSetPreferencesKey("followed_teams")
         private val FOLLOWED_PLAYERS_KEY = stringSetPreferencesKey("followed_players")
@@ -40,6 +43,20 @@ class AppSettingsDataStore @Inject constructor(
     suspend fun saveOnboardingCompleted(completed: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[ONBOARDING_COMPLETED_KEY] = completed
+        }
+    }
+
+    // Favourite league (DataStore keys required by onboarding)
+    val favouriteLeagueId: Flow<Int> = context.dataStore.data
+        .map { preferences -> preferences[FAVOURITE_LEAGUE_ID_KEY] ?: 39 } // default EPL
+
+    val favouriteLeagueName: Flow<String> = context.dataStore.data
+        .map { preferences -> preferences[FAVOURITE_LEAGUE_NAME_KEY] ?: "Premier League" }
+
+    suspend fun saveFavouriteLeague(id: Int, name: String) {
+        context.dataStore.edit { preferences ->
+            preferences[FAVOURITE_LEAGUE_ID_KEY] = id
+            preferences[FAVOURITE_LEAGUE_NAME_KEY] = name
         }
     }
 

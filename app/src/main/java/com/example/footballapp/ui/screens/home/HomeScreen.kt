@@ -1,6 +1,7 @@
 package com.example.footballapp.ui.screens.home
 
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -14,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.FavoriteBorder
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,14 +23,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.example.footballapp.data.model.PlayerProfileStatisticsResponse
 import com.example.footballapp.data.util.ApiResult
 import com.example.footballapp.domain.model.LeagueInfo
 import com.example.footballapp.domain.model.Match
@@ -44,7 +47,9 @@ fun HomeScreen(
     onNavigateToNotifications: () -> Unit,
     onNavigateToMatchCenter: (String) -> Unit,
     onNavigateToLeagues: () -> Unit,
+    onNavigateToLeagueDetail: ((Int) -> Unit)? = null,
     onNavigateToPlayerProfile: (Int) -> Unit,
+    onNavigateToTopPlayers: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -58,7 +63,10 @@ fun HomeScreen(
             onFavourites = onNavigateToFavourites,
             onNotifications = onNavigateToNotifications,
             onMatchClick = onNavigateToMatchCenter,
-            onExplorePlayers = { onNavigateToPlayerProfile(1) }
+            onExplorePlayers = onNavigateToTopPlayers,
+            onPlayerClick = onNavigateToPlayerProfile,
+            onNavigateToLeagues = onNavigateToLeagues,
+            onNavigateToLeagueDetail = onNavigateToLeagueDetail
         )
     }
 }
@@ -112,14 +120,11 @@ private fun HomeContent(
     onFavourites: () -> Unit,
     onNotifications: () -> Unit,
     onMatchClick: (String) -> Unit,
-    onExplorePlayers: () -> Unit
+    onExplorePlayers: () -> Unit,
+    onPlayerClick: (Int) -> Unit,
+    onNavigateToLeagues: () -> Unit,
+    onNavigateToLeagueDetail: ((Int) -> Unit)? = null
 ) {
-    val heroMatch = if (state.isLive && state.liveMatches.isNotEmpty()) {
-        state.liveMatches.first()
-    } else if (state.finishedMatches.isNotEmpty()) {
-        state.finishedMatches.first()
-    } else null
-
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -128,31 +133,61 @@ private fun HomeContent(
     ) {
         item { HomeHeader(onSearch, onFavourites, onNotifications) }
 
-        if (heroMatch != null) {
-            item { Spacer(Modifier.height(8.dp)) }
+        // Live Matches Horizontal Rail
+        if (state.liveMatches.isNotEmpty()) {
             item {
-                HeroMatchCard(
-                    match = heroMatch,
-                    isLive = heroMatch.isLive,
-                    onClick = { onMatchClick(heroMatch.id.toString()) }
-                )
+                LiveMatchesRail(liveMatches = state.liveMatches, onMatchClick = onMatchClick)
+                Spacer(Modifier.height(24.dp))
             }
         }
 
-        item { Spacer(Modifier.height(24.dp)) }
-
         item {
-            SectionLabel("Top Leagues")
+            SectionLabel("Top Leagues", trailing = "All Leagues", onTrailingClick = onNavigateToLeagues)
             Spacer(Modifier.height(12.dp))
-            TopLeaguesRow(state.topLeagues.take(5), onNavigateToLeagues = {})
+            TopLeaguesRow(
+                leagues = state.topLeagues.take(8),
+                onLeagueClick = { league ->
+                    if (onNavigateToLeagueDetail != null) {
+                        onNavigateToLeagueDetail(league.id)
+                    } else {
+                        onNavigateToLeagues()
+                    }
+                }
+            )
+        }
+
+        item { Spacer(Modifier.height(28.dp)) }
+
+        // Today's Featured Matches
+        val todayMatches = (state.upcomingMatches + state.finishedMatches)
+            .distinctBy { it.id }
+            .take(8)
+        if (todayMatches.isNotEmpty()) {
+            item {
+                SectionLabel("Today's Matches", trailing = "All Fixtures", onTrailingClick = {})
+                Spacer(Modifier.height(12.dp))
+                TodayMatchesColumn(
+                    matches = todayMatches,
+                    onMatchClick = onMatchClick
+                )
+            }
+            item { Spacer(Modifier.height(28.dp)) }
+        }
+
+        if (state.topScorers.isNotEmpty()) {
+            item {
+                SectionLabel("Top Performers", trailing = "Stats Board", onTrailingClick = onExplorePlayers)
+                Spacer(Modifier.height(12.dp))
+                TopScorersRow(scorers = state.topScorers, onPlayerClick = onPlayerClick)
+            }
         }
 
         item { Spacer(Modifier.height(28.dp)) }
 
         item {
-            SectionLabel("Players to Watch", trailing = "Explore", onTrailingClick = onExplorePlayers)
+            SectionLabel("Interactive Fan Zone")
             Spacer(Modifier.height(12.dp))
-            PlayersToWatchRow(onPlayerClick = {})
+            HomeFanZonePoll()
         }
     }
 }
@@ -239,6 +274,248 @@ private fun SectionLabel(title: String, trailing: String? = null, onTrailingClic
                 color = GlassGlowGreen.copy(alpha = 0.7f),
                 modifier = Modifier.clickable { onTrailingClick?.invoke() }
             )
+        }
+    }
+}
+
+// ─── LIVE MATCHES HORIZONTAL RAIL ──────────────────────────────────────────
+
+@Composable
+private fun LiveMatchesRail(liveMatches: List<Match>, onMatchClick: (String) -> Unit) {
+    Column {
+        SectionLabel("Live Matches", trailing = "See All", onTrailingClick = {})
+        Spacer(Modifier.height(12.dp))
+        LazyRow(
+            contentPadding = PaddingValues(horizontal = 20.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            items(liveMatches) { match ->
+                LiveMatchCard(match = match, onClick = { onMatchClick(match.id.toString()) })
+            }
+        }
+    }
+}
+
+@Composable
+private fun LiveMatchCard(match: Match, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .width(220.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                Brush.linearGradient(
+                    listOf(Color.White.copy(alpha = 0.08f), Color.White.copy(alpha = 0.02f))
+                )
+            )
+            .border(1.dp, GlassGlowGreen.copy(alpha = 0.35f), RoundedCornerShape(20.dp))
+            .clickable { onClick() }
+            .padding(16.dp)
+    ) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = match.league.name.uppercase(),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White.copy(alpha = 0.5f),
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(Modifier.width(4.dp))
+                LiveBadge(minute = "${match.elapsed ?: 0}")
+            }
+            Spacer(Modifier.height(12.dp))
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        AsyncImage(
+                            model = match.homeTeam.logo,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = match.homeTeam.name,
+                            fontSize = 12.sp,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        AsyncImage(
+                            model = match.awayTeam.logo,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = match.awayTeam.name,
+                            fontSize = 12.sp,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = "${match.homeScore ?: 0}",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ScoreGreen
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "${match.awayScore ?: 0}",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ScoreGreen
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ─── TODAY'S MATCHES COLUMN ─────────────────────────────────────────────────
+
+@Composable
+private fun TodayMatchesColumn(matches: List<Match>, onMatchClick: (String) -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        matches.forEach { match ->
+            val isFinished = match.status.short in listOf("FT", "AET", "PEN")
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onMatchClick(match.id.toString()) },
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.White.copy(alpha = 0.04f)
+                ),
+                border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.07f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // League logo
+                    AsyncImage(
+                        model = match.league.logo,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(Modifier.width(10.dp))
+
+                    // Home team
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        Text(
+                            text = match.homeTeam.name,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        AsyncImage(
+                            model = match.homeTeam.logo,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
+                    // Score / Time
+                    Box(
+                        modifier = Modifier
+                            .width(64.dp)
+                            .padding(horizontal = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isFinished || match.isLive) {
+                            val scoreColor = when {
+                                match.isLive -> GlassGlowGreen
+                                else -> Color.White
+                            }
+                            Text(
+                                text = "${match.homeScore ?: 0} - ${match.awayScore ?: 0}",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Black,
+                                color = scoreColor,
+                                textAlign = TextAlign.Center
+                            )
+                        } else {
+                            val timeLabel = remember(match.timestamp) {
+                                try {
+                                    java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+                                        .format(java.util.Date(match.timestamp * 1000L))
+                                } catch (e: Exception) { "-" }
+                            }
+                            Text(
+                                text = timeLabel,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White.copy(alpha = 0.6f),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+
+                    // Away team
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Start
+                    ) {
+                        AsyncImage(
+                            model = match.awayTeam.logo,
+                            contentDescription = null,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = match.awayTeam.name,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    // Live badge
+                    if (match.isLive) {
+                        Spacer(Modifier.width(8.dp))
+                        LiveBadge(minute = "${match.elapsed ?: 0}")
+                    } else if (isFinished) {
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = "FT",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White.copy(alpha = 0.35f)
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -400,24 +677,25 @@ private fun ScoreDisplay(home: Int, away: Int, isLive: Boolean, color: Color) {
 // ─── TOP LEAGUES ───────────────────────────────────────────────────────────
 
 @Composable
-private fun TopLeaguesRow(leagues: List<LeagueInfo>, onNavigateToLeagues: () -> Unit) {
+private fun TopLeaguesRow(leagues: List<LeagueInfo>, onLeagueClick: (LeagueInfo) -> Unit) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         items(leagues) { league ->
-            LeaguePill(league)
+            LeaguePill(league) { onLeagueClick(league) }
         }
     }
 }
 
 @Composable
-private fun LeaguePill(league: LeagueInfo) {
+private fun LeaguePill(league: LeagueInfo, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(50.dp))
             .background(Color.White.copy(alpha = 0.06f))
             .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(50.dp))
+            .clickable { onClick() }
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -436,106 +714,130 @@ private fun LeaguePill(league: LeagueInfo) {
     }
 }
 
-// ─── PLAYERS TO WATCH ──────────────────────────────────────────────────────
+// ─── TOP SCORERS / PERFORMERS ROW ──────────────────────────────────────────
 
 @Composable
-private fun PlayersToWatchRow(onPlayerClick: (Int) -> Unit) {
+private fun TopScorersRow(
+    scorers: List<PlayerProfileStatisticsResponse>,
+    onPlayerClick: (Int) -> Unit
+) {
     LazyRow(
         contentPadding = PaddingValues(horizontal = 20.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        items(players) { player ->
-            PlayerCard(player = player, onClick = { onPlayerClick(player.id) })
+        items(scorers) { entry ->
+            val player = entry.player
+            val stats = entry.statistics?.firstOrNull()
+            if (player != null) {
+                Box(
+                    modifier = Modifier
+                        .width(260.dp)
+                        .height(120.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            Brush.linearGradient(
+                                listOf(Color.White.copy(alpha = 0.08f), Color.White.copy(alpha = 0.02f))
+                            )
+                        )
+                        .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp))
+                        .clickable { onPlayerClick(player.id) }
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Left Side: Image with radial background glow and distinct green border
+                        Box(
+                            modifier = Modifier
+                                .size(80.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(
+                                    Brush.radialGradient(
+                                        colors = listOf(GlassGlowGreen.copy(alpha = 0.25f), Color.Transparent),
+                                        radius = 120f
+                                    )
+                                )
+                                .border(1.5.dp, GlassGlowGreen.copy(alpha = 0.6f), RoundedCornerShape(12.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            AsyncImage(
+                                model = player.photo,
+                                contentDescription = player.name,
+                                modifier = Modifier
+                                    .size(72.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                            )
+                        }
+
+                        Spacer(Modifier.width(12.dp))
+
+                        // Right Side: Details and Stat Badges
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.Center
+                        ) {
+                            Text(
+                                text = (player.name ?: "Player").uppercase(),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = Color.White,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                letterSpacing = 0.5.sp
+                            )
+                            Text(
+                                text = stats?.team?.name ?: "Unknown Team",
+                                fontSize = 12.sp,
+                                color = Color.White.copy(alpha = 0.5f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            
+                            // Compact Stat Badges Row
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val goals = stats?.goals?.total ?: 0
+                                val assists = stats?.goals?.assists ?: 0
+                                val rating = stats?.games?.rating?.let { "%.1f".format(it.toFloatOrNull() ?: 0f) } ?: "-"
+
+                                CompactStatBadge(label = "G", value = "$goals", color = GlassGlowGreen)
+                                CompactStatBadge(label = "A", value = "$assists", color = IceBlue)
+                                CompactStatBadge(label = "R", value = rating, color = SignalAmber)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
-private data class PlayerDisplay(val id: Int, val name: String, val team: String, val goals: Int, val assists: Int, val rating: String)
-
-private val players = listOf(
-    PlayerDisplay(1, "Erling Haaland", "Manchester City", 25, 5, "8.2"),
-    PlayerDisplay(2, "Mohamed Salah", "Liverpool", 19, 10, "7.9"),
-    PlayerDisplay(3, "Kylian Mbapp\u00e9", "Real Madrid", 22, 8, "8.1")
-)
-
 @Composable
-private fun PlayerCard(player: PlayerDisplay, onClick: () -> Unit) {
-    Box(
+private fun CompactStatBadge(label: String, value: String, color: Color) {
+    Row(
         modifier = Modifier
-            .width(150.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(
-                Brush.linearGradient(
-                    listOf(
-                        Color.White.copy(alpha = 0.08f),
-                        Color.White.copy(alpha = 0.02f)
-                    )
-                )
-            )
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp))
-            .clickable { onClick() }
+            .clip(RoundedCornerShape(6.dp))
+            .background(color.copy(alpha = 0.12f))
+            .border(1.dp, color.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.06f))
-                    .border(1.dp, Color.White.copy(alpha = 0.10f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = player.name.split(" ").map { it.first() }.joinToString(""),
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp,
-                    color = Color.White.copy(alpha = 0.5f)
-                )
-            }
-            Spacer(Modifier.height(12.dp))
-            Text(
-                text = player.name,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                color = Color.White,
-                maxLines = 1
-            )
-            Text(
-                text = player.team,
-                fontSize = 11.sp,
-                color = Color.White.copy(alpha = 0.4f),
-                maxLines = 1
-            )
-            Spacer(Modifier.height(12.dp))
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                PlayerStat("G", player.goals.toString(), GlassGlowGreen)
-                PlayerStat("A", player.assists.toString(), GlassGlowGreen.copy(alpha = 0.7f))
-                PlayerStat("R", player.rating, Color.White.copy(alpha = 0.5f))
-            }
-        }
-    }
-}
-
-@Composable
-private fun PlayerStat(label: String, value: String, accent: Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-            text = value,
+            text = "$label: ",
+            fontSize = 9.sp,
             fontWeight = FontWeight.Bold,
-            fontSize = 16.sp,
-            color = accent
+            color = color
         )
         Text(
-            text = label,
-            fontSize = 9.sp,
-            letterSpacing = 1.sp,
-            fontWeight = FontWeight.Medium,
-            color = Color.White.copy(alpha = 0.35f)
+            text = value,
+            fontSize = 10.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = Color.White
         )
     }
 }
@@ -556,4 +858,133 @@ private fun ShimmerBox(modifier: Modifier = Modifier, cornerRadius: androidx.com
             .clip(RoundedCornerShape(cornerRadius))
             .background(Color.White.copy(alpha = alpha))
     )
+}
+
+@Composable
+private fun HomeFanZonePoll() {
+    var selectedOption by remember { mutableStateOf<Int?>(null) }
+    
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+        border = BorderStroke(1.dp, GlassGlowGreen.copy(alpha = 0.15f))
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(GlassGlowGreen)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "DAILY PREDICTION POLL",
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = GlassGlowGreen,
+                    letterSpacing = 1.sp
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Who is your favorite to lift the European Golden Shoe this season?",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                lineHeight = 20.sp
+            )
+            Spacer(Modifier.height(16.dp))
+            
+            val options = listOf(
+                "Erling Haaland" to 42,
+                "Harry Kane" to 28,
+                "Kylian Mbappé" to 20,
+                "Robert Lewandowski" to 10
+            )
+            
+            options.forEachIndexed { index, (optionText, percentage) ->
+                val isSelected = selectedOption == index
+                val hasVoted = selectedOption != null
+                
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 5.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(
+                            if (isSelected) GlassGlowGreen.copy(alpha = 0.15f)
+                            else Color.White.copy(alpha = 0.03f)
+                        )
+                        .border(
+                            1.dp,
+                            if (isSelected) GlassGlowGreen.copy(alpha = 0.5f)
+                            else Color.White.copy(alpha = 0.08f),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .clickable {
+                            if (selectedOption == null) {
+                                selectedOption = index
+                            }
+                        }
+                ) {
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        if (hasVoted) {
+                            // Animated progress bar backdrop
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .fillMaxWidth(percentage / 100f)
+                                    .background(
+                                        if (isSelected) GlassGlowGreen.copy(alpha = 0.08f)
+                                        else Color.White.copy(alpha = 0.02f)
+                                    )
+                            )
+                        }
+                        
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (isSelected) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.CheckCircle,
+                                        contentDescription = "Selected",
+                                        tint = GlassGlowGreen,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                }
+                                Text(
+                                    text = optionText,
+                                    color = if (isSelected) GlassGlowGreen else Color.White.copy(alpha = 0.85f),
+                                    fontWeight = if (isSelected) FontWeight.ExtraBold else FontWeight.Medium,
+                                    fontSize = 13.sp
+                                )
+                            }
+                            if (hasVoted) {
+                                Text(
+                                    text = "$percentage%",
+                                    color = if (isSelected) GlassGlowGreen else Color.White.copy(alpha = 0.6f),
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

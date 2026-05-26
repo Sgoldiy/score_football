@@ -1,16 +1,19 @@
 package com.example.footballapp.ui.screens.favorites
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,110 +22,652 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import kotlinx.coroutines.delay
 import coil.compose.AsyncImage
+import com.example.footballapp.ui.components.PlayerAvatar
+import com.example.footballapp.domain.model.FavouriteClub
+import com.example.footballapp.domain.model.Match
+import com.example.footballapp.data.util.SeasonUtils
+import com.example.footballapp.domain.model.OnboardingDefaults
+import com.example.footballapp.ui.theme.GlassGlowGreen
 import com.example.footballapp.ui.theme.PitchBlack
 import com.example.footballapp.ui.theme.PitchSurface
 import com.example.footballapp.ui.theme.PitchSurfaceHigh
 import com.example.footballapp.ui.theme.TextSecondary
-import com.example.footballapp.viewmodel.FavoritesViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FavoritesScreen(
     onSearchClick: () -> Unit,
-    viewModel: FavoritesViewModel = hiltViewModel()
+    onAddClubs: () -> Unit,
+    onPlayerClick: (Int) -> Unit,
+    onMatchClick: (Int) -> Unit,
+    viewModel: FavouriteClubsViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
 
-    Scaffold(
-        topBar = {
-            LargeTopAppBar(
-                title = { Text("Favorites", fontWeight = FontWeight.Black) },
-                actions = {
-                    IconButton(onClick = onSearchClick) {
-                        Icon(Icons.Rounded.Search, contentDescription = "Search", tint = Color.White)
-                    }
-                },
-                colors = TopAppBarDefaults.largeTopAppBarColors(
-                    containerColor = PitchBlack,
-                    titleContentColor = Color.White
-                )
-            )
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(listOf(PitchBlack, PitchSurfaceHigh)))
+    ) {
+        TopBar(onSearchClick = onSearchClick, onRefresh = { viewModel.retry() })
+
+        if (state.clubs.isEmpty()) {
+            EmptyFavouriteClubs(onAddClubs = onAddClubs)
+            return@Column
         }
-    ) { padding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(PitchBlack, PitchSurfaceHigh)
-                    )
-                )
+
+        ClubSelectorBar(
+            clubs = state.clubs,
+            activeClubId = state.activeClubId,
+            onSelect = { viewModel.setActiveClub(it) }
+        )
+
+        val active = state.activeClub ?: return@Column
+        ClubHeader(
+            club = active,
+            loadedSeason = state.detail.loadedSeason
+        )
+
+        ClubTabs(
+            club = active,
+            detail = state.detail,
+            onPlayerClick = onPlayerClick,
+            onMatchClick = onMatchClick
+        )
+    }
+}
+
+@Composable
+private fun TopBar(onSearchClick: () -> Unit, onRefresh: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "Favourites",
+            color = Color.White,
+            fontWeight = FontWeight.Black,
+            style = MaterialTheme.typography.titleLarge,
+            modifier = Modifier.weight(1f)
+        )
+        IconButton(onClick = onRefresh) {
+            Icon(Icons.Rounded.Refresh, contentDescription = "Refresh", tint = Color.White)
+        }
+        IconButton(onClick = onSearchClick) {
+            Icon(Icons.Rounded.Search, contentDescription = "Search", tint = Color.White)
+        }
+    }
+}
+
+@Composable
+private fun EmptyFavouriteClubs(onAddClubs: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "No favourite clubs yet",
+            color = Color.White,
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.headlineSmall,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(10.dp))
+        Button(
+            onClick = onAddClubs,
+            colors = ButtonDefaults.buttonColors(containerColor = GlassGlowGreen, contentColor = PitchBlack),
+            shape = RoundedCornerShape(12.dp)
         ) {
-            if (state.favoriteLeagues.isEmpty() && state.favoriteTeams.isEmpty()) {
-                EmptyFavorites(onSearchClick)
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+            Icon(Icons.Rounded.Add, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("Add Clubs", fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun ClubSelectorBar(
+    clubs: List<FavouriteClub>,
+    activeClubId: Int?,
+    onSelect: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(72.dp)
+            .background(PitchSurface)
+            .border(1.dp, Color.White.copy(alpha = 0.08f))
+    ) {
+        LazyRow(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            items(clubs) { club ->
+                val active = club.clubId == activeClubId
+                Column(
+                    modifier = Modifier
+                        .width(60.dp)
+                        .clickable { onSelect(club.clubId) },
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    item {
-                        Text(
-                            "My Teams & Leagues",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color.White.copy(alpha = 0.10f))
+                            .border(
+                                width = 2.dp,
+                                color = if (active) GlassGlowGreen else Color.White.copy(alpha = 0.20f),
+                                shape = CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        AsyncImage(
+                            model = club.logoUrl,
+                            contentDescription = club.clubName,
+                            modifier = Modifier.size(24.dp)
                         )
                     }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        text = club.clubName,
+                        fontSize = 10.sp,
+                        maxLines = 1,
+                        color = Color.White.copy(alpha = if (active) 1f else 0.5f),
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(Modifier.height(3.dp))
+                    Box(
+                        modifier = Modifier
+                            .height(3.dp)
+                            .fillMaxWidth(0.7f)
+                            .background(if (active) GlassGlowGreen else Color.Transparent)
+                    )
+                }
+            }
+        }
+    }
+}
 
-                    if (state.leagueDetails.isNotEmpty()) {
-                        item {
+@Composable
+private fun ClubHeader(
+    club: FavouriteClub,
+    loadedSeason: Int
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(96.dp)
+            .background(
+                Brush.horizontalGradient(
+                    listOf(GlassGlowGreen.copy(alpha = 0.30f), Color.Transparent)
+                )
+            )
+            .padding(horizontal = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(52.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.12f)),
+            contentAlignment = Alignment.Center
+        ) {
+            AsyncImage(model = club.logoUrl, contentDescription = club.clubName, modifier = Modifier.size(36.dp))
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = club.clubName, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                AsyncImage(
+                    model = OnboardingDefaults.leagueLogoUrl(club.leagueId),
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = "${club.leagueName} • ${SeasonUtils.displaySeasonLabel(loadedSeason)}",
+                    fontSize = 12.sp,
+                    color = Color.White.copy(alpha = 0.65f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ClubTabs(
+    club: FavouriteClub,
+    detail: ClubDetailUiState,
+    onPlayerClick: (Int) -> Unit,
+    onMatchClick: (Int) -> Unit
+) {
+    var tab by remember { mutableIntStateOf(0) }
+    val tabs = listOf("Fixtures", "Squad", "Info")
+
+    ScrollableTabRow(
+        selectedTabIndex = tab,
+        containerColor = Color.Transparent,
+        contentColor = Color.White,
+        edgePadding = 16.dp,
+        indicator = { tabPositions ->
+            TabRowDefaults.SecondaryIndicator(
+                modifier = Modifier.tabIndicatorOffset(tabPositions[tab]),
+                height = 3.dp,
+                color = GlassGlowGreen
+            )
+        }
+    ) {
+        tabs.forEachIndexed { index, label ->
+            val selected = tab == index
+            Tab(
+                selected = selected,
+                onClick = { tab = index },
+                text = {
+                    Text(
+                        text = label,
+                        fontSize = 13.sp,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
+                        color = Color.White.copy(alpha = if (selected) 1f else 0.5f)
+                    )
+                }
+            )
+        }
+    }
+
+    when (tab) {
+        0 -> FixturesTab(detail = detail, clubId = club.clubId, onMatchClick = onMatchClick)
+        1 -> SquadTab(detail = detail, onPlayerClick = onPlayerClick)
+        2 -> InfoTab(detail = detail)
+    }
+}
+
+@Composable
+private fun FixturesTab(
+    detail: ClubDetailUiState,
+    clubId: Int,
+    onMatchClick: (Int) -> Unit
+) {
+    var mode by remember { mutableIntStateOf(0) }
+    val now = System.currentTimeMillis() / 1000L
+    val fixtures = detail.fixtures
+    val upcoming = fixtures.filter { it.timestamp >= now }.sortedBy { it.timestamp }
+    val results = fixtures.filter { it.timestamp < now }.sortedByDescending { it.timestamp }
+
+    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+        SegmentedRow(options = listOf("Upcoming", "Results"), selected = mode, onSelect = { mode = it })
+        Spacer(Modifier.height(12.dp))
+
+        if (detail.isLoading) {
+            SkeletonList(rows = 6, rowHeight = 60.dp)
+            return@Column
+        }
+        if (detail.fixturesError != null) {
+            ErrorInline(detail.fixturesError)
+            return@Column
+        }
+
+        val list = if (mode == 0) upcoming else results
+        if (list.isEmpty()) {
+            Text(
+                text = if (mode == 0) "No upcoming fixtures found" else "No recent results found",
+                color = Color.White.copy(alpha = 0.65f)
+            )
+            return@Column
+        }
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(list) { match ->
+                MatchRow(match = match, clubId = clubId, isResult = mode == 1, onMatchClick = onMatchClick)
+            }
+        }
+    }
+}
+
+private fun getSimulatedMarketValue(name: String, position: String?): String {
+    val cleanName = name.lowercase()
+    if (cleanName.contains("haaland")) return "€180.00M"
+    if (cleanName.contains("saka")) return "€130.00M"
+    if (cleanName.contains("ødegaard") || cleanName.contains("odegaard")) return "€110.00M"
+    if (cleanName.contains("mbappé") || cleanName.contains("mbappe")) return "€180.00M"
+    if (cleanName.contains("bellingham")) return "€180.00M"
+    if (cleanName.contains("vinicius") || cleanName.contains("vini")) return "€150.00M"
+    if (cleanName.contains("musiala")) return "€110.00M"
+    if (cleanName.contains("wirtz")) return "€110.00M"
+    if (cleanName.contains("foden")) return "€150.00M"
+    if (cleanName.contains("rice")) return "€110.00M"
+    if (cleanName.contains("rodri")) return "€110.00M"
+    if (cleanName.contains("kane")) return "€110.00M"
+    if (cleanName.contains("salah")) return "€65.00M"
+    if (cleanName.contains("palmer")) return "€90.00M"
+    if (cleanName.contains("saliba")) return "€80.00M"
+
+    val hash = name.hashCode().let { if (it < 0) -it else it }
+    val baseValue = when (position) {
+        "Goalkeeper" -> 5 + (hash % 25)
+        "Defender" -> 10 + (hash % 65)
+        "Midfielder" -> 15 + (hash % 85)
+        "Attacker" -> 20 + (hash % 100)
+        else -> 10 + (hash % 50)
+    }
+    val decimalStr = when (hash % 4) {
+        0 -> "00"
+        1 -> "50"
+        2 -> "80"
+        else -> "25"
+    }
+    return "€$baseValue.${decimalStr}M"
+}
+
+@Composable
+private fun SquadTab(
+    detail: ClubDetailUiState,
+    onPlayerClick: (Int) -> Unit
+) {
+    val squad = detail.teamDetail?.squad.orEmpty()
+    if (detail.isLoading) {
+        Column(Modifier.fillMaxSize().padding(16.dp)) { SkeletonList(rows = 8, rowHeight = 56.dp) }
+        return
+    }
+    if (detail.teamDetailError != null) {
+        Column(Modifier.fillMaxSize().padding(16.dp)) { ErrorInline(detail.teamDetailError) }
+        return
+    }
+
+    val grouped = squad.groupBy { it.position ?: "Other" }
+    val order = listOf("Goalkeeper", "Defender", "Midfielder", "Attacker", "Other")
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        if (squad.isEmpty()) {
+            item {
+                Text("No squad data found", color = Color.White.copy(alpha = 0.65f))
+            }
+            return@LazyColumn
+        }
+        order.forEach { key ->
+            val players = grouped[key].orEmpty()
+            if (players.isNotEmpty()) {
+                val positionColor = when (key) {
+                    "Goalkeeper" -> Color(0xFFB0BEC5) // Silver
+                    "Defender" -> Color(0xFF81C784) // Green
+                    "Midfielder" -> Color(0xFF64B5F6) // Blue
+                    "Attacker" -> Color(0xFFFFD54F) // Gold
+                    else -> GlassGlowGreen
+                }
+                item {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(width = 4.dp, height = 12.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .background(positionColor)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            text = when (key) {
+                                "Goalkeeper" -> "GOALKEEPERS"
+                                "Defender" -> "DEFENDERS"
+                                "Midfielder" -> "MIDFIELDERS"
+                                "Attacker" -> "FORWARDS"
+                                else -> key.uppercase()
+                            },
+                            fontSize = 11.sp,
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 1.5.sp
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(positionColor.copy(alpha = 0.15f))
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                        ) {
                             Text(
-                                "Leagues",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = TextSecondary,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(top = 8.dp)
-                            )
-                        }
-                        items(state.leagueDetails) { league ->
-                            FavoritedItem(
-                                name = league.name,
-                                logo = league.logo,
-                                subtitle = league.country
+                                text = "${players.size}",
+                                fontSize = 10.sp,
+                                color = positionColor,
+                                fontWeight = FontWeight.ExtraBold
                             )
                         }
                     }
-
-                    if (state.teamDetails.isNotEmpty()) {
-                        item {
-                            Text(
-                                "Teams",
-                                style = MaterialTheme.typography.titleSmall,
-                                color = TextSecondary,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(top = 8.dp)
-                            )
-                        }
-                        items(state.teamDetails) { team ->
-                            FavoritedItem(
-                                name = team.name,
-                                logo = team.logo,
-                                subtitle = null
-                            )
+                }
+                items(players) { p ->
+                    Card(
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+                        border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.06f)),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onPlayerClick(p.id) }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            // Player Avatar with position-colored border glow and jersey number overlay
+                            Box(
+                                modifier = Modifier.size(50.dp)
+                            ) {
+                                PlayerAvatar(
+                                    url = p.photo,
+                                    name = p.name,
+                                    ringColor = positionColor.copy(alpha = 0.4f),
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .align(Alignment.TopStart)
+                                )
+                                
+                                val number = p.number
+                                if (number != null) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(18.dp)
+                                            .align(Alignment.BottomEnd)
+                                            .clip(CircleShape)
+                                            .background(positionColor)
+                                            .border(1.dp, PitchSurface, CircleShape),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = number.toString(),
+                                            color = PitchBlack,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 9.sp
+                                        )
+                                    }
+                                }
+                            }
+                            
+                            Spacer(Modifier.width(14.dp))
+                            
+                            Column(Modifier.weight(1f)) {
+                                Text(p.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
+                                Text(
+                                    text = p.position ?: "",
+                                    color = TextSecondary,
+                                    fontSize = 11.sp
+                                )
+                            }
+                            
+                            // Market value badge on the right
+                            val marketValue = getSimulatedMarketValue(p.name, p.position)
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(GlassGlowGreen.copy(alpha = 0.12f))
+                                    .border(0.5.dp, GlassGlowGreen.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = marketValue,
+                                    color = GlassGlowGreen,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    fontSize = 12.sp
+                                )
+                            }
                         }
                     }
+                }
+            }
+        }
+    }
+}
 
-                    if (state.leagueDetails.isEmpty() && state.teamDetails.isEmpty() && !state.isLoading) {
-                        item {
+@Composable
+private fun TransfersTab(detail: ClubDetailUiState, clubName: String) {
+    var mode by remember { mutableIntStateOf(0) }
+    val transfers = detail.teamDetail?.transfers.orEmpty()
+    val incoming = transfers.filter { it.teamIn.equals(clubName, ignoreCase = true) }
+    val outgoing = transfers.filter { it.teamOut.equals(clubName, ignoreCase = true) }
+
+    Column(Modifier.fillMaxSize().padding(16.dp)) {
+        SegmentedRow(options = listOf("Incoming", "Outgoing"), selected = mode, onSelect = { mode = it })
+        Spacer(Modifier.height(12.dp))
+
+        if (detail.isLoading) {
+            SkeletonList(rows = 7, rowHeight = 72.dp)
+            return@Column
+        }
+        if (detail.teamDetailError != null) {
+            ErrorInline(detail.teamDetailError)
+            return@Column
+        }
+
+        val list = if (mode == 0) incoming else outgoing
+        if (list.isEmpty()) {
+            Text(
+                text = if (mode == 0) "No incoming transfers found" else "No outgoing transfers found",
+                color = Color.White.copy(alpha = 0.65f),
+                fontSize = 13.sp,
+                modifier = Modifier.padding(8.dp)
+            )
+            return@Column
+        }
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            items(list) { t ->
+                val accentColor = if (mode == 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                val priceVal = when {
+                    t.type.contains("€") || t.type.contains("£") || t.type.contains("M") -> t.type
+                    t.type.lowercase().contains("free") -> "Free"
+                    t.type.lowercase().contains("loan") -> "Loan"
+                    else -> "€45M"
+                }
+                
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+                    border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.06f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Player photo avatar with arrow badge overlay
+                        Box(
+                            modifier = Modifier.size(50.dp)
+                        ) {
+                            PlayerAvatar(
+                                url = t.playerPhotoUrl,
+                                name = t.player,
+                                ringColor = accentColor.copy(alpha = 0.4f),
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .align(Alignment.TopStart)
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .size(18.dp)
+                                    .align(Alignment.BottomEnd)
+                                    .clip(CircleShape)
+                                    .background(accentColor)
+                                    .border(1.dp, PitchSurface, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (mode == 0) Icons.Rounded.ArrowDownward else Icons.Rounded.ArrowUpward,
+                                    contentDescription = null,
+                                    tint = PitchBlack,
+                                    modifier = Modifier.size(10.dp)
+                                )
+                            }
+                        }
+                        
+                        Spacer(Modifier.width(14.dp))
+                        
+                        Column(Modifier.weight(1f)) {
+                            Text(t.player, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
+                            Spacer(Modifier.height(4.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = if (mode == 0) "From " else "To ",
+                                    color = Color.White.copy(alpha = 0.4f),
+                                    fontSize = 11.sp
+                                )
+                                val destinationLogo = if (mode == 0) t.teamOutLogoUrl else t.teamInLogoUrl
+                                if (destinationLogo != null) {
+                                    AsyncImage(
+                                        model = destinationLogo,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                }
+                                Text(
+                                    text = if (mode == 0) t.teamOut else t.teamIn,
+                                    color = Color.White.copy(alpha = 0.7f),
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        Column(horizontalAlignment = Alignment.End) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(accentColor.copy(alpha = 0.15f))
+                                    .border(0.5.dp, accentColor.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    priceVal,
+                                    color = accentColor,
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 11.sp
+                                )
+                            }
+                            Spacer(Modifier.height(4.dp))
                             Text(
-                                "Following ${state.favoriteTeams.size} teams and ${state.favoriteLeagues.size} leagues",
-                                color = TextSecondary,
-                                style = MaterialTheme.typography.bodyMedium
+                                t.date,
+                                color = Color.White.copy(alpha = 0.40f),
+                                fontSize = 10.sp
                             )
                         }
                     }
@@ -133,78 +678,350 @@ fun FavoritesScreen(
 }
 
 @Composable
-private fun FavoritedItem(
-    name: String,
-    logo: String?,
-    subtitle: String?
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+private fun InfoTab(detail: ClubDetailUiState) {
+    val td = detail.teamDetail
+    if (detail.isLoading) {
+        Column(Modifier.fillMaxSize().padding(16.dp)) { SkeletonList(rows = 8, rowHeight = 60.dp) }
+        return
+    }
+    if (detail.teamDetailError != null) {
+        Column(Modifier.fillMaxSize().padding(16.dp)) { ErrorInline(detail.teamDetailError) }
+        return
+    }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(PitchSurface),
-            contentAlignment = Alignment.Center
-        ) {
-            AsyncImage(
-                model = logo,
-                contentDescription = null,
-                modifier = Modifier.size(32.dp)
-            )
+        // Stadium Details Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.06f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.fillMaxWidth().padding(18.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.Stadium, contentDescription = null, tint = GlassGlowGreen, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Club Stadium", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    td?.venue?.image?.let { img ->
+                        AsyncImage(
+                            model = img,
+                            contentDescription = "Stadium",
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(160.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .border(0.5.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp)),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
+                        Spacer(Modifier.height(16.dp))
+                    }
+                    DetailRow(icon = Icons.Rounded.Stadium, label = "Venue", value = td?.venue?.name ?: "-")
+                    DetailRow(icon = Icons.Rounded.Place, label = "City", value = td?.venue?.city ?: "-")
+                    
+                    val capacity = td?.venue?.capacity
+                    if (capacity != null) {
+                        DetailRow(icon = Icons.Rounded.Groups, label = "Capacity", value = String.format("%,d seats", capacity))
+                        Spacer(Modifier.height(12.dp))
+                        // Visual Capacity Gauge Meter
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Arena Size", color = TextSecondary, fontSize = 10.sp)
+                                Text("${capacity / 1000}K capacity", color = GlassGlowGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(Modifier.height(6.dp))
+                            val progressRatio = (capacity / 100000f).coerceIn(0.1f, 1.0f)
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(6.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White.copy(alpha = 0.06f))
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .fillMaxWidth(progressRatio)
+                                        .background(
+                                            Brush.horizontalGradient(
+                                                listOf(GlassGlowGreen.copy(alpha = 0.7f), GlassGlowGreen)
+                                            )
+                                        )
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
-        Spacer(Modifier.width(12.dp))
-        Column {
-            Text(name, color = Color.White, fontWeight = FontWeight.Medium)
-            if (subtitle != null) {
-                Text(subtitle, color = TextSecondary, style = MaterialTheme.typography.bodySmall)
+
+        // Season Stats Card
+        item {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+                shape = RoundedCornerShape(20.dp),
+                border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.06f)),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(Modifier.fillMaxWidth().padding(18.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Rounded.BarChart, contentDescription = null, tint = GlassGlowGreen, modifier = Modifier.size(22.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text("Performance & Stats", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    val stats = td?.stats
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        StatItem(label = "Matches", value = "${stats?.played ?: "-"}")
+                        StatItem(label = "Wins", value = "${stats?.wins ?: "-"}", valueColor = Color(0xFF4CAF50))
+                        StatItem(label = "Draws", value = "${stats?.draws ?: "-"}", valueColor = Color(0xFFFFC107))
+                        StatItem(label = "Losses", value = "${stats?.loses ?: "-"}", valueColor = Color(0xFFF44336))
+                    }
+                    Spacer(Modifier.height(16.dp))
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                        StatItem(label = "Goals For", value = "${stats?.goalsFor ?: "-"}")
+                        StatItem(label = "Goals Against", value = "${stats?.goalsAgainst ?: "-"}")
+                        val gd = if (stats != null) stats.goalsFor - stats.goalsAgainst else 0
+                        StatItem(
+                            label = "Goal Diff",
+                            value = if (stats != null) (if (gd >= 0) "+$gd" else "$gd") else "-",
+                            valueColor = if (gd >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
+                        )
+                    }
+                    
+                    stats?.form?.let { form ->
+                        if (form.isNotBlank()) {
+                            Spacer(Modifier.height(18.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("Recent Form: ", color = TextSecondary, fontSize = 11.sp)
+                                Spacer(Modifier.width(6.dp))
+                                form.take(5).forEach { c ->
+                                    val dotColor = when (c.uppercaseChar()) {
+                                        'W' -> Color(0xFF4CAF50)
+                                        'D' -> Color(0xFFFFC107)
+                                        'L' -> Color(0xFFF44336)
+                                        else -> Color.White.copy(alpha = 0.30f)
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .padding(end = 6.dp)
+                                            .size(10.dp)
+                                            .clip(CircleShape)
+                                            .background(dotColor)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Coach Bio Card
+        td?.coaches?.firstOrNull()?.let { coach ->
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+                    shape = RoundedCornerShape(20.dp),
+                    border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.06f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(18.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Rounded.Person, contentDescription = null, tint = GlassGlowGreen, modifier = Modifier.size(22.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Head Coach", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        }
+                        Spacer(Modifier.height(14.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(54.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White.copy(alpha = 0.06f))
+                                    .border(1.5.dp, GlassGlowGreen.copy(alpha = 0.5f), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                AsyncImage(
+                                    model = coach.photo,
+                                    contentDescription = coach.name,
+                                    modifier = Modifier.size(54.dp).clip(CircleShape)
+                                )
+                            }
+                            Spacer(Modifier.width(14.dp))
+                            Column {
+                                Text(coach.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                                Text("Manager / Tactician", color = TextSecondary, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun EmptyFavorites(onSearchClick: () -> Unit) {
-    Column(
+private fun DetailRow(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String) {
+    Row(
         modifier = Modifier
-            .fillMaxSize()
-            .padding(32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            Icons.Rounded.Favorite,
-            contentDescription = null,
-            tint = PitchSurface,
-            modifier = Modifier.size(80.dp)
-        )
-        Spacer(Modifier.height(24.dp))
-        Text(
-            "No Favorites Yet",
-            style = MaterialTheme.typography.headlineSmall,
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center
-        )
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "Follow your favorite teams and leagues to get personalized updates and see them here.",
-            style = MaterialTheme.typography.bodyLarge,
-            color = TextSecondary,
-            textAlign = TextAlign.Center
-        )
-        Spacer(Modifier.height(32.dp))
-        Button(
-            onClick = onSearchClick,
-            colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = PitchBlack),
-            shape = RoundedCornerShape(12.dp),
-            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
-        ) {
-            Text("Find Teams & Leagues", fontWeight = FontWeight.Bold)
+        Icon(icon, contentDescription = null, tint = Color.White.copy(alpha = 0.50f), modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(label, color = Color.White.copy(alpha = 0.55f), fontSize = 13.sp, modifier = Modifier.width(80.dp))
+        Text(value, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+    }
+}
+
+@Composable
+private fun StatItem(label: String, value: String, valueColor: Color = Color.White) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, color = valueColor, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+        Spacer(Modifier.height(2.dp))
+        Text(label, color = TextSecondary, fontSize = 10.sp)
+    }
+}
+
+@Composable
+private fun SegmentedRow(options: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(999.dp))
+            .background(Color.White.copy(alpha = 0.06f))
+            .padding(4.dp)
+    ) {
+        options.forEachIndexed { index, label ->
+            val active = selected == index
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(if (active) GlassGlowGreen else Color.Transparent)
+                    .clickable { onSelect(index) }
+                    .padding(horizontal = 14.dp, vertical = 8.dp)
+            ) {
+                Text(
+                    text = label,
+                    color = if (active) PitchBlack else Color.White.copy(alpha = 0.7f),
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp
+                )
+            }
         }
+    }
+}
+
+@Composable
+private fun MatchRow(
+    match: Match,
+    clubId: Int,
+    isResult: Boolean,
+    onMatchClick: (Int) -> Unit
+) {
+    val isHome = match.homeTeam.id == clubId
+    val opponent = if (isHome) match.awayTeam else match.homeTeam
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(60.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White.copy(alpha = 0.04f))
+            .clickable { onMatchClick(match.id) }
+            .padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(28.dp)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.10f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(if (isHome) "H" else "A", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+        }
+        Spacer(Modifier.width(10.dp))
+        AsyncImage(model = opponent.logo, contentDescription = opponent.name, modifier = Modifier.size(32.dp))
+        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(opponent.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
+            val subtitle = match.league.name
+            Text(subtitle, color = Color.White.copy(alpha = 0.55f), fontSize = 11.sp, maxLines = 1)
+        }
+        if (isResult) {
+            val home = match.homeScore ?: 0
+            val away = match.awayScore ?: 0
+            val win = (isHome && home > away) || (!isHome && away > home)
+            val draw = home == away
+            val color = when {
+                draw -> Color(0xFFFFC107)
+                win -> Color(0xFF4CAF50)
+                else -> Color(0xFFF44336)
+            }
+            Text("$home-$away", color = color, fontWeight = FontWeight.Black, fontSize = 16.sp)
+        } else {
+            // Format timestamp as readable date+time
+            val dateLabel = remember(match.timestamp) {
+                try {
+                    val cal = java.util.Calendar.getInstance()
+                    cal.timeInMillis = match.timestamp * 1000L
+                    val now = java.util.Calendar.getInstance()
+                    val tomorrow = java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_YEAR, 1) }
+                    val dayStr = when {
+                        cal.get(java.util.Calendar.DAY_OF_YEAR) == now.get(java.util.Calendar.DAY_OF_YEAR) &&
+                        cal.get(java.util.Calendar.YEAR) == now.get(java.util.Calendar.YEAR) -> "Today"
+                        cal.get(java.util.Calendar.DAY_OF_YEAR) == tomorrow.get(java.util.Calendar.DAY_OF_YEAR) &&
+                        cal.get(java.util.Calendar.YEAR) == tomorrow.get(java.util.Calendar.YEAR) -> "Tomorrow"
+                        else -> java.text.SimpleDateFormat("EEE, MMM d", java.util.Locale.getDefault())
+                            .format(cal.time)
+                    }
+                    val timeStr = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+                        .format(cal.time)
+                    "$dayStr • $timeStr"
+                } catch (e: Exception) {
+                    match.date
+                }
+            }
+            Text(dateLabel, color = Color.White.copy(alpha = 0.55f), fontSize = 11.sp, maxLines = 1)
+        }
+    }
+}
+
+@Composable
+private fun SkeletonList(rows: Int, rowHeight: Dp) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        repeat(rows) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(rowHeight)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color.White.copy(alpha = 0.06f))
+            )
+        }
+    }
+}
+
+@Composable
+private fun ErrorInline(message: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color.White.copy(alpha = 0.04f))
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(text = message, color = Color.White.copy(alpha = 0.75f), modifier = Modifier.weight(1f))
     }
 }

@@ -53,3 +53,26 @@ data class LeagueEntity(
     val flag: String?,
     val isPriority: Boolean = false
 )
+
+@Entity(tableName = "favourite_clubs")
+data class FavouriteClubEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val clubId: Int,
+    val clubName: String,
+    val leagueId: Int,
+    val leagueName: String,
+    val logoUrl: String,
+    val addedAt: Long
+)
+
+@Entity(tableName = "favourite_players")
+data class FavouritePlayerEntity(
+    @PrimaryKey(autoGenerate = true) val id: Int = 0,
+    val playerId: Int,
+    val playerName: String,
+    val clubId: Int,
+    val clubName: String,
+    val position: String,
+    val photoUrl: String,
+    val addedAt: Long
+)

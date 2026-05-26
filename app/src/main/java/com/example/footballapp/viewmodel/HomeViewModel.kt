@@ -2,7 +2,10 @@ package com.example.footballapp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.footballapp.data.model.PlayerProfileStatisticsResponse
+import com.example.footballapp.data.remote.ApiService
 import com.example.footballapp.data.util.ApiResult
+import com.example.footballapp.data.util.SeasonUtils
 import com.example.footballapp.domain.model.LeagueInfo
 import com.example.footballapp.domain.model.Match
 import com.example.footballapp.domain.repository.FootballRepository
@@ -22,14 +25,16 @@ sealed class HomeUiState {
         val upcomingMatches: List<Match>,
         val finishedMatches: List<Match>,
         val topLeagues: List<LeagueInfo>,
-        val isLive: Boolean
+        val isLive: Boolean,
+        val topScorers: List<PlayerProfileStatisticsResponse> = emptyList()
     ) : HomeUiState()
     data class Error(val message: String) : HomeUiState()
 }
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val repository: FootballRepository
+    private val repository: FootballRepository,
+    private val apiService: ApiService
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
@@ -45,7 +50,17 @@ class HomeViewModel @Inject constructor(
         refreshJob?.cancel()
         refreshJob = viewModelScope.launch {
             val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-            
+            val season = SeasonUtils.currentSeasonStartYear()
+
+            var scorersList = emptyList<PlayerProfileStatisticsResponse>()
+            try {
+                // Fetch English Premier League (39) top scorers as the default home showcase
+                val response = apiService.getTopScorers(39, season)
+                scorersList = response.response.take(10)
+            } catch (e: Exception) {
+                // Fallback silently if top scorers loading fails
+            }
+
             repository.getFixturesByDate(today).collect { result ->
                 when (result) {
                     is ApiResult.Loading -> {
@@ -76,7 +91,8 @@ class HomeViewModel @Inject constructor(
                             upcomingMatches = upcoming,
                             finishedMatches = finished,
                             topLeagues = topLeagues,
-                            isLive = live.isNotEmpty()
+                            isLive = live.isNotEmpty(),
+                            topScorers = scorersList
                         )
                     }
                     is ApiResult.Error -> {
@@ -110,3 +126,4 @@ class HomeViewModel @Inject constructor(
             .launchIn(viewModelScope)
     }
 }
+

@@ -14,5 +14,5 @@ interface FootballRepository {
     suspend fun searchTeams(query: String): ApiResult<List<TeamInfo>>
     suspend fun getLeagues(): ApiResult<List<LeagueInfo>>
     fun getFixturesByLeagueSeason(leagueId: Int, season: Int): Flow<ApiResult<List<Match>>>
-    // Add other necessary methods
+    suspend fun getFixturesByTeamSeasonLeague(teamId: Int, leagueId: Int, season: Int): ApiResult<List<Match>>
 }

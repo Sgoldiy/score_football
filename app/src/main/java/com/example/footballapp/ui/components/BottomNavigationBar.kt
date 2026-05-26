@@ -5,10 +5,11 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material.icons.rounded.CalendarToday
 import androidx.compose.material.icons.rounded.EmojiEvents
 import androidx.compose.material.icons.rounded.Home
-import androidx.compose.material.icons.rounded.StarBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -33,7 +34,7 @@ fun BottomNavigationBar(
         BottomNavItem(Screen.Home.route, Icons.Rounded.Home),
         BottomNavItem(Screen.Fixtures.route, Icons.Rounded.CalendarToday),
         BottomNavItem(Screen.Leagues.route, Icons.Rounded.EmojiEvents),
-        BottomNavItem(Screen.Favourites.route, Icons.Rounded.StarBorder)
+        BottomNavItem(Screen.Favourites.route, Icons.Outlined.StarBorder)
     )
 
     Row(
@@ -57,7 +58,7 @@ fun BottomNavigationBar(
                 verticalArrangement = Arrangement.Center
             ) {
                 Icon(
-                    imageVector = item.icon,
+                    imageVector = if (item.route == Screen.Favourites.route && isSelected) Icons.Filled.Star else item.icon,
                     contentDescription = null,
                     tint = if (isSelected) MaterialTheme.colorScheme.primary 
                            else MaterialTheme.colorScheme.onSurfaceVariant,

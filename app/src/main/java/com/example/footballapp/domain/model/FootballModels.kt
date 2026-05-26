@@ -59,7 +59,9 @@ data class MatchDetail(
     val prediction: MatchPrediction? = null,
     val odds: List<MatchOdd> = emptyList(),
     val injuries: List<MatchInjury> = emptyList(),
-    val headToHead: List<Match> = emptyList()
+    val headToHead: List<Match> = emptyList(),
+    val venue: VenueInfo? = null,
+    val referee: String? = null
 )
 
 data class MatchPrediction(
@@ -130,7 +132,11 @@ data class TransferRecord(
     val date: String,
     val type: String,
     val teamIn: String,
-    val teamOut: String
+    val teamOut: String,
+    val playerId: Int = 0,
+    val playerPhotoUrl: String? = null,
+    val teamInLogoUrl: String? = null,
+    val teamOutLogoUrl: String? = null
 )
 
 data class PlayerDetail(
