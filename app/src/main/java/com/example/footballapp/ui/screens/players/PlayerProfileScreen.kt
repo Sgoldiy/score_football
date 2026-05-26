@@ -539,37 +539,53 @@ private fun PlayerVisualAnalyticsSection(detail: com.example.footballapp.domain.
 
     val rating = detail.stats.firstOrNull()?.rating?.toFloatOrNull() ?: 7.2f
     val ratingFactor = (rating / 8.5f).coerceIn(0.7f, 1.1f)
+    val stat = detail.stats.firstOrNull()
 
-    val attributes = remember(position, ratingFactor) {
-        when (position) {
-            "Attacker" -> listOf(
-                (92 * ratingFactor).coerceIn(40f, 99f), // Speed
-                (82 * ratingFactor).coerceIn(40f, 99f), // Passing
-                (75 * ratingFactor).coerceIn(40f, 99f), // Physical
-                (35 * ratingFactor).coerceIn(10f, 99f), // Defense
-                (90 * ratingFactor).coerceIn(40f, 99f)  // Shooting
-            )
-            "Midfielder" -> listOf(
-                (80 * ratingFactor).coerceIn(40f, 99f), // Speed
-                (92 * ratingFactor).coerceIn(40f, 99f), // Passing
-                (72 * ratingFactor).coerceIn(40f, 99f), // Physical
-                (65 * ratingFactor).coerceIn(40f, 99f), // Defense
-                (78 * ratingFactor).coerceIn(40f, 99f)  // Shooting
-            )
-            "Defender" -> listOf(
-                (76 * ratingFactor).coerceIn(40f, 99f), // Speed
-                (74 * ratingFactor).coerceIn(40f, 99f), // Passing
-                (85 * ratingFactor).coerceIn(40f, 99f), // Physical
-                (90 * ratingFactor).coerceIn(40f, 99f), // Defense
-                (45 * ratingFactor).coerceIn(10f, 99f)  // Shooting
-            )
-            else -> listOf(
-                (55 * ratingFactor).coerceIn(30f, 99f), // Speed
-                (68 * ratingFactor).coerceIn(40f, 99f), // Passing
-                (80 * ratingFactor).coerceIn(40f, 99f), // Physical
-                (95 * ratingFactor).coerceIn(40f, 99f), // Defense
-                (12 * ratingFactor).coerceIn(5f, 99f)    // Shooting
-            )
+    val attributes = remember(position, ratingFactor, stat) {
+        if (stat != null) {
+            // Speed Calculation
+            val baseSpeed = when (position) {
+                "Attacker" -> 78f
+                "Midfielder" -> 68f
+                "Defender" -> 62f
+                else -> 50f
+            }
+            val speedScore = (baseSpeed + (ratingFactor * 12f) + (stat.dribblesAttempts * 1.2f)).coerceIn(40f, 99f)
+
+            // Passing Calculation
+            val passingScore = (stat.passesAccuracy.coerceIn(40, 95).toFloat() + (stat.passesKey * 2.2f) + (stat.assists * 8f)).coerceIn(30f, 99f)
+
+            // Physical Calculation
+            val duelRatio = if (stat.duelsTotal > 0) (stat.duelsWon.toFloat() / stat.duelsTotal) else 0.5f
+            val physicalScore = ((duelRatio * 65f) + (ratingFactor * 15f) + (stat.foulsDrawn * 1.5f)).coerceIn(35f, 99f)
+
+            // Defense Calculation
+            val defensiveActions = stat.tacklesTotal + stat.interceptions + stat.blocks
+            val baseDefense = when (position) {
+                "Defender" -> 65f
+                "Midfielder" -> 45f
+                else -> 20f
+            }
+            val defenseScore = (baseDefense + (defensiveActions * 3f) + (ratingFactor * 10f)).coerceIn(15f, 99f)
+
+            // Shooting Calculation
+            val shotsRatio = if (stat.shotsTotal > 0) (stat.shotsOnTarget.toFloat() / stat.shotsTotal) else 0.4f
+            val baseShooting = when (position) {
+                "Attacker" -> 60f
+                "Midfielder" -> 45f
+                else -> 15f
+            }
+            val shootingScore = (baseShooting + (shotsRatio * 30f) + (stat.goals * 7f)).coerceIn(25f, 99f)
+
+            listOf(speedScore, passingScore, physicalScore, defenseScore, shootingScore)
+        } else {
+            // Fallback to sensible defaults
+            when (position) {
+                "Attacker" -> listOf(88f, 75f, 70f, 35f, 85f)
+                "Midfielder" -> listOf(76f, 88f, 72f, 60f, 72f)
+                "Defender" -> listOf(72f, 70f, 82f, 88f, 40f)
+                else -> listOf(52f, 62f, 78f, 90f, 10f)
+            }
         }
     }
 

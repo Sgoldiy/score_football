@@ -3,6 +3,7 @@ package com.example.footballapp.ui.screens.leagues
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -40,6 +41,7 @@ fun LeagueDetailScreen(
     leagueId: Int,
     onBackClick: () -> Unit,
     onMatchClick: (Int) -> Unit,
+    onTeamClick: (Int) -> Unit,
     viewModel: LeagueDetailViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -106,7 +108,7 @@ fun LeagueDetailScreen(
             Spacer(Modifier.height(12.dp))
 
             when (selectedTab) {
-                0 -> StandingsTab(state.standings)
+                0 -> StandingsTab(state.standings, onTeamClick)
                 1 -> FixturesTab(state.fixtures, onMatchClick)
                 2 -> PlayerStatsTab(state.topScorers, state.topAssists)
             }
@@ -155,7 +157,7 @@ fun LeagueHeader(leagueInfo: com.example.footballapp.domain.model.LeagueInfo) {
 }
 
 @Composable
-fun StandingsTab(standingsResult: ApiResult<List<StandingItem>>) {
+fun StandingsTab(standingsResult: ApiResult<List<StandingItem>>, onTeamClick: (Int) -> Unit) {
     when (standingsResult) {
         is ApiResult.Loading -> {
             LazyColumn(
@@ -181,9 +183,7 @@ fun StandingsTab(standingsResult: ApiResult<List<StandingItem>>) {
                     item {
                         StandingsHeader()
                     }
-                    items(standings) { item ->
-                        StandingRow(item)
-                    }
+                    items(standings) { item -> StandingRow(item, onTeamClick) }
                 }
             }
         }
@@ -220,7 +220,7 @@ fun StandingsHeader() {
 }
 
 @Composable
-fun StandingRow(item: StandingItem) {
+fun StandingRow(item: StandingItem, onTeamClick: (Int) -> Unit) {
     val zoneColor = when {
         item.rank <= 4 -> LiveGreen // Champions League
         item.rank == 5 -> Color(0xFFFF9800) // Europa League
@@ -229,7 +229,7 @@ fun StandingRow(item: StandingItem) {
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().clickable { onTeamClick(item.team.id) },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
         border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.06f))

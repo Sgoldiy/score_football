@@ -164,7 +164,25 @@ data class PlayerStatDetail(
     val appearances: Int,
     val goals: Int,
     val assists: Int,
-    val rating: String?
+    val rating: String?,
+    val shotsTotal: Int,
+    val shotsOnTarget: Int,
+    val passesTotal: Int,
+    val passesKey: Int,
+    val passesAccuracy: Int,
+    val tacklesTotal: Int,
+    val interceptions: Int,
+    val blocks: Int,
+    val duelsTotal: Int,
+    val duelsWon: Int,
+    val dribblesAttempts: Int,
+    val dribblesSuccess: Int,
+    val foulsDrawn: Int,
+    val foulsCommitted: Int,
+    val cardsYellow: Int,
+    val cardsRed: Int,
+    val penaltyScored: Int,
+    val penaltyMissed: Int
 )
 
 data class PlayerTrophyInfo(
