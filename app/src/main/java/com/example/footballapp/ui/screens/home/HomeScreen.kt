@@ -8,8 +8,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -25,49 +25,43 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.footballapp.data.model.PlayerProfileStatisticsResponse
 import com.example.footballapp.domain.model.LeagueInfo
 import com.example.footballapp.domain.model.Match
-import com.example.footballapp.ui.components.LiveBadge
+import com.example.footballapp.ui.components.CompetitionCard
+
+import com.example.footballapp.ui.components.StatPill
 import com.example.footballapp.ui.theme.*
 import com.example.footballapp.viewmodel.HomeViewModel
 import com.example.footballapp.viewmodel.HomeUiState
 import java.text.SimpleDateFormat
 import java.util.*
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Competition catalogue (shown in "Top Competitions" section)
-// ─────────────────────────────────────────────────────────────────────────────
-private data class CompEntry(val id: Int, val name: String, val logo: String)
-
-private val TOP_LEAGUES = listOf(
-    CompEntry(39,  "Premier League",   "https://media.api-sports.io/football/leagues/39.png"),
-    CompEntry(140, "La Liga",          "https://media.api-sports.io/football/leagues/140.png"),
-    CompEntry(78,  "Bundesliga",       "https://media.api-sports.io/football/leagues/78.png"),
-    CompEntry(135, "Serie A",          "https://media.api-sports.io/football/leagues/135.png"),
-    CompEntry(61,  "Ligue 1",          "https://media.api-sports.io/football/leagues/61.png"),
+private data class Competition(
+    val id: Int,
+    val name: String,
+    val leagueId: Int,
+    val season: Int
 )
 
-private val CUP_COMPETITIONS = listOf(
-    CompEntry(2,   "Champions Lg",     "https://media.api-sports.io/football/leagues/2.png"),
-    CompEntry(3,   "Europa League",    "https://media.api-sports.io/football/leagues/3.png"),
-    CompEntry(848, "Conference Lg",    "https://media.api-sports.io/football/leagues/848.png"),
-    CompEntry(4,   "UEFA Euro",        "https://media.api-sports.io/football/leagues/4.png"),
-    CompEntry(1,   "World Cup",        "https://media.api-sports.io/football/leagues/1.png"),
-    CompEntry(15,  "Club World Cup",   "https://media.api-sports.io/football/leagues/15.png"),
+private val HOME_COMPETITIONS = listOf(
+    Competition(id = 39, name = "Premier League", leagueId = 39, season = 2024),
+    Competition(id = 140, name = "La Liga", leagueId = 140, season = 2024),
+    Competition(id = 78, name = "Bundesliga", leagueId = 78, season = 2024),
+    Competition(id = 135, name = "Serie A", leagueId = 135, season = 2024),
+    Competition(id = 61, name = "Ligue 1", leagueId = 61, season = 2024),
+    Competition(id = 2, name = "Champions League", leagueId = 2, season = 2024),
+    Competition(id = 1, name = "FIFA World Cup", leagueId = 1, season = 2026)
 )
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Root composable
-// ─────────────────────────────────────────────────────────────────────────────
 @Composable
 fun HomeScreen(
     onNavigateToSearch: () -> Unit,
@@ -75,14 +69,14 @@ fun HomeScreen(
     onNavigateToNotifications: () -> Unit,
     onNavigateToMatchCenter: (String) -> Unit,
     onNavigateToLeagues: () -> Unit,
-    onNavigateToLeagueDetail: ((Int) -> Unit)? = null,
+    onNavigateToLeagueDetail: ((Int, Int) -> Unit)? = null,
     onNavigateToFixtures: () -> Unit = {},
     onNavigateToPlayerProfile: (Int) -> Unit,
     onNavigateToTopPlayers: () -> Unit = {},
     onNavigateToCompetitions: () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     when (val state = uiState) {
         is HomeUiState.Loading -> HomeLoadingShimmer()
         is HomeUiState.Error   -> HomeErrorScreen(state.message) { viewModel.loadHomeData() }
@@ -101,9 +95,6 @@ fun HomeScreen(
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Loading shimmer
-// ─────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun HomeLoadingShimmer() {
     LazyColumn(
@@ -122,9 +113,6 @@ private fun HomeLoadingShimmer() {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Error screen
-// ─────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun HomeErrorScreen(message: String, onRetry: () -> Unit) {
     Box(modifier = Modifier.fillMaxSize().background(DeepNavy), contentAlignment = Alignment.Center) {
@@ -142,9 +130,6 @@ private fun HomeErrorScreen(message: String, onRetry: () -> Unit) {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Main content
-// ─────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun HomeContent(
     state: HomeUiState.Success,
@@ -155,20 +140,38 @@ private fun HomeContent(
     onExplorePlayers: () -> Unit,
     onPlayerClick: (Int) -> Unit,
     onNavigateToLeagues: () -> Unit,
-    onNavigateToLeagueDetail: ((Int) -> Unit)? = null,
+    onNavigateToLeagueDetail: ((Int, Int) -> Unit)? = null,
     onNavigateToFixtures: () -> Unit = {}
 ) {
-    // Sort all today's matches: live → upcoming (by time) → finished
     val allToday = remember(state.liveMatches, state.upcomingMatches, state.finishedMatches) {
         (state.liveMatches + state.upcomingMatches.sortedBy { it.timestamp } + state.finishedMatches)
             .distinctBy { it.id }
     }
 
-    // Group by leagueId to avoid crash from LeagueInfo.equals using season field
     val groupedMatches = remember(allToday) {
         allToday.groupBy { it.league.id }
             .map { (_, matches) -> matches }
             .sortedByDescending { group -> group.any { it.isLive } }
+    }
+
+    val liveCount = state.liveMatches.size
+    val totalCount = allToday.size
+    val finishedCount = state.finishedMatches.size
+
+    val leagueLogoMap = remember(state.topLeagues) {
+        val apiLogos = state.topLeagues.associate { it.id to it.logo }
+        val baseLeagueUrl = state.topLeagues.firstNotNullOfOrNull { it.logo }
+            ?.let { url -> url.substringBeforeLast("/") }
+        HOME_COMPETITIONS.associate { comp ->
+            val logo = apiLogos[comp.leagueId]
+            if (logo != null) {
+                comp.leagueId to logo
+            } else if (baseLeagueUrl != null) {
+                comp.leagueId to "$baseLeagueUrl/${comp.leagueId}.png"
+            } else {
+                comp.leagueId to null
+            }
+        }
     }
 
     LazyColumn(
@@ -178,39 +181,129 @@ private fun HomeContent(
         // ① Smart Header
         item {
             SmartHeader(
-                liveCount     = state.liveMatches.size,
+                liveCount     = liveCount,
                 onSearch      = onSearch,
                 onFavourites  = onFavourites,
                 onNotifications = onNotifications
             )
         }
 
-        // ② Stats Ticker
+        // ② Stats Ticker — pill strip
         item {
-            StatsTicker(
-                liveCount     = state.liveMatches.size,
-                totalToday    = allToday.size,
-                finishedCount = state.finishedMatches.size
-            )
-            Spacer(Modifier.height(24.dp))
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.padding(vertical = 10.dp)
+            ) {
+                item {
+                    StatPill(
+                        icon = "●",
+                        label = "$liveCount Live Now",
+                        containerColor = Color(0xFFEF4444).copy(alpha = 0.15f),
+                        contentColor = Color(0xFFEF4444)
+                    )
+                }
+                item {
+                    StatPill(
+                        icon = "⚽",
+                        label = "$totalCount Matches Today",
+                        containerColor = Color(0xFF22C55E).copy(alpha = 0.15f),
+                        contentColor = Color(0xFF22C55E)
+                    )
+                }
+                item {
+                    StatPill(
+                        icon = "✓",
+                        label = "$finishedCount Finished",
+                        containerColor = Color(0xFF3B82F6).copy(alpha = 0.15f),
+                        contentColor = Color(0xFF3B82F6)
+                    )
+                }
+            }
         }
 
-        // ③ Top Competitions
+        // ③ Top Competitions — horizontal swipe row
         item {
-            TopCompetitionsSection(
-                onLeagueClick = { id -> onNavigateToLeagueDetail?.invoke(id) ?: onNavigateToLeagues() }
-            )
-            Spacer(Modifier.height(28.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .width(4.dp)
+                            .height(20.dp)
+                            .background(Color(0xFF22C55E), RoundedCornerShape(2.dp))
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "Top Competitions",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Text(
+                    "See All →",
+                    color = Color(0xFF22C55E),
+                    fontSize = 13.sp
+                )
+            }
+
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                items(HOME_COMPETITIONS, key = { it.leagueId }) { competition ->
+                    CompetitionCard(
+                        leagueId = competition.leagueId,
+                        leagueName = competition.name,
+                        logoUrl = leagueLogoMap[competition.leagueId],
+                        season = competition.season,
+                        onClick = {
+                            onNavigateToLeagueDetail?.invoke(competition.leagueId, competition.season)
+                                ?: onNavigateToLeagues()
+                        }
+                    )
+                }
+            }
         }
 
-        // ④ Today's Matches grouped by league
+        // ⑤ Today's Matches grouped by league
         if (groupedMatches.isNotEmpty()) {
             item {
-                SectionLabel(
-                    title           = "Today's Matches",
-                    trailing        = "All Fixtures →",
-                    onTrailingClick = onNavigateToFixtures
-                )
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .width(4.dp)
+                                .height(20.dp)
+                                .background(Color(0xFF22C55E), RoundedCornerShape(2.dp))
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Today's Matches",
+                            color = Color.White,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Text(
+                        text = "All Fixtures →",
+                        color = Color(0xFF22C55E),
+                        fontSize = 13.sp,
+                        modifier = Modifier.clickable { onNavigateToFixtures() }
+                    )
+                }
                 Spacer(Modifier.height(12.dp))
             }
 
@@ -235,7 +328,7 @@ private fun HomeContent(
             item { Spacer(Modifier.height(20.dp)) }
         }
 
-        // ⑤ Top Performers — ranking cards
+        // ⑥ Top Performers — ranking cards
         if (state.topScorers.isNotEmpty()) {
             item {
                 SectionLabel(
@@ -259,7 +352,7 @@ private fun HomeContent(
             item { Spacer(Modifier.height(20.dp)) }
         }
 
-        // ⑥ Fan Zone Poll
+        // ⑦ Fan Zone Poll
         item {
             SectionLabel("Fan Zone")
             Spacer(Modifier.height(12.dp))
@@ -365,45 +458,6 @@ private fun GlassIconBtn(icon: androidx.compose.ui.graphics.vector.ImageVector, 
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ② STATS TICKER
-// ─────────────────────────────────────────────────────────────────────────────
-@Composable
-private fun StatsTicker(liveCount: Int, totalToday: Int, finishedCount: Int) {
-    val chips = buildList {
-        if (liveCount > 0) add(Triple("🔴  $liveCount Live Now", Color(0xFFF44336), true))
-        if (totalToday > 0) add(Triple("⚽  $totalToday Matches Today", GlassGlowGreen, false))
-        if (finishedCount > 0) add(Triple("✓  $finishedCount Finished", IceBlue, false))
-        add(Triple("🏆  5 Top Leagues", SignalAmber, false))
-    }
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = 20.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        items(chips) { (label, color, isPulse) ->
-            StatChip(label, color, isPulse)
-        }
-    }
-}
-
-@Composable
-private fun StatChip(label: String, color: Color, pulse: Boolean = false) {
-    val alpha by if (pulse) {
-        rememberInfiniteTransition(label = "chip").animateFloat(0.7f, 1f, infiniteRepeatable(tween(800), RepeatMode.Reverse), label = "ca")
-    } else remember { mutableStateOf(1f) }
-
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(20.dp))
-            .background(color.copy(alpha = 0.10f))
-            .border(1.dp, color.copy(alpha = 0.28f), RoundedCornerShape(20.dp))
-            .padding(horizontal = 12.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(text = label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = color.copy(alpha = alpha))
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // SECTION LABEL
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
@@ -436,108 +490,7 @@ private fun SectionLabel(title: String, trailing: String? = null, onTrailingClic
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ③ TOP COMPETITIONS — two rows
-// ─────────────────────────────────────────────────────────────────────────────
-@Composable
-private fun TopCompetitionsSection(onLeagueClick: (Int) -> Unit) {
-    Column {
-        // Row 1: Top 5 Leagues
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.width(3.dp).height(16.dp).clip(RoundedCornerShape(2.dp)).background(GlassGlowGreen))
-                Spacer(Modifier.width(8.dp))
-                Text("Top Leagues", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = Color.White)
-            }
-        }
-        Spacer(Modifier.height(12.dp))
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            items(TOP_LEAGUES) { comp ->
-                LeaguePill(comp = comp, onClick = { onLeagueClick(comp.id) })
-            }
-        }
-
-        Spacer(Modifier.height(18.dp))
-
-        // Row 2: Cup Competitions
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.width(3.dp).height(16.dp).clip(RoundedCornerShape(2.dp)).background(SignalAmber))
-                Spacer(Modifier.width(8.dp))
-                Text("Competitions", fontWeight = FontWeight.Bold, fontSize = 17.sp, color = Color.White)
-            }
-        }
-        Spacer(Modifier.height(12.dp))
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(CUP_COMPETITIONS) { comp ->
-                CupCompetitionBadge(comp = comp, onClick = { onLeagueClick(comp.id) })
-            }
-        }
-    }
-}
-
-@Composable
-private fun LeaguePill(comp: CompEntry, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50.dp))
-            .background(Color.White.copy(alpha = 0.06f))
-            .border(1.dp, Color.White.copy(alpha = 0.10f), RoundedCornerShape(50.dp))
-            .clickable { onClick() }
-            .padding(horizontal = 14.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        AsyncImage(model = comp.logo, contentDescription = null, modifier = Modifier.size(22.dp))
-        Spacer(Modifier.width(9.dp))
-        Text(comp.name, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.9f))
-    }
-}
-
-@Composable
-private fun CupCompetitionBadge(comp: CompEntry, onClick: () -> Unit) {
-    Column(
-        modifier = Modifier
-            .width(72.dp)
-            .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.05f))
-            .border(1.dp, SignalAmber.copy(alpha = 0.20f), RoundedCornerShape(16.dp))
-            .clickable { onClick() }
-            .padding(vertical = 12.dp, horizontal = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        AsyncImage(model = comp.logo, contentDescription = null, modifier = Modifier.size(36.dp))
-        Spacer(Modifier.height(6.dp))
-        Text(
-            text = comp.name,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold,
-            color = Color.White.copy(alpha = 0.75f),
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            lineHeight = 12.sp
-        )
-    }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// ④ TODAY'S MATCHES — league group header + match row
+// TODAY'S MATCHES — league group header + match row
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun LeagueGroupHeader(league: LeagueInfo, count: Int) {
@@ -681,7 +634,7 @@ private fun TodayMatchRow(match: Match, onMatchClick: (String) -> Unit) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ⑤ TOP PERFORMERS — ranking cards
+// TOP PERFORMERS — ranking cards
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun TopPerformerCard(rank: Int, entry: PlayerProfileStatisticsResponse, onPlayerClick: (Int) -> Unit) {
@@ -812,7 +765,7 @@ private fun ShimmerBox(modifier: Modifier = Modifier, cornerRadius: androidx.com
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// ⑥ FAN ZONE POLL
+// FAN ZONE POLL
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun HomeFanZonePoll() {

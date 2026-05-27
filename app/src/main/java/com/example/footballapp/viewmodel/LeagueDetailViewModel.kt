@@ -32,7 +32,7 @@ class LeagueDetailViewModel @Inject constructor(
     private val _state = MutableStateFlow(LeagueDetailState())
     val state: StateFlow<LeagueDetailState> = _state.asStateFlow()
 
-    fun load(leagueId: Int) {
+    fun load(leagueId: Int, season: Int = 2024) {
         _state.update { LeagueDetailState() }
 
         viewModelScope.launch {
@@ -43,20 +43,8 @@ class LeagueDetailViewModel @Inject constructor(
             }
             _state.update { it.copy(leagueInfo = league) }
 
-            val currentSeason = com.example.footballapp.data.util.SeasonUtils.currentSeasonStartYear()
-            var activeSeason = currentSeason
-
-            try {
-                val standingsFirst = repository.getStandings(leagueId, currentSeason)
-                    .first { it !is ApiResult.Loading }
-                if (standingsFirst is ApiResult.Success && standingsFirst.data.isEmpty()) {
-                    activeSeason = 2024
-                } else if (standingsFirst is ApiResult.Error) {
-                    activeSeason = 2024
-                }
-            } catch (e: Exception) {
-                activeSeason = 2024
-            }
+            // Project-wide season policy: default to 2024 (2024/25), except competitions like World Cup which pass 2026.
+            val activeSeason = season
 
             // Fetch Top Scorers
             launch {

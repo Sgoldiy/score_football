@@ -23,6 +23,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.example.footballapp.data.model.PlayerProfileStatisticsResponse
 import com.example.footballapp.data.util.ApiResult
@@ -38,14 +39,15 @@ import com.example.footballapp.viewmodel.LeagueDetailViewModel
 @Composable
 fun LeagueDetailScreen(
     leagueId: Int,
+    season: Int = 2024,
     onBackClick: () -> Unit,
     onMatchClick: (Int) -> Unit,
     viewModel: LeagueDetailViewModel = hiltViewModel()
 ) {
-    val state by viewModel.state.collectAsState()
+    val state by viewModel.state.collectAsStateWithLifecycle()
 
-    LaunchedEffect(leagueId) {
-        viewModel.load(leagueId)
+    LaunchedEffect(leagueId, season) {
+        viewModel.load(leagueId, season)
     }
 
     var selectedTab by remember { mutableIntStateOf(0) }

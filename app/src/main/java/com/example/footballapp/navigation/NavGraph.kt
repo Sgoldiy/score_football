@@ -43,8 +43,8 @@ sealed class Screen(val route: String) {
     object MatchCenter : Screen("match_center/{matchId}") {
         fun createRoute(matchId: String) = "match_center/$matchId"
     }
-    object LeagueDetail : Screen("league_detail/{leagueId}") {
-        fun createRoute(leagueId: Int) = "league_detail/$leagueId"
+    object LeagueDetail : Screen("league_detail/{leagueId}/{season}") {
+        fun createRoute(leagueId: Int, season: Int = 2024) = "league_detail/$leagueId/$season"
     }
     object PlayerProfile : Screen("player_profile/{playerId}") {
         fun createRoute(playerId: Int) = "player_profile/$playerId"
@@ -150,8 +150,8 @@ fun SetupNavGraph(
                     navController.navigate(Screen.MatchCenter.createRoute(matchId))
                 },
                 onNavigateToLeagues = { navController.navigate(Screen.Leagues.route) },
-                onNavigateToLeagueDetail = { leagueId ->
-                    navController.navigate(Screen.LeagueDetail.createRoute(leagueId))
+                onNavigateToLeagueDetail = { leagueId, season ->
+                    navController.navigate(Screen.LeagueDetail.createRoute(leagueId, season))
                 },
                 onNavigateToFixtures = { navController.navigate(Screen.Fixtures.route) },
                 onNavigateToPlayerProfile = { playerId ->
@@ -234,11 +234,16 @@ fun SetupNavGraph(
 
         composable(
             route = Screen.LeagueDetail.route,
-            arguments = listOf(navArgument("leagueId") { type = NavType.IntType })
+            arguments = listOf(
+                navArgument("leagueId") { type = NavType.IntType },
+                navArgument("season") { type = NavType.IntType; defaultValue = 2024 }
+            )
         ) { backStackEntry ->
             val leagueId = backStackEntry.arguments?.getInt("leagueId") ?: 0
+            val season = backStackEntry.arguments?.getInt("season") ?: 2024
             LeagueDetailScreen(
                 leagueId = leagueId,
+                season = season,
                 onBackClick = { navController.popBackStack() },
                 onMatchClick = { matchId ->
                     navController.navigate(Screen.MatchCenter.createRoute(matchId.toString()))

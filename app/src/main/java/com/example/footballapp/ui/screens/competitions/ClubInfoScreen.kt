@@ -1,8 +1,18 @@
 package com.example.footballapp.ui.screens.competitions
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
@@ -10,28 +20,53 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Divider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
-import com.example.footballapp.data.model.*
+import com.example.footballapp.R
+import com.example.footballapp.data.model.Coach
+import com.example.footballapp.data.model.FixtureResponse
+import com.example.footballapp.data.model.PlayerProfileStatisticsResponse
+import com.example.footballapp.data.model.SquadPlayer
+import com.example.footballapp.data.model.SquadResponse
+import com.example.footballapp.data.model.TeamInfoResponse
+import com.example.footballapp.data.model.TeamStatistics
 import com.example.footballapp.data.util.UiState
-import com.example.footballapp.ui.components.SectionHeader
-import com.example.footballapp.ui.theme.*
 import com.example.footballapp.viewmodel.ClubInfoViewModel
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
 
-@OptIn(ExperimentalMaterial3Api::class)
+private val ScreenBackground = Color(0xFF0A0F1E)
+private val CardBackground = Color(0xFF1E293B)
+private val PrimaryText = Color.White
+private val SecondaryText = Color(0xFF94A3B8)
+
 @Composable
 fun ClubInfoScreen(
     teamId: Int,
@@ -42,613 +77,556 @@ fun ClubInfoScreen(
     val teamInfo by viewModel.teamInfo.collectAsStateWithLifecycle()
     val teamStats by viewModel.teamStats.collectAsStateWithLifecycle()
     val squad by viewModel.squad.collectAsStateWithLifecycle()
-    val coach by viewModel.coach.collectAsStateWithLifecycle()
+    val coaches by viewModel.coach.collectAsStateWithLifecycle()
     val recentFixtures by viewModel.recentFixtures.collectAsStateWithLifecycle()
     val topScorers by viewModel.topScorers.collectAsStateWithLifecycle()
 
-    LaunchedEffect(teamId) {
+    LaunchedEffect(teamId, leagueId) {
         viewModel.loadClubData(teamId, leagueId)
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    val name = (teamInfo as? UiState.Success)?.data?.team?.name ?: "Club Info"
-                    Text(name, fontWeight = FontWeight.Bold, color = Color.White)
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Back", tint = Color.White)
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = PitchBlack)
-            )
-        },
-        containerColor = PitchBlack
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(bottom = 32.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            // A. Team Header
-            item {
-                when (val info = teamInfo) {
-                    is UiState.Loading -> LoadingBox(height = 200)
-                    is UiState.Error -> ErrorBox(info.message)
-                    is UiState.Success -> TeamHeaderSection(info.data)
-                }
-            }
-
-            // B. Stats Row
-            item {
-                when (val stats = teamStats) {
-                    is UiState.Loading -> LoadingBox(height = 100)
-                    is UiState.Error -> ErrorBox(stats.message)
-                    is UiState.Success -> StatsRowSection(stats.data)
-                }
-            }
-
-            // C. Coach
-            item {
-                SectionHeader("Coach")
-                when (val coachState = coach) {
-                    is UiState.Loading -> LoadingBox(height = 80)
-                    is UiState.Error -> ErrorBox(coachState.message)
-                    is UiState.Success -> CoachSection(coachState.data)
-                }
-            }
-
-            // D. Squad
-            item {
-                SectionHeader("Squad")
-                when (val squadState = squad) {
-                    is UiState.Loading -> LoadingBox(height = 120)
-                    is UiState.Error -> ErrorBox(squadState.message)
-                    is UiState.Success -> SquadSection(squadState.data)
-                }
-            }
-
-            // E. Recent Fixtures
-            item {
-                SectionHeader("Recent Fixtures")
-                when (val fixtures = recentFixtures) {
-                    is UiState.Loading -> LoadingBox(height = 200)
-                    is UiState.Error -> ErrorBox(fixtures.message)
-                    is UiState.Success -> RecentFixturesSection(fixtures.data, teamId)
-                }
-            }
-
-            // F. Top Scorers
-            item {
-                SectionHeader("Top Scorers")
-                when (val scorers = topScorers) {
-                    is UiState.Loading -> LoadingBox(height = 200)
-                    is UiState.Error -> ErrorBox(scorers.message)
-                    is UiState.Success -> TopScorersSection(scorers.data)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TeamHeaderSection(info: TeamInfoResponse) {
-    Column(
+    LazyColumn(
         modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+            .fillMaxSize()
+            .background(ScreenBackground),
+        contentPadding = PaddingValues(bottom = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(80.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.05f))
-                .border(1.dp, Color.White.copy(alpha = 0.1f), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            AsyncImage(
-                model = info.team?.logo,
-                contentDescription = info.team?.name,
-                modifier = Modifier.size(60.dp)
-            )
-        }
-        Spacer(Modifier.height(12.dp))
-        Text(
-            text = info.team?.name ?: "",
-            color = Color.White,
-            fontWeight = FontWeight.Bold,
-            fontSize = 22.sp
-        )
-        Spacer(Modifier.height(4.dp))
-        val details = mutableListOf<String>()
-        info.team?.country?.let { details.add(it) }
-        info.team?.founded?.let { details.add("Founded $it") }
-        if (details.isNotEmpty()) {
-            Text(
-                text = details.joinToString(" · "),
-                color = TextSecondary,
-                fontSize = 13.sp
-            )
-        }
-        if (info.venue?.name != null) {
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = buildString {
-                    append(info.venue.name)
-                    if (info.venue.city != null) append(", ${info.venue.city}")
-                },
-                color = TextSecondary,
-                fontSize = 13.sp
-            )
-        }
-    }
-}
-
-@Composable
-private fun StatsRowSection(stats: TeamStatistics) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        StatCard("Played", stats.fixtures?.played?.total?.toString() ?: "-")
-        StatCard("Wins", stats.fixtures?.wins?.total?.toString() ?: "-")
-        StatCard("Goals For", stats.goals?.goalsFor?.total?.total?.toString() ?: "-")
-        StatCard("Goals Against", stats.goals?.against?.total?.total?.toString() ?: "-")
-    }
-}
-
-@Composable
-private fun RowScope.StatCard(label: String, value: String) {
-    Card(
-        modifier = Modifier.weight(1f),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = value,
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 20.sp
-            )
-            Text(
-                text = label,
-                color = TextSecondary,
-                fontSize = 10.sp,
-                textAlign = TextAlign.Center
-            )
-        }
-    }
-}
-
-@Composable
-private fun CoachSection(coaches: List<Coach>) {
-    val activeCoach = coaches.firstOrNull()
-    if (activeCoach == null) {
-        Text(
-            "No coach info available",
-            color = TextSecondary,
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
-        return
-    }
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Box(
-            modifier = Modifier
-                .size(56.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.05f)),
-            contentAlignment = Alignment.Center
-        ) {
-            AsyncImage(
-                model = activeCoach.photo,
-                contentDescription = activeCoach.name,
-                modifier = Modifier.size(48.dp).clip(CircleShape)
-            )
-        }
-        Spacer(Modifier.width(12.dp))
-        Column {
-            Text(
-                text = activeCoach.name ?: "Unknown",
-                color = Color.White,
-                fontWeight = FontWeight.Bold,
-                fontSize = 16.sp
-            )
-            activeCoach.nationality?.let {
-                Text(text = it, color = TextSecondary, fontSize = 13.sp)
-            }
-        }
-    }
-}
-
-@Composable
-private fun SquadSection(squadResponse: List<SquadResponse>) {
-    val players = squadResponse.flatMap { it.players ?: emptyList() }
-    if (players.isEmpty()) {
-        Text(
-            "No squad data available",
-            color = TextSecondary,
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
-        return
-    }
-    LazyRow(
-        contentPadding = PaddingValues(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        items(players, key = { it.id ?: it.hashCode() }) { player ->
-            PlayerCard(player)
-        }
-    }
-}
-
-@Composable
-private fun PlayerCard(player: SquadPlayer) {
-    val positionBadgeColor = when (player.position?.take(3)?.uppercase()) {
-        "GK" -> Color(0xFFD97706)
-        "DEF" -> Color(0xFF2563EB)
-        "MID" -> Color(0xFF059669)
-        "ATT" -> Color(0xFFDC2626)
-        else -> Color(0xFF6B7280)
-    }
-    Card(
-        modifier = Modifier.width(120.dp),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f))
-    ) {
-        Column(
-            modifier = Modifier.padding(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(56.dp)
-                    .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.05f)),
-                contentAlignment = Alignment.Center
-            ) {
-                AsyncImage(
-                    model = player.photo,
-                    contentDescription = player.name,
-                    modifier = Modifier.size(48.dp).clip(CircleShape)
-                )
-            }
-            Spacer(Modifier.height(6.dp))
-            Text(
-                text = player.name ?: "",
-                color = Color.White,
-                fontWeight = FontWeight.Medium,
-                fontSize = 12.sp,
-                maxLines = 1,
-                textAlign = TextAlign.Center
-            )
-            Spacer(Modifier.height(4.dp))
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(positionBadgeColor.copy(alpha = 0.2f))
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            ) {
-                Text(
-                    text = player.position?.take(3)?.uppercase() ?: "N/A",
-                    color = positionBadgeColor,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 10.sp
-                )
-            }
-            player.age?.let { age ->
-                Text(
-                    text = "$age yrs",
-                    color = TextSecondary,
-                    fontSize = 10.sp
+        item {
+            when (val state = teamInfo) {
+                is UiState.Loading -> SectionLoading(height = 220.dp)
+                is UiState.Error -> SectionError(text = "Could not load data")
+                is UiState.Success -> HeroHeader(
+                    info = state.data,
+                    onBackClick = onBackClick
                 )
             }
         }
-    }
-}
 
-@Composable
-private fun RecentFixturesSection(fixtures: List<FixtureResponse>, teamId: Int) {
-    if (fixtures.isEmpty()) {
-        Text(
-            "No recent fixtures",
-            color = TextSecondary,
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
-        return
-    }
-    Column(
-        modifier = Modifier.padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        fixtures.forEach { fixture ->
-            FixtureCard(fixture, teamId)
-        }
-    }
-}
-
-@Composable
-private fun FixtureCard(fixture: FixtureResponse, teamId: Int) {
-    val homeId = fixture.teams?.home?.id
-    val awayId = fixture.teams?.away?.id
-    val homeScore = fixture.goals?.home
-    val awayScore = fixture.goals?.away
-    val isTeamHome = homeId == teamId
-    val isTeamAway = awayId == teamId
-
-    val resultBadge: String?
-    val resultColor: Color
-    if (homeScore != null && awayScore != null && fixture.fixture?.status?.short != "NS") {
-        val teamScore = if (isTeamHome) homeScore else awayScore
-        val opponentScore = if (isTeamHome) awayScore else homeScore
-        when {
-            teamScore > opponentScore -> { resultBadge = "W"; resultColor = Color(0xFF16A34A) }
-            teamScore < opponentScore -> { resultBadge = "L"; resultColor = Color(0xFFDC2626) }
-            else -> { resultBadge = "D"; resultColor = Color(0xFFD97706) }
-        }
-    } else {
-        resultBadge = null
-        resultColor = Color.Transparent
-    }
-
-    val statusText = when (fixture.fixture?.status?.short) {
-        "FT", "AET", "PEN" -> "FT"
-        "NS" -> "NS"
-        in listOf("1H", "2H", "HT", "ET", "BT", "P", "INT", "LIVE") -> "LIVE"
-        else -> fixture.fixture?.status?.short ?: ""
-    }
-
-    val dateText = fixture.fixture?.date?.let { rawDate ->
-        try {
-            val fmt = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.getDefault())
-            val cleaned = rawDate.substringBefore("+").substringBefore("Z")
-            val parsed = fmt.parse(cleaned)
-            if (parsed != null) {
-                SimpleDateFormat("dd MMM", Locale.getDefault()).format(parsed)
-            } else {
-                rawDate.take(10)
+        item {
+            when (val state = teamStats) {
+                is UiState.Loading -> SectionLoading(height = 92.dp)
+                is UiState.Error -> SectionError(text = "Could not load data")
+                is UiState.Success -> SeasonStatsRow(stats = state.data)
             }
-        } catch (e: Exception) {
-            rawDate.take(10)
         }
-    } ?: ""
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f))
+        item {
+            when (val state = coaches) {
+                is UiState.Loading -> SectionLoading(height = 88.dp)
+                is UiState.Error -> SectionError(text = "Could not load data")
+                is UiState.Success -> CoachCard(coaches = state.data)
+            }
+        }
+
+        item {
+            SectionTitle(text = "Squad")
+            when (val state = squad) {
+                is UiState.Loading -> SectionLoading(height = 160.dp)
+                is UiState.Error -> SectionError(text = "Could not load data")
+                is UiState.Success -> SquadRow(squad = state.data)
+            }
+        }
+
+        item {
+            SectionTitle(text = "Recent Matches")
+            when (val state = recentFixtures) {
+                is UiState.Loading -> SectionLoading(height = 220.dp)
+                is UiState.Error -> SectionError(text = "Could not load data")
+                is UiState.Success -> RecentFixtures(
+                    fixtures = state.data,
+                    teamId = teamId
+                )
+            }
+        }
+
+        item {
+            SectionTitle(text = "Top Scorers — ${seasonLabel(2024)}")
+            when (val state = topScorers) {
+                is UiState.Loading -> SectionLoading(height = 240.dp)
+                is UiState.Error -> SectionError(text = "Could not load data")
+                is UiState.Success -> TopScorersList(scorers = state.data.take(5))
+            }
+        }
+    }
+}
+
+@Composable
+private fun HeroHeader(
+    info: TeamInfoResponse,
+    onBackClick: () -> Unit
+) {
+    val team = info.team
+    val venue = info.venue
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(220.dp)
+            .background(
+                Brush.verticalGradient(
+                    listOf(Color(0xFF0F172A), Color(0xFF1E293B))
+                )
+            )
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(horizontal = 8.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(modifier = Modifier.width(50.dp)) {
-                Text(
-                    text = dateText,
-                    color = TextSecondary,
-                    fontSize = 11.sp
-                )
-                Text(
-                    text = statusText,
-                    color = if (statusText == "LIVE") LiveGreen else TextSecondary,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 10.sp
-                )
+            IconButton(onClick = onBackClick) {
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = PrimaryText)
             }
-            Spacer(Modifier.width(8.dp))
+            Text(
+                text = "Club Info",
+                modifier = Modifier.weight(1f),
+                color = PrimaryText,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.width(48.dp))
+        }
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 18.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            AsyncImage(
+                model = team?.logo,
+                contentDescription = null,
+                modifier = Modifier.size(72.dp),
+                placeholder = painterResource(R.drawable.ic_launcher_foreground),
+                error = painterResource(R.drawable.ic_launcher_foreground)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = team?.name ?: "Club",
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+                color = PrimaryText,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+
+            val city = venue?.city
+            val founded = team?.founded
+            Text(
+                text = buildString {
+                    append(city ?: "")
+                    if (!city.isNullOrBlank() && founded != null) append(" • ")
+                    if (founded != null) append("Est. $founded")
+                }.ifBlank { " " },
+                color = Color(0xFFD1D5DB),
+                fontSize = 13.sp
+            )
+            Text(
+                text = venue?.name ?: "",
+                color = Color(0xFF9CA3AF),
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+@Composable
+private fun SeasonStatsRow(stats: TeamStatistics) {
+    val played = stats.fixtures?.played?.total ?: 0
+    val wins = stats.fixtures?.wins?.total ?: 0
+    val goalsFor = stats.goals?.goalsFor?.total?.total ?: 0
+    val goalsAgainst = stats.goals?.against?.total?.total ?: 0
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        StatMiniCard(value = played, label = "Played", accentColor = Color(0xFF3B82F6), modifier = Modifier.weight(1f))
+        StatMiniCard(value = wins, label = "Wins", accentColor = Color(0xFF10B981), modifier = Modifier.weight(1f))
+        StatMiniCard(value = goalsFor, label = "Goals For", accentColor = Color(0xFFF59E0B), modifier = Modifier.weight(1f))
+        StatMiniCard(value = goalsAgainst, label = "Goals Against", accentColor = Color(0xFFEF4444), modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun StatMiniCard(
+    value: Int,
+    label: String,
+    accentColor: Color,
+    modifier: Modifier = Modifier
+) {
+    Card(
+        modifier = modifier.height(82.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBackground)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = value.toString(),
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Bold,
+                color = accentColor
+            )
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                color = SecondaryText
+            )
+        }
+    }
+}
+
+@Composable
+private fun CoachCard(coaches: List<Coach>) {
+    val coach = remember(coaches) {
+        coaches.firstOrNull { it.career?.lastOrNull()?.end == null } ?: coaches.firstOrNull()
+    }
+
+    if (coach == null) {
+        SectionError(text = "Could not load data")
+        return
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBackground)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AsyncImage(
+                model = coach.photo,
+                contentDescription = null,
+                modifier = Modifier.size(56.dp).clip(CircleShape),
+                placeholder = painterResource(R.drawable.ic_launcher_foreground),
+                error = painterResource(R.drawable.ic_launcher_foreground)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    AsyncImage(
-                        model = fixture.teams?.home?.logo,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        text = fixture.teams?.home?.name ?: "",
-                        color = Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = if (isTeamHome) FontWeight.Bold else FontWeight.Normal,
-                        maxLines = 1
-                    )
-                }
-                Spacer(Modifier.height(4.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    AsyncImage(
-                        model = fixture.teams?.away?.logo,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text(
-                        text = fixture.teams?.away?.name ?: "",
-                        color = Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = if (isTeamAway) FontWeight.Bold else FontWeight.Normal,
-                        maxLines = 1
-                    )
-                }
-            }
-            Spacer(Modifier.width(8.dp))
-            if (homeScore != null && awayScore != null && statusText != "NS") {
+                Text(text = "Manager", color = SecondaryText, fontSize = 11.sp)
                 Text(
-                    text = "$homeScore - $awayScore",
-                    color = Color.White,
+                    text = coach.name ?: "Coach",
+                    color = PrimaryText,
                     fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
+                    fontSize = 16.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-            } else {
                 Text(
-                    text = "vs",
-                    color = TextSecondary,
-                    fontSize = 14.sp
+                    text = coach.nationality ?: "",
+                    color = Color(0xFFD1D5DB),
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-            }
-            if (resultBadge != null) {
-                Spacer(Modifier.width(8.dp))
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(resultColor.copy(alpha = 0.2f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = resultBadge,
-                        color = resultColor,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
-                    )
-                }
             }
         }
     }
 }
 
 @Composable
-private fun TopScorersSection(scorers: List<PlayerProfileStatisticsResponse>) {
-    if (scorers.isEmpty()) {
-        Text(
-            "No top scorer data available",
-            color = TextSecondary,
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
+private fun SquadRow(squad: List<SquadResponse>) {
+    val players: List<SquadPlayer> = remember(squad) {
+        squad.flatMap { it.players ?: emptyList() }
+    }
+
+    if (players.isEmpty()) {
+        SectionError(text = "Could not load data")
         return
     }
-    Column(
-        modifier = Modifier.padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        scorers.forEachIndexed { index, scorer ->
-            val stats = scorer.statistics?.firstOrNull()
-            TopScorerRow(
-                rank = index + 1,
-                name = scorer.player?.name ?: "Player",
-                goals = stats?.goals?.total ?: 0,
-                assists = stats?.goals?.assists ?: 0,
-                clubName = stats?.team?.name ?: ""
+        items(players, key = { it.id ?: it.name ?: "" }) { player ->
+            SquadPlayerCard(player = player)
+        }
+    }
+}
+
+@Composable
+private fun SquadPlayerCard(player: SquadPlayer) {
+    Card(
+        modifier = Modifier
+            .width(100.dp)
+            .height(140.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = CardBackground)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            AsyncImage(
+                model = player.photo,
+                contentDescription = null,
+                modifier = Modifier.size(48.dp).clip(CircleShape),
+                placeholder = painterResource(R.drawable.ic_launcher_foreground),
+                error = painterResource(R.drawable.ic_launcher_foreground)
             )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = player.name ?: "Player",
+                fontSize = 11.sp,
+                color = PrimaryText,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+
+            val (badgeColor, posLabel) = when (player.position) {
+                "Goalkeeper" -> Color(0xFFF59E0B) to "GK"
+                "Defender" -> Color(0xFF3B82F6) to "DEF"
+                "Midfielder" -> Color(0xFF10B981) to "MID"
+                else -> Color(0xFFEF4444) to "ATT"
+            }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(badgeColor.copy(alpha = 0.2f))
+                    .padding(horizontal = 8.dp, vertical = 3.dp)
+            ) {
+                Text(
+                    text = posLabel,
+                    color = badgeColor,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecentFixtures(
+    fixtures: List<FixtureResponse>,
+    teamId: Int
+) {
+    val recent = remember(fixtures, teamId) {
+        fixtures
+            .filter { it.fixture?.status?.short == "FT" }
+            .sortedByDescending { it.fixture?.timestamp ?: 0L }
+            .take(5)
+    }
+
+    if (recent.isEmpty()) {
+        SectionError(text = "Could not load data")
+        return
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        recent.forEach { fixture ->
+            RecentFixtureRow(fixture = fixture, teamId = teamId)
+            Divider(color = PrimaryText.copy(alpha = 0.07f))
+        }
+    }
+}
+
+@Composable
+private fun RecentFixtureRow(
+    fixture: FixtureResponse,
+    teamId: Int
+) {
+    val isHome = fixture.teams?.home?.id == teamId
+    val teamGoals = if (isHome) fixture.goals?.home ?: 0 else fixture.goals?.away ?: 0
+    val oppGoals = if (isHome) fixture.goals?.away ?: 0 else fixture.goals?.home ?: 0
+    val opponent = if (isHome) fixture.teams?.away?.name else fixture.teams?.home?.name
+    val oppLogo = if (isHome) fixture.teams?.away?.logo else fixture.teams?.home?.logo
+
+    val result = when {
+        teamGoals > oppGoals -> "W"
+        teamGoals == oppGoals -> "D"
+        else -> "L"
+    }
+    val resultColor = when (result) {
+        "W" -> Color(0xFF10B981)
+        "D" -> Color(0xFFF59E0B)
+        else -> Color(0xFFEF4444)
+    }
+
+    val formattedDate = remember(fixture.fixture?.date) { formatShortDate(fixture.fixture?.date) }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(resultColor.copy(alpha = 0.15f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(text = result, color = resultColor, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        AsyncImage(
+            model = oppLogo,
+            contentDescription = null,
+            modifier = Modifier.size(28.dp),
+            placeholder = painterResource(R.drawable.ic_launcher_foreground),
+            error = painterResource(R.drawable.ic_launcher_foreground)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = if (isHome) "vs ${opponent ?: ""}" else "@ ${opponent ?: ""}",
+                color = PrimaryText,
+                fontSize = 14.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(text = formattedDate, color = SecondaryText, fontSize = 12.sp)
+        }
+        Text(
+            text = "$teamGoals - $oppGoals",
+            color = PrimaryText,
+            fontWeight = FontWeight.Bold,
+            fontSize = 16.sp
+        )
+    }
+}
+
+@Composable
+private fun TopScorersList(scorers: List<PlayerProfileStatisticsResponse>) {
+    if (scorers.isEmpty()) {
+        SectionError(text = "Could not load data")
+        return
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        scorers.forEachIndexed { index, scorer ->
+            TopScorerRow(index = index, scorer = scorer)
+            Divider(color = PrimaryText.copy(alpha = 0.07f))
         }
     }
 }
 
 @Composable
 private fun TopScorerRow(
-    rank: Int,
-    name: String,
-    goals: Int,
-    assists: Int,
-    clubName: String
+    index: Int,
+    scorer: PlayerProfileStatisticsResponse
 ) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(10.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f))
+    val goals = scorer.statistics?.firstOrNull()?.goals?.total ?: 0
+    val teamName = scorer.statistics?.firstOrNull()?.team?.name ?: ""
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
+        Text(
+            text = "${index + 1}",
+            color = SecondaryText,
+            fontSize = 14.sp,
+            modifier = Modifier.width(24.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = scorer.player?.name ?: "Player",
+                color = PrimaryText,
+                fontWeight = FontWeight.Medium,
+                fontSize = 15.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = teamName,
+                color = SecondaryText,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+
+        Box(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .clip(RoundedCornerShape(8.dp))
+                .background(Color(0xFF10B981).copy(alpha = 0.15f))
+                .padding(horizontal = 12.dp, vertical = 6.dp)
         ) {
             Text(
-                text = "$rank",
-                color = LiveGreen,
-                fontWeight = FontWeight.Black,
-                fontSize = 14.sp,
-                modifier = Modifier.width(28.dp)
+                text = "$goals goals",
+                color = Color(0xFF10B981),
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp
             )
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = name,
-                    color = Color.White,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 14.sp,
-                    maxLines = 1
-                )
-                Text(
-                    text = clubName,
-                    color = TextSecondary,
-                    fontSize = 11.sp,
-                    maxLines = 1
-                )
-            }
-            Spacer(Modifier.width(8.dp))
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "$goals",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
-                Text(
-                    text = "goals",
-                    color = TextSecondary,
-                    fontSize = 9.sp
-                )
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = "$assists",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
-                Text(
-                    text = "assists",
-                    color = TextSecondary,
-                    fontSize = 9.sp
-                )
-            }
         }
     }
 }
 
 @Composable
-private fun LoadingBox(height: Int = 100) {
+private fun SectionTitle(text: String) {
+    Text(
+        text = text,
+        fontSize = 18.sp,
+        fontWeight = FontWeight.Bold,
+        color = PrimaryText,
+        modifier = Modifier.padding(horizontal = 16.dp)
+    )
+}
+
+@Composable
+private fun SectionLoading(height: androidx.compose.ui.unit.Dp) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(height.dp),
+            .height(height),
         contentAlignment = Alignment.Center
     ) {
-        CircularProgressIndicator(color = Color.White)
+        CircularProgressIndicator(color = Color(0xFF3B82F6))
     }
 }
 
 @Composable
-private fun ErrorBox(message: String) {
+private fun SectionError(text: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
-        contentAlignment = Alignment.Center
+            .padding(horizontal = 16.dp),
+        contentAlignment = Alignment.CenterStart
     ) {
-        Text(
-            text = message,
-            color = MaterialTheme.colorScheme.error,
-            fontSize = 13.sp,
-            textAlign = TextAlign.Center
-        )
+        Text(text = text, color = SecondaryText, style = MaterialTheme.typography.bodyMedium)
     }
+}
+
+private fun seasonLabel(season: Int): String {
+    return if (season == 2026) {
+        "2026"
+    } else {
+        "${season}/${(season + 1).toString().takeLast(2)}"
+    }
+}
+
+private fun formatShortDate(iso: String?): String {
+    if (iso.isNullOrBlank()) return ""
+
+    val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault()).apply {
+        timeZone = TimeZone.getTimeZone("UTC")
+    }
+    val formatter = SimpleDateFormat("dd MMM", Locale.getDefault())
+
+    val date: Date = runCatching { parser.parse(iso) }.getOrNull() ?: return ""
+    return formatter.format(date)
 }
