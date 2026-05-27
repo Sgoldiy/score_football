@@ -7,11 +7,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.footballapp"
+    namespace = "com.footballpluse.footballapp"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.example.footballapp"
+        applicationId = "com.footballpluse.footballapp"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
