@@ -4,6 +4,12 @@ import com.example.footballapp.data.local.db.FixtureDao
 import com.example.footballapp.data.local.db.LeagueDao
 import com.example.footballapp.data.local.db.StandingDao
 import com.example.footballapp.data.mapper.*
+import com.example.footballapp.data.model.Coach
+import com.example.footballapp.data.model.FixtureResponse
+import com.example.footballapp.data.model.PlayerProfileStatisticsResponse
+import com.example.footballapp.data.model.SquadResponse
+import com.example.footballapp.data.model.TeamInfoResponse
+import com.example.footballapp.data.model.TeamStatistics
 import com.example.footballapp.data.remote.ApiService
 import com.example.footballapp.data.util.ApiResult
 import com.example.footballapp.domain.model.*
@@ -274,6 +280,68 @@ class FootballRepositoryImpl @Inject constructor(
             ApiResult.Success(response.response.map { it.toMatch() })
         } catch (e: Exception) {
             ApiResult.Error(e.message ?: "Failed to load team fixtures")
+        }
+    }
+
+    override suspend fun getTeamInfoDirect(teamId: Int): TeamInfoResponse {
+        return try {
+            apiService.getTeamInfo(teamId).response.firstOrNull()
+                ?: throw Exception("Team not found")
+        } catch (e: Exception) {
+            throw Exception("Failed to load team info: ${e.message}")
+        }
+    }
+
+    override suspend fun getTeamStatisticsDirect(teamId: Int, leagueId: Int, season: Int): TeamStatistics {
+        return try {
+            apiService.getTeamStatistics(teamId, leagueId, season).response
+        } catch (e: Exception) {
+            throw Exception("Failed to load team statistics: ${e.message}")
+        }
+    }
+
+    override suspend fun getTeamSquadDirect(teamId: Int): List<SquadResponse> {
+        return try {
+            apiService.getTeamSquad(teamId).response
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    override suspend fun getTeamCoachesDirect(teamId: Int): List<Coach> {
+        return try {
+            val coaches = apiService.getTeamCoaches(teamId).response
+            coaches.filter { coach ->
+                coach.career?.any { c -> c.end == null } == true || coach == coaches.lastOrNull()
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    override suspend fun getRecentFixturesDirect(teamId: Int, leagueId: Int, season: Int): List<FixtureResponse> {
+        return try {
+            val fixtures = apiService.getFixturesByTeamSeasonLeague(teamId, season, leagueId).response
+            fixtures.sortedByDescending { it.fixture?.timestamp }
+                .take(5)
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    override suspend fun getTopScorersDirect(leagueId: Int, season: Int): List<PlayerProfileStatisticsResponse> {
+        return try {
+            apiService.getTopScorers(leagueId, season).response
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    override suspend fun searchTeamsDirect(query: String): List<TeamInfoResponse> {
+        return try {
+            apiService.searchTeams(query).response
+        } catch (e: Exception) {
+            emptyList()
         }
     }
 }

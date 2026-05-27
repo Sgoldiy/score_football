@@ -11,6 +11,8 @@ import com.example.footballapp.domain.model.Match
 import com.example.footballapp.domain.repository.FootballRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -52,13 +54,18 @@ class HomeViewModel @Inject constructor(
             val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
             val season = SeasonUtils.currentSeasonStartYear()
 
-            var scorersList = emptyList<PlayerProfileStatisticsResponse>()
-            try {
-                // Fetch English Premier League (39) top scorers as the default home showcase
-                val response = apiService.getTopScorers(39, season)
-                scorersList = response.response.take(10)
+            // Fetch top scorers from all top-5 European leagues concurrently
+            val top5LeagueIds = listOf(39, 140, 78, 135, 61) // EPL, La Liga, Bundesliga, Serie A, Ligue 1
+            val scorersList = try {
+                coroutineScope {
+                    top5LeagueIds
+                        .map { leagueId -> async { runCatching { apiService.getTopScorers(leagueId, season).response }.getOrDefault(emptyList()) } }
+                        .flatMap { it.await() }
+                        .sortedByDescending { it.statistics?.firstOrNull()?.goals?.total ?: 0 }
+                        .take(10)
+                }
             } catch (e: Exception) {
-                // Fallback silently if top scorers loading fails
+                emptyList()
             }
 
             repository.getFixturesByDate(today).collect { result ->

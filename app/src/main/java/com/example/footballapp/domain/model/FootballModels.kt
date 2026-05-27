@@ -33,7 +33,8 @@ data class TeamInfo(
     val id: Int,
     val name: String,
     val logo: String?,
-    val winner: Boolean? = null
+    val winner: Boolean? = null,
+    val country: String? = null
 )
 
 data class StandingItem(

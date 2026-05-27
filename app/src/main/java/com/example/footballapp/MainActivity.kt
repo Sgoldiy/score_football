@@ -70,7 +70,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 ) { innerPadding ->
-                    Box(modifier = androidx.compose.ui.Modifier.padding(bottom = innerPadding.calculateBottomPadding())) {
+                    Box(modifier = androidx.compose.ui.Modifier.padding(innerPadding)) {
                         if (startDestination == null) {
                             // Prevent any nav graph from composing until we know where to start.
                             SplashScreen()

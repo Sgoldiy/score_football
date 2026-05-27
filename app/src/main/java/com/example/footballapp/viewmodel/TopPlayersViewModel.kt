@@ -34,7 +34,7 @@ class TopPlayersViewModel @Inject constructor(
         CompetitionTab("ucl", "UCL", listOf(2), 2024),
         CompetitionTab("uel", "UEL", listOf(3), 2024),
         CompetitionTab("uecl", "UECL", listOf(848), 2024),
-        CompetitionTab("world_cup", "World Cup", listOf(1), 2022),
+        CompetitionTab("world_cup", "World Cup", listOf(1), 2024),
         CompetitionTab("euro", "Euro", listOf(4), 2024),
         CompetitionTab("copa_america", "Copa America", listOf(9), 2024),
     )

@@ -159,7 +159,8 @@ fun TeamInfoResponse.toTeamInfo(): TeamInfo {
     return TeamInfo(
         id = team?.id ?: 0,
         name = team?.name ?: "",
-        logo = team?.logo
+        logo = team?.logo,
+        country = team?.country
     )
 }
 

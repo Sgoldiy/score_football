@@ -42,7 +42,7 @@ class SearchViewModel @Inject constructor(
 
     init {
         _searchQuery
-            .debounce(300)
+            .debounce(400)
             .filter { it.length >= 3 }
             .distinctUntilChanged()
             .onEach { query ->

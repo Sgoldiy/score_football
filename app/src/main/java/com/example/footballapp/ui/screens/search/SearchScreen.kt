@@ -215,7 +215,7 @@ private fun SearchResultList(
                 SearchResultItem(
                     name = team.name,
                     logo = team.logo,
-                    subtitle = null,
+                    subtitle = team.country,
                     onClick = { onTeamClick(team.id) }
                 )
             }
