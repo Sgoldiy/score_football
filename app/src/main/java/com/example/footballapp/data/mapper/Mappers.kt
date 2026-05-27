@@ -217,7 +217,25 @@ fun PlayerStatistics.toPlayerStatDetail(): PlayerStatDetail {
         appearances = games?.appearances ?: 0,
         goals = goals?.total ?: 0,
         assists = goals?.assists ?: 0,
-        rating = games?.rating
+        rating = games?.rating,
+        shotsTotal = shots?.total ?: 0,
+        shotsOnTarget = shots?.on ?: 0,
+        passesTotal = passes?.total ?: 0,
+        passesKey = passes?.key ?: 0,
+        passesAccuracy = passes?.accuracy ?: 0,
+        tacklesTotal = tackles?.total ?: 0,
+        interceptions = tackles?.interceptions ?: 0,
+        blocks = tackles?.blocks ?: 0,
+        duelsTotal = duels?.total ?: 0,
+        duelsWon = duels?.won ?: 0,
+        dribblesAttempts = dribbles?.attempts ?: 0,
+        dribblesSuccess = dribbles?.success ?: 0,
+        foulsDrawn = fouls?.drawn ?: 0,
+        foulsCommitted = fouls?.committed ?: 0,
+        cardsYellow = cards?.yellow ?: 0,
+        cardsRed = cards?.red ?: 0,
+        penaltyScored = penalty?.scored ?: 0,
+        penaltyMissed = penalty?.missed ?: 0
     )
 }
 

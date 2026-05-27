@@ -146,6 +146,15 @@ fun MatchCenterScreen(
                                     item {
                                         VenueRefereeCard(venue = data.venue, referee = data.referee)
                                     }
+                                    
+                                    // Match Injuries Board
+                                    item {
+                                        MatchInjuryBoard(
+                                            injuries = data.injuries,
+                                            homeTeam = data.match.homeTeam,
+                                            awayTeam = data.match.awayTeam
+                                        )
+                                    }
 
                                     // Player of the Match (POTM) Hero Card
                                     val allPlayers = data.players.flatMap { it.players }
@@ -1496,5 +1505,142 @@ private fun MatchChatSection(viewModel: FixtureDetailViewModel) {
 private fun formatChatTime(timestamp: Long): String {
     val sdf = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
     return sdf.format(java.util.Date(timestamp))
+}
+
+@Composable
+private fun MatchInjuryBoard(injuries: List<MatchInjury>, homeTeam: TeamInfo, awayTeam: TeamInfo) {
+    if (injuries.isEmpty()) return
+    
+    val homeInjuries = injuries.filter { it.teamId == homeTeam.id }
+    val awayInjuries = injuries.filter { it.teamId == awayTeam.id }
+    
+    if (homeInjuries.isEmpty() && awayInjuries.isEmpty()) return
+
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.06f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Rounded.Healing,
+                    contentDescription = null,
+                    tint = DangerRed,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "Sidelined & Injuries",
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White,
+                    fontSize = 15.sp
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Home Team Injuries Column
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = homeTeam.name.uppercase(),
+                        fontWeight = FontWeight.Black,
+                        fontSize = 11.sp,
+                        color = LiveGreen,
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    if (homeInjuries.isEmpty()) {
+                        Text(
+                            text = "No sidelined players",
+                            color = Color.White.copy(alpha = 0.35f),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            homeInjuries.forEach { injury ->
+                                SidelinedPlayerRow(injury = injury)
+                            }
+                        }
+                    }
+                }
+                
+                // Vertical divider line
+                Box(
+                    modifier = Modifier
+                        .width(1.dp)
+                        .height(IntrinsicSize.Min)
+                        .background(Color.White.copy(alpha = 0.06f))
+                )
+                
+                // Away Team Injuries Column
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = awayTeam.name.uppercase(),
+                        fontWeight = FontWeight.Black,
+                        fontSize = 11.sp,
+                        color = IceBlue,
+                        letterSpacing = 1.sp
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    if (awayInjuries.isEmpty()) {
+                        Text(
+                            text = "No sidelined players",
+                            color = Color.White.copy(alpha = 0.35f),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            awayInjuries.forEach { injury ->
+                                SidelinedPlayerRow(injury = injury)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SidelinedPlayerRow(injury: MatchInjury) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(DangerRed)
+        )
+        Spacer(Modifier.width(6.dp))
+        Column {
+            Text(
+                text = injury.playerName ?: "Unknown Player",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            val detailsText = listOfNotNull(injury.type, injury.reason).joinToString(" - ")
+            if (detailsText.isNotEmpty()) {
+                Text(
+                    text = detailsText,
+                    color = Color.White.copy(alpha = 0.4f),
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
 }
 
