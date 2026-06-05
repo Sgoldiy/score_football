@@ -53,6 +53,10 @@ class FootballRepositoryImpl @Inject constructor(
         }
     }
 
+    override suspend fun getFixtureCountByDate(date: String): Int {
+        return fixtureDao.getFixtureCountByDate(date)
+    }
+
     override fun getLiveMatches(): Flow<ApiResult<List<Match>>> = flow {
         while (true) {
             try {

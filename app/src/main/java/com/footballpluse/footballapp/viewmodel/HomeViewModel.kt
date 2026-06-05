@@ -36,16 +36,53 @@ sealed class HomeUiState {
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val repository: FootballRepository,
-    private val apiService: ApiService
+    private val apiService: ApiService,
+    private val teamRepository: com.footballpluse.footballapp.data.repository.TeamRepository,
+    private val billingRepository: com.footballpluse.footballapp.data.repository.BillingRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
     val uiState: StateFlow<HomeUiState> = _uiState
 
+    private val _formMap = MutableStateFlow<Map<Int, String>>(emptyMap())
+    val formMap: StateFlow<Map<Int, String>> = _formMap.asStateFlow()
+
+    val isPremium: StateFlow<Boolean> = billingRepository.isPurchased
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     private var refreshJob: Job? = null
 
     init {
         loadHomeData()
+    }
+
+    fun fetchFormIfNeeded(teamId: Int, leagueId: Int, season: Int) {
+        if (teamId == 0) return
+        if (_formMap.value.containsKey(teamId)) return
+        viewModelScope.launch {
+            if (_formMap.value.containsKey(teamId)) return@launch
+            
+            // Temporary placeholder to prevent redundant requests
+            _formMap.update { it + (teamId to "") }
+            
+            val result = teamRepository.getTeamStatistics(teamId, leagueId, season)
+            if (result is ApiResult.Success) {
+                val form = result.data.form ?: ""
+                if (form.isNotEmpty()) {
+                    _formMap.update { it + (teamId to form) }
+                } else {
+                    _formMap.update { it - teamId }
+                }
+            } else {
+                _formMap.update { it - teamId }
+            }
+        }
+    }
+
+    fun triggerPurchase() {
+        viewModelScope.launch {
+            billingRepository.setPurchased(true)
+        }
     }
 
     fun loadHomeData() {

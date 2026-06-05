@@ -44,8 +44,8 @@ sealed class Screen(val route: String) {
     object MatchCenter : Screen("match_center/{matchId}") {
         fun createRoute(matchId: String) = "match_center/$matchId"
     }
-    object LeagueDetail : Screen("league_detail/{leagueId}") {
-        fun createRoute(leagueId: Int) = "league_detail/$leagueId"
+    object LeagueDetail : Screen("league_detail/{leagueId}/{season}") {
+        fun createRoute(leagueId: Int, season: Int) = "league_detail/$leagueId/$season"
     }
     object ClubInfo : Screen("club_info/{teamId}/{leagueId}") {
         fun createRoute(teamId: Int, leagueId: Int) = "club_info/$teamId/$leagueId"
@@ -153,8 +153,8 @@ fun SetupNavGraph(
                     navController.navigate(Screen.MatchCenter.createRoute(matchId))
                 },
                 onNavigateToLeagues = { navController.navigate(Screen.Leagues.route) },
-                onNavigateToLeagueDetail = { leagueId, _ ->
-                    navController.navigate(Screen.LeagueDetail.createRoute(leagueId))
+                onNavigateToLeagueDetail = { leagueId, season ->
+                    navController.navigate(Screen.LeagueDetail.createRoute(leagueId, season))
                 },
                 onNavigateToPlayerProfile = { playerId ->
                     navController.navigate(Screen.PlayerProfile.createRoute(playerId))
@@ -179,7 +179,13 @@ fun SetupNavGraph(
         composable(Screen.Leagues.route) {
             LeaguesScreen(
                 onNavigateToLeagueDetail = { leagueId ->
-                    navController.navigate(Screen.LeagueDetail.createRoute(leagueId))
+                    val season = when (leagueId) {
+                        1 -> 2026
+                        253 -> 2026
+                        4 -> 2024
+                        else -> 2025
+                    }
+                    navController.navigate(Screen.LeagueDetail.createRoute(leagueId, season))
                 },
                 onBackClick = { navController.popBackStack() }
             )
@@ -205,7 +211,13 @@ fun SetupNavGraph(
             SearchScreen(
                 onBack = { navController.popBackStack() },
                 onLeagueClick = { leagueId ->
-                    navController.navigate(Screen.LeagueDetail.createRoute(leagueId))
+                    val season = when (leagueId) {
+                        1 -> 2026
+                        253 -> 2026
+                        4 -> 2024
+                        else -> 2025
+                    }
+                    navController.navigate(Screen.LeagueDetail.createRoute(leagueId, season))
                 },
                 onTeamClick = { teamId ->
                     navController.navigate(Screen.ClubInfo.createRoute(teamId, 0))
@@ -240,11 +252,16 @@ fun SetupNavGraph(
 
         composable(
             route = Screen.LeagueDetail.route,
-            arguments = listOf(navArgument("leagueId") { type = NavType.IntType })
+            arguments = listOf(
+                navArgument("leagueId") { type = NavType.IntType },
+                navArgument("season") { type = NavType.IntType }
+            )
         ) { backStackEntry ->
             val leagueId = backStackEntry.arguments?.getInt("leagueId") ?: 0
+            val season = backStackEntry.arguments?.getInt("season") ?: 2025
             LeagueDetailScreen(
                 leagueId = leagueId,
+                season = season,
                 onBackClick = { navController.popBackStack() },
                 onMatchClick = { matchId ->
                     navController.navigate(Screen.MatchCenter.createRoute(matchId.toString()))

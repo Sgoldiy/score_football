@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.Flow
 
 interface FootballRepository {
     fun getFixturesByDate(date: String): Flow<ApiResult<List<Match>>>
+    suspend fun getFixtureCountByDate(date: String): Int
     fun getLiveMatches(): Flow<ApiResult<List<Match>>>
     suspend fun getMatchDetail(fixtureId: Int): ApiResult<MatchDetail>
     suspend fun getTeamDetail(teamId: Int, leagueId: Int, season: Int): ApiResult<TeamDetail>

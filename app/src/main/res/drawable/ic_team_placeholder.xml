@@ -1,0 +1,14 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Background Circle in #1e2433 -->
+    <path
+        android:fillColor="#1E2433"
+        android:pathData="M12,12m-12,0a12,12 0,1 1,24 0a12,12 0,1 1,-24 0" />
+    <!-- Shield Icon in #555555 -->
+    <path
+        android:fillColor="#555555"
+        android:pathData="M12,6.5 L7,8.2 L7,12.2 C7,15.1 9.1,17.9 12,18.5 C14.9,17.9 17,15.1 17,12.2 L17,8.2 L12,6.5 Z" />
+</vector>

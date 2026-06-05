@@ -13,6 +13,9 @@ interface FixtureDao {
 
     @Query("DELETE FROM fixtures WHERE date = :date")
     suspend fun deleteFixturesByDate(date: String)
+
+    @Query("SELECT COUNT(*) FROM fixtures WHERE date = :date")
+    suspend fun getFixtureCountByDate(date: String): Int
 }
 
 @Dao

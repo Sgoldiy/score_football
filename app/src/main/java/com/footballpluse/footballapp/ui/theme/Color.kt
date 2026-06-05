@@ -3,20 +3,20 @@ package com.footballpluse.footballapp.ui.theme
 import androidx.compose.ui.graphics.Color
 
 // === DARK THEME ===
-val DarkBackground    = Color(0xFF0D1117)
-val DarkSurface       = Color(0xFF161B22)
-val DarkCard          = Color(0xFF1C2128)
-val DarkBorder        = Color(0xFF30363D)
+val DarkBackground    = Color(0xFF0D0F14)
+val DarkSurface       = Color(0xFF1A1E2A)
+val DarkCard          = Color(0xFF131620)
+val DarkBorder        = Color(0xFF1A1E2A)
 val DarkAccentGreen   = Color(0xFF00E676)
-val DarkAccentDim     = Color(0xFF1A8A4A)
+val DarkAccentDim     = Color(0xFF00E676).copy(alpha = 0.7f)
 val DarkTextPrimary   = Color(0xFFFFFFFF)
 val DarkTextSecondary = Color(0xFF8B949E)
 val DarkTextMuted     = Color(0xFF484F58)
-val DarkLive          = Color(0xFF00E676)
+val DarkLive          = Color(0xFFFF4444)
 val DarkYellowCard    = Color(0xFFF0C419)
-val DarkRedCard       = Color(0xFFE74C3C)
+val DarkRedCard       = Color(0xFFFF4444)
 val DarkGoal          = Color(0xFF00E676)
-val DarkTabBar        = Color(0xFF0D1117)
+val DarkTabBar        = Color(0xFF131620)
 
 // === LIGHT THEME ===
 val LightBackground    = Color(0xFFF0F2F5)
@@ -49,11 +49,11 @@ val PitchLine = DarkBorder
 val TextSecondary = DarkTextSecondary
 
 // Dark Glass Design Tokens
-val GlassBg = Color(0x0DFFFFFF)         // very subtle white overlay
-val GlassBorder = Color(0x1AFFFFFF)    // subtle white border
-val GlassGlowGreen = Color(0xFF00FF87) // electric green glow for live
-val GlassGlowDim = Color(0x33FFFFFF)   // dimmed grey glow for finished
-val DeepNavy = Color(0xFF0A0E1A)       // base background
-val ScoreGreen = Color(0xFF00FF87)     // live score electric green
-val ScoreDim = Color(0x66FFFFFF)       // dimmed score for finished games
-val CardOverlay = Color(0x08FFFFFF)    // ultra-subtle card base
+val GlassBg = Color(0xFF131620)
+val GlassBorder = Color(0xFF1A1E2A)
+val GlassGlowGreen = Color(0xFF00E676)
+val GlassGlowDim = Color(0xFF1A1E2A)
+val DeepNavy = Color(0xFF0D0F14)
+val ScoreGreen = Color(0xFF00E676)
+val ScoreDim = Color(0x66FFFFFF)
+val CardOverlay = Color(0xFF131620)

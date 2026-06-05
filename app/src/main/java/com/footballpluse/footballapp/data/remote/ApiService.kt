@@ -30,6 +30,12 @@ interface ApiService {
         @Query("id") fixtureId: Int
     ): ApiResponse<List<FixtureResponse>>
 
+    @GET("fixtures")
+    suspend fun getNextFixtureForTeam(
+        @Query("team") teamId: Int,
+        @Query("next") next: Int = 1
+    ): ApiResponse<List<FixtureResponse>>
+
     @GET("fixtures/headtohead")
     suspend fun getHeadToHead(
         @Query("h2h") teamsPair: String,

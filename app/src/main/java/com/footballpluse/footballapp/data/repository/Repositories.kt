@@ -29,6 +29,7 @@ class FixturesRepository @Inject constructor(
     }
 
     suspend fun getFixtureById(fixtureId: Int) = safeApiCall { apiService.getFixtureById(fixtureId) }
+    suspend fun getNextFixtureForTeam(teamId: Int, next: Int = 1) = safeApiCall { apiService.getNextFixtureForTeam(teamId, next) }
     suspend fun getHeadToHead(teamsPair: String, last: Int = 5) = safeApiCall { apiService.getHeadToHead(teamsPair, last) }
 
     suspend fun getFixtureDetails(fixtureId: Int): ApiResult<FixtureDetailData> {
@@ -143,5 +144,15 @@ class LeagueRepository @Inject constructor(private val apiService: ApiService) {
         } catch (e: Exception) {
             ApiResult.Error(e.message ?: "Unknown error")
         }
+    }
+}
+
+@Singleton
+class BillingRepository @Inject constructor() {
+    private val _isPurchased = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val isPurchased: kotlinx.coroutines.flow.Flow<Boolean> = _isPurchased
+
+    fun setPurchased(purchased: Boolean) {
+        _isPurchased.value = purchased
     }
 }
