@@ -8,15 +8,16 @@ plugins {
 
 android {
     namespace = "com.footballpluse.footballapp"
-    compileSdk = 36
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.footballpluse.footballapp"
         minSdk = 24
-        targetSdk = 36
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        multiDexEnabled = true
     }
     buildTypes {
         release {
@@ -71,6 +72,7 @@ dependencies {
     implementation(libs.navigation.compose)
     implementation(libs.datastore.preferences)
     implementation(libs.coil.compose)
+    implementation("com.github.PhilJay:MPAndroidChart:v3.1.0")
     implementation(libs.androidx.material.icons.extended)
 
     // Room

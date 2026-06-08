@@ -23,6 +23,7 @@ import com.footballpluse.footballapp.ui.screens.search.SearchScreen
 import com.footballpluse.footballapp.ui.screens.details.MatchCenterScreen
 import com.footballpluse.footballapp.ui.screens.players.PlayerProfileScreen
 import com.footballpluse.footballapp.ui.screens.players.TopPlayersScreen
+import com.footballpluse.footballapp.ui.screens.stats.StatsScreen
 import com.footballpluse.footballapp.viewmodel.ThemeViewModel
 import com.footballpluse.footballapp.ui.screens.leagues.LeagueDetailScreen
 import com.footballpluse.footballapp.ui.screens.competitions.ClubInfoScreen
@@ -31,16 +32,16 @@ import com.footballpluse.footballapp.ui.screens.onboarding.flow.OnboardingLeague
 import com.footballpluse.footballapp.ui.screens.onboarding.flow.OnboardingWelcomeScreen
 
 sealed class Screen(val route: String) {
-    object Onboarding : Screen("onboarding")
-    object OnboardingWelcome : Screen("onboarding/welcome")
-    object OnboardingLeague : Screen("onboarding/league")
+    data object Onboarding : Screen("onboarding")
+    data object OnboardingWelcome : Screen("onboarding/welcome")
+    data object OnboardingLeague : Screen("onboarding/league")
     object OnboardingClubs : Screen("onboarding/clubs/{mode}") {
         fun createRoute(mode: String) = "onboarding/clubs/$mode"
     }
-    object Home : Screen("home")
-    object Fixtures : Screen("fixtures")
-    object Leagues : Screen("leagues")
-    object Favourites : Screen("favourites")
+    data object Home : Screen("home")
+    data object Fixtures : Screen("fixtures")
+    data object Leagues : Screen("leagues")
+    data object Favourites : Screen("favourites")
     object MatchCenter : Screen("match_center/{matchId}") {
         fun createRoute(matchId: String) = "match_center/$matchId"
     }
@@ -53,10 +54,11 @@ sealed class Screen(val route: String) {
     object PlayerProfile : Screen("player_profile/{playerId}") {
         fun createRoute(playerId: Int) = "player_profile/$playerId"
     }
-    object TopPlayers : Screen("top_players")
-    object Search : Screen("search")
-    object Settings : Screen("settings")
-    object Notifications : Screen("notifications")
+    data object TopPlayers : Screen("top_players")
+    data object Stats : Screen("stats")
+    data object Search : Screen("search")
+    data object Settings : Screen("settings")
+    data object Notifications : Screen("notifications")
 }
 
 @Composable
@@ -160,7 +162,7 @@ fun SetupNavGraph(
                     navController.navigate(Screen.PlayerProfile.createRoute(playerId))
                 },
                 onNavigateToTopPlayers = {
-                    navController.navigate(Screen.TopPlayers.route)
+                    navController.navigate(Screen.Stats.route)
                 },
                 onNavigateToClubInfo = { teamId, leagueId ->
                     navController.navigate(Screen.ClubInfo.createRoute(teamId, leagueId))
@@ -304,6 +306,17 @@ fun SetupNavGraph(
                 onBackClick = { navController.popBackStack() },
                 onPlayerClick = { playerId ->
                     navController.navigate(Screen.PlayerProfile.createRoute(playerId))
+                }
+            )
+        }
+
+        composable(Screen.Stats.route) {
+            StatsScreen(
+                onNavigateToPlayerProfile = { playerId ->
+                    navController.navigate(Screen.PlayerProfile.createRoute(playerId))
+                },
+                onNavigateToClubInfo = { teamId, leagueId ->
+                    navController.navigate(Screen.ClubInfo.createRoute(teamId, leagueId))
                 }
             )
         }

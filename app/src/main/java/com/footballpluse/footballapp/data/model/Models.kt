@@ -248,7 +248,10 @@ data class League(
 data class LeagueResponse(
     val league: League?,
     val country: Country?,
-    val seasons: List<Season>?
+    val seasons: List<Season>?,
+    val liveCount: Int = 0,
+    val todayCount: Int = 0,
+    val isFavorited: Boolean = false
 )
 
 @JsonClass(generateAdapter = true)
@@ -789,3 +792,5 @@ data class PlayerSidelined(
 data class Timezone(
     val timezone: String
 )
+
+

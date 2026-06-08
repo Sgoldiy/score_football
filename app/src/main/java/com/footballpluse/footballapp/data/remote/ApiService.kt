@@ -13,6 +13,16 @@ interface ApiService {
     ): ApiResponse<List<FixtureResponse>>
 
     @GET("fixtures")
+    suspend fun getLiveFixtures(
+        @Query("live") live: String = "all"
+    ): ApiResponse<List<FixtureResponse>>
+
+    @GET("fixtures")
+    suspend fun getTodayFixtures(
+        @Query("date") date: String = "today"
+    ): ApiResponse<List<FixtureResponse>>
+
+    @GET("fixtures")
     suspend fun getFixturesByTeamSeasonLeague(
         @Query("team") teamId: Int,
         @Query("season") season: Int,
@@ -75,6 +85,12 @@ interface ApiService {
         @Query("id") teamId: Int
     ): ApiResponse<List<TeamInfoResponse>>
 
+    @GET("teams")
+    suspend fun getTeamsForLeagueSeason(
+        @Query("league") leagueId: Int,
+        @Query("season") season: Int
+    ): ApiResponse<List<TeamInfoResponse>>
+
     @GET("teams/statistics")
     suspend fun getTeamStatistics(
         @Query("team") teamId: Int,
@@ -122,6 +138,19 @@ interface ApiService {
     // Leagues
     @GET("leagues")
     suspend fun getLeagues(): ApiResponse<List<LeagueResponse>>
+
+    @GET("leagues")
+    suspend fun getLeagueByIdAndCurrent(
+        @Query("id") leagueId: Int,
+        @Query("current") current: String = "true"
+    ): ApiResponse<List<LeagueResponse>>
+
+    @GET("fixtures/rounds")
+    suspend fun getCurrentRound(
+        @Query("league") leagueId: Int,
+        @Query("season") season: Int,
+        @Query("current") current: String = "true"
+    ): ApiResponse<List<String>>
 
     @GET("countries")
     suspend fun getCountries(): ApiResponse<List<Country>>
@@ -171,6 +200,20 @@ interface ApiService {
         @Query("league") leagueId: Int? = null,
         @Query("season") season: Int? = null
     ): ApiResponse<List<PlayerProfileStatisticsResponse>>
+
+    @GET("players")
+    suspend fun getPlayersByLeagueSeason(
+        @Query("league") leagueId: Int,
+        @Query("season") season: Int,
+        @Query("page") page: Int = 1
+    ): ApiResponse<List<PlayerProfileStatisticsResponse>>
+
+    @GET("fixtures/events")
+    suspend fun getLeagueEvents(
+        @Query("league") leagueId: Int,
+        @Query("season") season: Int,
+        @Query("type") type: String = "Goal"
+    ): ApiResponse<List<FixtureEvent>>
 
     // Others
     @GET("predictions")

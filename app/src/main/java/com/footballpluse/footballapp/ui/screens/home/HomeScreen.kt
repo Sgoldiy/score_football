@@ -50,6 +50,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.footballpluse.footballapp.domain.model.LeagueInfo
 import com.footballpluse.footballapp.domain.model.Match
+import com.footballpluse.footballapp.data.model.LeagueResponse
 import com.footballpluse.footballapp.ui.theme.*
 import com.footballpluse.footballapp.viewmodel.HomeViewModel
 import com.footballpluse.footballapp.viewmodel.HomeUiState

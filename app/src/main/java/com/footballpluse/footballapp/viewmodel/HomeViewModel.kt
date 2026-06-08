@@ -3,6 +3,7 @@ package com.footballpluse.footballapp.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.footballpluse.footballapp.data.model.PlayerProfileStatisticsResponse
+import com.footballpluse.footballapp.data.model.LeagueResponse
 import com.footballpluse.footballapp.data.remote.ApiService
 import com.footballpluse.footballapp.data.util.ApiResult
 import com.footballpluse.footballapp.data.util.SeasonUtils
@@ -28,7 +29,8 @@ sealed class HomeUiState {
         val finishedMatches: List<Match>,
         val topLeagues: List<LeagueInfo>,
         val isLive: Boolean,
-        val topScorers: List<PlayerProfileStatisticsResponse> = emptyList()
+        val topScorers: List<PlayerProfileStatisticsResponse> = emptyList(),
+        val favouriteLeagues: List<LeagueResponse> = emptyList()
     ) : HomeUiState()
     data class Error(val message: String) : HomeUiState()
 }
@@ -38,7 +40,8 @@ class HomeViewModel @Inject constructor(
     private val repository: FootballRepository,
     private val apiService: ApiService,
     private val teamRepository: com.footballpluse.footballapp.data.repository.TeamRepository,
-    private val billingRepository: com.footballpluse.footballapp.data.repository.BillingRepository
+    private val billingRepository: com.footballpluse.footballapp.data.repository.BillingRepository,
+    private val dataStoreManager: com.footballpluse.footballapp.data.local.DataStoreManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow<HomeUiState>(HomeUiState.Loading)
@@ -105,7 +108,19 @@ class HomeViewModel @Inject constructor(
                 emptyList()
             }
 
-            repository.getFixturesByDate(today).collect { result ->
+            val allLeagues = try {
+                apiService.getLeagues().response
+            } catch (e: Exception) {
+                emptyList()
+            }
+
+            combine(
+                repository.getFixturesByDate(today),
+                dataStoreManager.followedLeagues,
+                dataStoreManager.favouriteLeagueId
+            ) { result, followed, onboardingFav ->
+                Triple(result, followed, onboardingFav)
+            }.collect { (result, followed, onboardingFav) ->
                 when (result) {
                     is ApiResult.Loading -> {
                         if (_uiState.value !is HomeUiState.Success) {
@@ -129,6 +144,9 @@ class HomeViewModel @Inject constructor(
                         val topLeagues = matches.map { it.league }.distinctBy { it.id }
                             .sortedByDescending { it.id in priorityLeagues }
 
+                        val favLeagueIds = followed.ifEmpty { setOf(onboardingFav) }
+                        val favLeaguesList = allLeagues.filter { it.league?.id in favLeagueIds }
+
                         _uiState.value = HomeUiState.Success(
                             featuredMatches = featured,
                             liveMatches = live,
@@ -136,7 +154,8 @@ class HomeViewModel @Inject constructor(
                             finishedMatches = finished,
                             topLeagues = topLeagues,
                             isLive = live.isNotEmpty(),
-                            topScorers = scorersList
+                            topScorers = scorersList,
+                            favouriteLeagues = favLeaguesList
                         )
                     }
                     is ApiResult.Error -> {

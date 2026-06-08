@@ -40,7 +40,7 @@ fun BottomNavigationBar(
         BottomNavItem(Screen.Home.route, Icons.Rounded.Home, "Home"),
         BottomNavItem(Screen.Fixtures.route, Icons.Rounded.CalendarToday, "Fixtures"),
         BottomNavItem(Screen.Leagues.route, Icons.Rounded.EmojiEvents, "Leagues"),
-        BottomNavItem(Screen.TopPlayers.route, Icons.Rounded.BarChart, "Stats"),
+        BottomNavItem(Screen.Stats.route, Icons.Rounded.BarChart, "Stats"),
         BottomNavItem(Screen.Favourites.route, Icons.Outlined.StarBorder, "Favorites")
     )
 

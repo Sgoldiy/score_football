@@ -14,11 +14,15 @@ class DataStoreManager @Inject constructor(
     val isOnboardingCompleted: Flow<Boolean> = appSettingsDataStore.isOnboardingCompleted
     val favouriteLeagueId: Flow<Int> = appSettingsDataStore.favouriteLeagueId
     val favouriteLeagueName: Flow<String> = appSettingsDataStore.favouriteLeagueName
+    val followedLeagues: Flow<Set<Int>> = appSettingsDataStore.followedLeagues
 
     suspend fun saveOnboardingCompleted(completed: Boolean) =
         appSettingsDataStore.saveOnboardingCompleted(completed)
 
     suspend fun saveFavouriteLeague(id: Int, name: String) =
         appSettingsDataStore.saveFavouriteLeague(id, name)
+
+    suspend fun setLeaguesFollowed(leagueIds: Set<Int>) =
+        appSettingsDataStore.setLeaguesFollowed(leagueIds)
 }
 
