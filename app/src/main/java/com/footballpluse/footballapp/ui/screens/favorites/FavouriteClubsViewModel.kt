@@ -3,6 +3,7 @@ package com.footballpluse.footballapp.ui.screens.favorites
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.footballpluse.footballapp.data.repository.FavouriteRepository
+import com.footballpluse.footballapp.data.repository.BillingRepository
 import com.footballpluse.footballapp.data.util.ApiResult
 import com.footballpluse.footballapp.data.util.SeasonUtils
 import com.footballpluse.footballapp.domain.model.*
@@ -30,17 +31,41 @@ data class ClubDetailUiState(
     val teamDetailError: String? = null
 )
 
+data class PollOption(
+    val text: String,
+    val votes: Int
+)
+
+data class SocialPost(
+    val id: Int,
+    val username: String,
+    val userAvatarUrl: String?,
+    val timestamp: Long,
+    val content: String,
+    val imageUrl: String? = null,
+    val hotTakeTag: String? = null,
+    val pollQuestion: String? = null,
+    val pollOptions: List<PollOption> = emptyList(),
+    val userVotedIndex: Int? = null,
+    val likes: Int = 0,
+    val hasLiked: Boolean = false,
+    val commentCount: Int = 0
+)
+
 data class FavouriteClubsUiState(
     val clubs: List<FavouriteClub> = emptyList(),
     val activeClubId: Int? = null,
     val activeClub: FavouriteClub? = null,
-    val detail: ClubDetailUiState = ClubDetailUiState()
+    val detail: ClubDetailUiState = ClubDetailUiState(),
+    val isPremium: Boolean = false,
+    val socialPosts: List<SocialPost> = emptyList()
 )
 
 @HiltViewModel
 class FavouriteClubsViewModel @Inject constructor(
     private val favouriteRepository: FavouriteRepository,
-    private val footballRepository: FootballRepository
+    private val footballRepository: FootballRepository,
+    private val billingRepository: BillingRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(FavouriteClubsUiState())
@@ -60,9 +85,16 @@ class FavouriteClubsViewModel @Inject constructor(
                 )
                 if (activeClub != null) {
                     loadClub(activeClub)
+                    loadCommunityData(activeClub.clubId)
                 } else {
                     _uiState.value = _uiState.value.copy(detail = ClubDetailUiState())
                 }
+            }
+        }
+
+        viewModelScope.launch {
+            billingRepository.isPurchased.collectLatest { purchased ->
+                _uiState.value = _uiState.value.copy(isPremium = purchased)
             }
         }
     }
@@ -71,6 +103,7 @@ class FavouriteClubsViewModel @Inject constructor(
         val club = _uiState.value.clubs.firstOrNull { it.clubId == clubId } ?: return
         _uiState.value = _uiState.value.copy(activeClubId = clubId, activeClub = club)
         loadClub(club)
+        loadCommunityData(clubId)
     }
 
     fun retry() {
@@ -409,6 +442,144 @@ class FavouriteClubsViewModel @Inject constructor(
         }
 
         return TeamDetail(activeInfo, venue, stats, squad, coaches, transfers)
+    }
+
+    private val clubPostCache = mutableMapOf<Int, List<SocialPost>>()
+
+    private fun loadCommunityData(clubId: Int) {
+        val cachedPosts = clubPostCache[clubId]
+        val posts = if (cachedPosts != null) {
+            cachedPosts
+        } else {
+            val initial = generateInitialPosts(clubId)
+            clubPostCache[clubId] = initial
+            initial
+        }
+
+        _uiState.value = _uiState.value.copy(
+            socialPosts = posts
+        )
+    }
+
+    fun togglePremium() {
+        viewModelScope.launch {
+            val nextState = !_uiState.value.isPremium
+            billingRepository.setPurchased(nextState)
+        }
+    }
+
+    fun createSocialPost(content: String, hotTakeTag: String?, pollOptions: List<String>?) {
+        val currentPosts = _uiState.value.socialPosts.toMutableList()
+        val optionsList = pollOptions?.filter { it.isNotBlank() }?.map { PollOption(it, 0) } ?: emptyList()
+        val newPost = SocialPost(
+            id = (currentPosts.maxOfOrNull { it.id } ?: 0) + 1,
+            username = "You (Fan)",
+            userAvatarUrl = null,
+            timestamp = System.currentTimeMillis(),
+            content = content,
+            hotTakeTag = hotTakeTag,
+            pollQuestion = if (optionsList.isNotEmpty()) "Poll" else null,
+            pollOptions = optionsList,
+            likes = 0,
+            hasLiked = false,
+            commentCount = 0
+        )
+        currentPosts.add(0, newPost)
+        _uiState.value = _uiState.value.copy(socialPosts = currentPosts)
+        _uiState.value.activeClub?.let { club ->
+            clubPostCache[club.clubId] = currentPosts
+        }
+    }
+
+    fun likePost(postId: Int) {
+        val currentPosts = _uiState.value.socialPosts.map { post ->
+            if (post.id == postId) {
+                val nextLiked = !post.hasLiked
+                post.copy(
+                    hasLiked = nextLiked,
+                    likes = if (nextLiked) post.likes + 1 else post.likes - 1
+                )
+            } else {
+                post
+            }
+        }
+        _uiState.value = _uiState.value.copy(socialPosts = currentPosts)
+        _uiState.value.activeClub?.let { club ->
+            clubPostCache[club.clubId] = currentPosts
+        }
+    }
+
+    fun voteInPoll(postId: Int, optionIndex: Int) {
+        val currentPosts = _uiState.value.socialPosts.map { post ->
+            if (post.id == postId && post.userVotedIndex == null) {
+                val updatedOptions = post.pollOptions.mapIndexed { idx, opt ->
+                    if (idx == optionIndex) opt.copy(votes = opt.votes + 1) else opt
+                }
+                post.copy(
+                    pollOptions = updatedOptions,
+                    userVotedIndex = optionIndex
+                )
+            } else {
+                post
+            }
+        }
+        _uiState.value = _uiState.value.copy(socialPosts = currentPosts)
+        _uiState.value.activeClub?.let { club ->
+            clubPostCache[club.clubId] = currentPosts
+        }
+    }
+
+
+
+    private fun generateInitialPosts(clubId: Int): List<SocialPost> {
+        val name = when (clubId) {
+            49 -> "Chelsea"
+            42 -> "Arsenal"
+            50 -> "Man City"
+            40 -> "Liverpool"
+            else -> "our team"
+        }
+        return listOf(
+            SocialPost(
+                id = 1,
+                username = "CFC_Insider",
+                userAvatarUrl = null,
+                timestamp = System.currentTimeMillis() - 2 * 3600 * 1000,
+                content = "Training report looks good. Players are fully focused for the derby. What's your starting XI predictions?",
+                likes = 42,
+                hasLiked = false,
+                commentCount = 12,
+                hotTakeTag = "Matchday Thoughts"
+            ),
+            SocialPost(
+                id = 2,
+                username = "PrideOfLondon",
+                userAvatarUrl = null,
+                timestamp = System.currentTimeMillis() - 5 * 3600 * 1000,
+                content = "Who is our Player of the Season so far? Let's vote!",
+                likes = 120,
+                hasLiked = true,
+                commentCount = 28,
+                pollQuestion = "Player of the Season (So Far)",
+                pollOptions = listOf(
+                    PollOption("Cole Palmer", 85),
+                    PollOption("Nicolas Jackson", 15),
+                    PollOption("Moises Caicedo", 30),
+                    PollOption("Levi Colwill", 10)
+                )
+            ),
+            SocialPost(
+                id = 3,
+                username = "TacticalMaster",
+                userAvatarUrl = null,
+                timestamp = System.currentTimeMillis() - 12 * 3600 * 1000,
+                content = "Unpopular opinion: Maresca is building a dynasty here. The patterns of play are becoming elite. We just need to upgrade our keeper next window.",
+                likes = 18,
+                hasLiked = false,
+                commentCount = 5,
+                hotTakeTag = "Hot Take 🔥"
+            )
+        )
     }
 }
 

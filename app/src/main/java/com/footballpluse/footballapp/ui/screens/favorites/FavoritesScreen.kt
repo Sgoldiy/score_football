@@ -8,6 +8,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -27,8 +29,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import kotlinx.coroutines.delay
 import coil.compose.AsyncImage
+
 import com.footballpluse.footballapp.ui.components.PlayerAvatar
 import com.footballpluse.footballapp.domain.model.FavouriteClub
 import com.footballpluse.footballapp.domain.model.Match
@@ -39,6 +41,7 @@ import com.footballpluse.footballapp.ui.theme.PitchBlack
 import com.footballpluse.footballapp.ui.theme.PitchSurface
 import com.footballpluse.footballapp.ui.theme.PitchSurfaceHigh
 import com.footballpluse.footballapp.ui.theme.TextSecondary
+import androidx.compose.animation.core.*
 
 @Composable
 fun FavoritesScreen(
@@ -79,6 +82,7 @@ fun FavoritesScreen(
         ClubTabs(
             club = active,
             detail = state.detail,
+            viewModel = viewModel,
             onPlayerClick = onPlayerClick,
             onMatchClick = onMatchClick
         )
@@ -90,21 +94,21 @@ private fun TopBar(onSearchClick: () -> Unit, onRefresh: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = "Favourites",
             color = Color.White,
             fontWeight = FontWeight.Black,
-            style = MaterialTheme.typography.titleLarge,
+            fontSize = 22.sp,
             modifier = Modifier.weight(1f)
         )
         IconButton(onClick = onRefresh) {
-            Icon(Icons.Rounded.Refresh, contentDescription = "Refresh", tint = Color.White)
+            Icon(Icons.Rounded.Refresh, contentDescription = "Refresh", tint = Color.White.copy(alpha = 0.8f))
         }
         IconButton(onClick = onSearchClick) {
-            Icon(Icons.Rounded.Search, contentDescription = "Search", tint = Color.White)
+            Icon(Icons.Rounded.Search, contentDescription = "Search", tint = Color.White.copy(alpha = 0.8f))
         }
     }
 }
@@ -213,10 +217,10 @@ private fun ClubHeader(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(96.dp)
+            .height(104.dp)
             .background(
                 Brush.horizontalGradient(
-                    listOf(GlassGlowGreen.copy(alpha = 0.30f), Color.Transparent)
+                    listOf(GlassGlowGreen.copy(alpha = 0.28f), Color.Transparent)
                 )
             )
             .clickable { onTeamClick(club.clubId, club.leagueId) }
@@ -225,32 +229,46 @@ private fun ClubHeader(
     ) {
         Box(
             modifier = Modifier
-                .size(52.dp)
+                .size(56.dp)
                 .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.12f)),
+                .background(Color.White.copy(alpha = 0.10f))
+                .border(1.5.dp, GlassGlowGreen.copy(alpha = 0.35f), CircleShape),
             contentAlignment = Alignment.Center
         ) {
-            AsyncImage(model = club.logoUrl, contentDescription = club.clubName, modifier = Modifier.size(36.dp))
+            AsyncImage(model = club.logoUrl, contentDescription = club.clubName, modifier = Modifier.size(38.dp))
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = club.clubName, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(
+                text = club.clubName,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White,
+                letterSpacing = 0.3.sp
+            )
+            Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AsyncImage(
                     model = OnboardingDefaults.leagueLogoUrl(club.leagueId),
                     contentDescription = null,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(14.dp)
                 )
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    text = "${club.leagueName} • ${SeasonUtils.displaySeasonLabel(loadedSeason)}",
+                    text = "${club.leagueName}  •  ${SeasonUtils.displaySeasonLabel(loadedSeason)}",
                     fontSize = 12.sp,
-                    color = Color.White.copy(alpha = 0.65f),
+                    color = Color.White.copy(alpha = 0.60f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
         }
+        Icon(
+            imageVector = Icons.Rounded.ChevronRight,
+            contentDescription = "View Club",
+            tint = Color.White.copy(alpha = 0.30f),
+            modifier = Modifier.size(20.dp)
+        )
     }
 }
 
@@ -258,11 +276,12 @@ private fun ClubHeader(
 private fun ClubTabs(
     club: FavouriteClub,
     detail: ClubDetailUiState,
+    viewModel: FavouriteClubsViewModel,
     onPlayerClick: (Int) -> Unit,
     onMatchClick: (Int) -> Unit
 ) {
     var tab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Fixtures", "Squad", "Info")
+    val tabs = listOf("Fixtures", "Squad", "Info", "Community")
 
     ScrollableTabRow(
         selectedTabIndex = tab,
@@ -298,6 +317,7 @@ private fun ClubTabs(
         0 -> FixturesTab(detail = detail, clubId = club.clubId, onMatchClick = onMatchClick)
         1 -> SquadTab(detail = detail, onPlayerClick = onPlayerClick)
         2 -> InfoTab(detail = detail)
+        3 -> CommunityTab(viewModel = viewModel, club = club)
     }
 }
 
@@ -1028,4 +1048,492 @@ private fun ErrorInline(message: String) {
     ) {
         Text(text = message, color = Color.White.copy(alpha = 0.75f), modifier = Modifier.weight(1f))
     }
+}
+
+@Composable
+private fun CommunityTab(
+    viewModel: FavouriteClubsViewModel,
+    club: FavouriteClub
+) {
+    val state by viewModel.uiState.collectAsState()
+    var showCreatePostDialog by remember { mutableStateOf(false) }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(bottom = 80.dp)
+        ) {
+            item {
+                DeveloperControls(
+                    isPremium = state.isPremium,
+                    onTogglePremium = { viewModel.togglePremium() }
+                )
+            }
+
+            item {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(width = 4.dp, height = 16.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(GlassGlowGreen)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "${club.clubName.uppercase()} FAN FEED",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 1.5.sp
+                    )
+                }
+            }
+
+            if (state.socialPosts.isEmpty()) {
+                item {
+                    EmptySocialFeedPlaceholder(clubName = club.clubName)
+                }
+            } else {
+                items(state.socialPosts, key = { "post_${it.id}" }) { post ->
+                    SocialPostCard(
+                        post = post,
+                        onLikeClick = { viewModel.likePost(post.id) },
+                        onVoteClick = { optionIdx -> viewModel.voteInPoll(post.id, optionIdx) }
+                    )
+                }
+            }
+        }
+
+        FloatingActionButton(
+            onClick = { showCreatePostDialog = true },
+            containerColor = GlassGlowGreen,
+            contentColor = PitchBlack,
+            shape = CircleShape,
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(20.dp)
+        ) {
+            Icon(Icons.Rounded.Add, contentDescription = "Create Post")
+        }
+
+        if (showCreatePostDialog) {
+            CreatePostDialog(
+                onDismiss = { showCreatePostDialog = false },
+                onSubmit = { content, tag, options ->
+                    viewModel.createSocialPost(content, tag, options)
+                    showCreatePostDialog = false
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun DeveloperControls(
+    isPremium: Boolean,
+    onTogglePremium: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.08f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(10.dp)) {
+            Text(
+                text = "🛠️ Developer Sandbox Controls",
+                color = GlassGlowGreen,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold
+            )
+            Spacer(Modifier.height(8.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (isPremium) GlassGlowGreen.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.06f))
+                    .border(0.5.dp, if (isPremium) GlassGlowGreen else Color.Transparent, RoundedCornerShape(8.dp))
+                    .clickable { onTogglePremium() }
+                    .padding(vertical = 10.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (isPremium) "PRO Enabled 👑  (Tap to downgrade)" else "Free Account — Tap to simulate PRO",
+                    color = if (isPremium) GlassGlowGreen else Color.White.copy(alpha = 0.6f),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+    }
+}
+
+// LiveMatchChatCard and ChatInactivePlaceholder removed – feature dropped per user request
+
+@Composable
+private fun SocialPostCard(
+    post: SocialPost,
+    onLikeClick: () -> Unit,
+    onVoteClick: (Int) -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.03f)),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.06f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.1f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = post.username.take(2).uppercase(),
+                        color = GlassGlowGreen,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = post.username,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        text = remember(post.timestamp) {
+                            val elapsedMin = (System.currentTimeMillis() - post.timestamp) / (60 * 1000)
+                            if (elapsedMin < 60) {
+                                "$elapsedMin mins ago"
+                            } else {
+                                val elapsedHrs = elapsedMin / 60
+                                if (elapsedHrs < 24) "$elapsedHrs hrs ago" else "${elapsedHrs / 24} days ago"
+                            }
+                        },
+                        color = Color.White.copy(alpha = 0.4f),
+                        fontSize = 10.sp
+                    )
+                }
+
+                if (post.hotTakeTag != null) {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(GlassGlowGreen.copy(alpha = 0.1f))
+                            .border(0.5.dp, GlassGlowGreen.copy(alpha = 0.3f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    ) {
+                        Text(
+                            text = post.hotTakeTag,
+                            color = GlassGlowGreen,
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            Text(
+                text = post.content,
+                color = Color.White.copy(alpha = 0.85f),
+                fontSize = 13.sp
+            )
+
+            if (post.pollQuestion != null && post.pollOptions.isNotEmpty()) {
+                Spacer(Modifier.height(12.dp))
+                val totalVotes = post.pollOptions.sumOf { it.votes }.coerceAtLeast(1)
+                val userVoted = post.userVotedIndex != null
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    post.pollOptions.forEachIndexed { idx, opt ->
+                        val pct = (opt.votes * 100) / totalVotes
+                        val isUserPick = post.userVotedIndex == idx
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(38.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color.White.copy(alpha = 0.04f))
+                                .clickable(enabled = !userVoted) { onVoteClick(idx) }
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxHeight()
+                                    .fillMaxWidth(opt.votes.toFloat() / totalVotes)
+                                    .background(if (isUserPick) GlassGlowGreen.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.02f))
+                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(horizontal = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = opt.text,
+                                    color = if (isUserPick) GlassGlowGreen else Color.White.copy(alpha = 0.7f),
+                                    fontSize = 12.sp,
+                                    fontWeight = if (isUserPick) FontWeight.Bold else FontWeight.Normal
+                                )
+                                if (userVoted) {
+                                    Text(
+                                        text = "$pct%",
+                                        color = Color.White.copy(alpha = 0.5f),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+            HorizontalDivider(color = Color.White.copy(alpha = 0.05f), thickness = 0.5.dp)
+            Spacer(Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .clickable { onLikeClick() }
+                        .padding(4.dp)
+                ) {
+                    Icon(
+                        imageVector = if (post.hasLiked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                        contentDescription = "Like",
+                        tint = if (post.hasLiked) Color(0xFFFF4444) else Color.White.copy(alpha = 0.4f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "${post.likes}",
+                        color = if (post.hasLiked) Color.White else Color.White.copy(alpha = 0.4f),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Rounded.ChatBubbleOutline,
+                        contentDescription = "Comments",
+                        tint = Color.White.copy(alpha = 0.4f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    Text(
+                        text = "${post.commentCount}",
+                        color = Color.White.copy(alpha = 0.4f),
+                        fontSize = 11.sp
+                    )
+                }
+
+                Icon(
+                    imageVector = Icons.Rounded.Share,
+                    contentDescription = "Share",
+                    tint = Color.White.copy(alpha = 0.4f),
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptySocialFeedPlaceholder(clubName: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Groups,
+            contentDescription = null,
+            tint = Color.White.copy(alpha = 0.2f),
+            modifier = Modifier.size(44.dp)
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = "No Community Posts Yet",
+            color = Color.White.copy(alpha = 0.7f),
+            fontWeight = FontWeight.Bold,
+            fontSize = 13.sp
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            text = "Be the first to share your thoughts about $clubName!",
+            color = Color.White.copy(alpha = 0.4f),
+            fontSize = 11.sp,
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+@Composable
+private fun CreatePostDialog(
+    onDismiss: () -> Unit,
+    onSubmit: (String, String?, List<String>?) -> Unit
+) {
+    var text by remember { mutableStateOf("") }
+    var hotTakeTag by remember { mutableStateOf<String?>(null) }
+    var isPollSelected by remember { mutableStateOf(false) }
+    var pollOption1 by remember { mutableStateOf("") }
+    var pollOption2 by remember { mutableStateOf("") }
+    var pollOption3 by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Create Fan Post",
+                color = Color.White,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        containerColor = Color(0xFF1E1E1E),
+        tonalElevation = 6.dp,
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(androidx.compose.foundation.rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                TextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    placeholder = { Text("What is on your mind?", fontSize = 13.sp, color = Color.White.copy(alpha = 0.4f)) },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.White.copy(alpha = 0.04f),
+                        unfocusedContainerColor = Color.White.copy(alpha = 0.04f),
+                        disabledContainerColor = Color.White.copy(alpha = 0.04f),
+                        cursorColor = GlassGlowGreen,
+                        focusedTextColor = Color.White,
+                        unfocusedTextColor = Color.White,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth().height(100.dp)
+                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Tag: ", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+                    Spacer(Modifier.width(8.dp))
+                    listOf("None", "Matchday", "Hot Take 🔥", "Lineup").forEach { label ->
+                        val currentVal = if (label == "None") null else label
+                        val selected = hotTakeTag == currentVal
+                        Box(
+                            modifier = Modifier
+                                .padding(end = 6.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(if (selected) GlassGlowGreen else Color.White.copy(alpha = 0.06f))
+                                .clickable { hotTakeTag = currentVal }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = label,
+                                color = if (selected) PitchBlack else Color.White.copy(alpha = 0.6f),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Checkbox(
+                        checked = isPollSelected,
+                        onCheckedChange = { isPollSelected = it },
+                        colors = CheckboxDefaults.colors(checkedColor = GlassGlowGreen, uncheckedColor = Color.White.copy(alpha = 0.4f))
+                    )
+                    Text("Add a Poll to this post", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp)
+                }
+
+                if (isPollSelected) {
+                    Column(
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        TextField(
+                            value = pollOption1,
+                            onValueChange = { pollOption1 = it },
+                            placeholder = { Text("Poll Option 1", fontSize = 12.sp) },
+                            colors = TextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, cursorColor = GlassGlowGreen),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        TextField(
+                            value = pollOption2,
+                            onValueChange = { pollOption2 = it },
+                            placeholder = { Text("Poll Option 2", fontSize = 12.sp) },
+                            colors = TextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, cursorColor = GlassGlowGreen),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        TextField(
+                            value = pollOption3,
+                            onValueChange = { pollOption3 = it },
+                            placeholder = { Text("Poll Option 3 (Optional)", fontSize = 12.sp) },
+                            colors = TextFieldDefaults.colors(focusedTextColor = Color.White, unfocusedTextColor = Color.White, cursorColor = GlassGlowGreen),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val options = if (isPollSelected) listOf(pollOption1, pollOption2, pollOption3).filter { it.isNotBlank() } else null
+                    onSubmit(text, hotTakeTag, options)
+                },
+                enabled = text.isNotBlank(),
+                colors = ButtonDefaults.buttonColors(containerColor = GlassGlowGreen, contentColor = PitchBlack)
+            ) {
+                Text("Post", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel", color = Color.White.copy(alpha = 0.6f))
+            }
+        }
+    )
 }
