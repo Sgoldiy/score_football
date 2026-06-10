@@ -24,6 +24,8 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
+import androidx.compose.material3.DividerDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -434,7 +436,11 @@ private fun RecentFixtures(
     Column(modifier = Modifier.fillMaxWidth()) {
         recent.forEach { fixture ->
             RecentFixtureRow(fixture = fixture, teamId = teamId)
-            Divider(color = PrimaryText.copy(alpha = 0.07f))
+            HorizontalDivider(
+                Modifier,
+                DividerDefaults.Thickness,
+                color = PrimaryText.copy(alpha = 0.07f)
+            )
         }
     }
 }

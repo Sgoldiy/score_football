@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -1496,7 +1497,7 @@ private fun MatchChatSection(viewModel: FixtureDetailViewModel) {
                     },
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Rounded.Send, contentDescription = "Send", tint = PitchBlack, modifier = Modifier.size(18.dp))
+                Icon(Icons.AutoMirrored.Rounded.Send, contentDescription = "Send", tint = PitchBlack, modifier = Modifier.size(18.dp))
             }
         }
     }

@@ -10,6 +10,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
@@ -62,7 +64,7 @@ fun PlayerProfileScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = PitchBlack)
@@ -357,7 +359,7 @@ private fun PlayerStatsCard(ps: com.footballpluse.footballapp.domain.model.Playe
             ) {
                 StatPill(label = "Matches Played", value = "${ps.appearances}", icon = Icons.Rounded.Star, color = GlassGlowGreen)
                 StatPill(label = "Goals Scored", value = "${ps.goals}", icon = Icons.Rounded.EmojiEvents, color = Color(0xFFFFC107))
-                StatPill(label = "Assists Offered", value = "${ps.assists}", icon = Icons.Rounded.TrendingUp, color = Color(0xFF03A9F4))
+                StatPill(label = "Assists Offered", value = "${ps.assists}", icon = Icons.AutoMirrored.Rounded.TrendingUp, color = Color(0xFF03A9F4))
             }
         }
     }

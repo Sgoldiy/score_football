@@ -1,44 +1,67 @@
 package com.footballpluse.footballapp.ui.screens.stats
 
-import android.content.Context
-import android.graphics.Color as AndroidColor
-import android.graphics.drawable.GradientDrawable
 import android.view.ViewGroup
-import android.widget.LinearLayout
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ChevronRight
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.outlined.StarBorder
-import androidx.compose.material.icons.rounded.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.rounded.EmojiEvents
+import androidx.compose.material.icons.rounded.QueryStats
+import androidx.compose.material.icons.rounded.Scoreboard
+import androidx.compose.material.icons.rounded.TrendingUp
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
@@ -47,12 +70,30 @@ import com.footballpluse.footballapp.data.model.FixtureResponse
 import com.footballpluse.footballapp.data.model.PlayerProfileStatisticsResponse
 import com.footballpluse.footballapp.data.model.StandingRecord
 import com.footballpluse.footballapp.ui.components.MatchRowShimmer
-import com.footballpluse.footballapp.viewmodel.*
+import com.footballpluse.footballapp.viewmodel.ClubAttackDefence
+import com.footballpluse.footballapp.viewmodel.ClubBigChanceConversion
+import com.footballpluse.footballapp.viewmodel.ClubCleanSheet
+import com.footballpluse.footballapp.viewmodel.ClubXgPerformance
+import com.footballpluse.footballapp.viewmodel.ClubsStatsUiState
+import com.footballpluse.footballapp.viewmodel.DisciplineUiState
+import com.footballpluse.footballapp.viewmodel.FirstGoalAdvantageData
+import com.footballpluse.footballapp.viewmodel.GoalTimingUiState
+import com.footballpluse.footballapp.viewmodel.PlayerCardsStat
+import com.footballpluse.footballapp.viewmodel.PlayerFoulsStat
+import com.footballpluse.footballapp.viewmodel.PlayerShotAccuracy
+import com.footballpluse.footballapp.viewmodel.PlayerXgPerformance
+import com.footballpluse.footballapp.viewmodel.PlayersStatsUiState
+import com.footballpluse.footballapp.viewmodel.StatsTab
+import com.footballpluse.footballapp.viewmodel.StatsViewModel
+import com.footballpluse.footballapp.viewmodel.TeamCardsStat
+import com.footballpluse.footballapp.viewmodel.TeamGoalTiming
+import com.footballpluse.footballapp.viewmodel.XGStatsUiState
 import com.github.mikephil.charting.components.XAxis
-import com.github.mikephil.charting.data.*
+import com.github.mikephil.charting.data.BarData
+import com.github.mikephil.charting.data.BarDataSet
+import com.github.mikephil.charting.data.BarEntry
 import com.github.mikephil.charting.formatter.IndexAxisValueFormatter
-import com.github.mikephil.charting.utils.ColorTemplate
-import kotlinx.coroutines.launch
+import android.graphics.Color as AndroidColor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -182,7 +223,12 @@ fun StatsScreen(
         // 4. Tab Content
         Box(modifier = Modifier.weight(1f)) {
             when (selectedTab) {
-                StatsTab.PLAYERS -> PlayersTabContent(playersState, onNavigateToPlayerProfile, viewModel)
+                StatsTab.PLAYERS -> PlayersTabContent(
+                    playersState,
+                    onNavigateToPlayerProfile,
+                    viewModel
+                )
+
                 StatsTab.CLUBS -> ClubsTabContent(clubsState, onNavigateToClubInfo, viewModel)
                 StatsTab.XG_ADVANCED -> XGAdvancedTabContent(xgState, viewModel)
                 StatsTab.GOAL_TIMING -> GoalTimingTabContent(timingState, viewModel)
@@ -229,7 +275,11 @@ fun StatsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(10.dp))
-                                .background(if (selectedLeague.id == league.id) Color.White.copy(alpha = 0.05f) else Color.Transparent)
+                                .background(
+                                    if (selectedLeague.id == league.id) Color.White.copy(
+                                        alpha = 0.05f
+                                    ) else Color.Transparent
+                                )
                                 .clickable {
                                     viewModel.onLeagueSelected(league)
                                     showLeagueSheet = false
@@ -287,10 +337,14 @@ fun PlayersTabContent(
 ) {
     when (state) {
         is PlayersStatsUiState.Idle, is PlayersStatsUiState.Loading -> {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(16.dp)) {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(16.dp)
+            ) {
                 items(3) { MatchRowShimmer() }
             }
         }
+
         is PlayersStatsUiState.Success -> {
             Column(
                 modifier = Modifier
@@ -331,7 +385,12 @@ fun PlayersTabContent(
                     color = Color(0xFF555555),
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
-                SeasonHighlightsGrid(state.totalGoals, state.avgGoals, state.penaltyGoalsPct, state.avgXgPerMatch)
+                SeasonHighlightsGrid(
+                    state.totalGoals,
+                    state.avgGoals,
+                    state.penaltyGoalsPct,
+                    state.avgXgPerMatch
+                )
 
                 Spacer(Modifier.height(20.dp))
 
@@ -360,6 +419,7 @@ fun PlayersTabContent(
                 Spacer(Modifier.height(30.dp))
             }
         }
+
         is PlayersStatsUiState.Error -> {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(state.message, color = Color.Red, fontSize = 13.sp)
@@ -453,10 +513,30 @@ fun TopScorerHeroCard(
                     val rating = stats?.games?.rating ?: "0.0"
                     val xg = 0.94f //Kane simulated goals/xg ratio or similar
 
-                    MiniStatBox(label = "Goals", value = "$goals", color = Color(0xFF00E676), modifier = Modifier.weight(1f))
-                    MiniStatBox(label = "Assists", value = "$assists", color = Color(0xFF5B8DE8), modifier = Modifier.weight(1f))
-                    MiniStatBox(label = "Rating", value = rating.take(4), color = Color(0xFFF0A500), modifier = Modifier.weight(1f))
-                    MiniStatBox(label = "xG/90", value = "$xg", color = Color(0xFFFF6B35), modifier = Modifier.weight(1f))
+                    MiniStatBox(
+                        label = "Goals",
+                        value = "$goals",
+                        color = Color(0xFF00E676),
+                        modifier = Modifier.weight(1f)
+                    )
+                    MiniStatBox(
+                        label = "Assists",
+                        value = "$assists",
+                        color = Color(0xFF5B8DE8),
+                        modifier = Modifier.weight(1f)
+                    )
+                    MiniStatBox(
+                        label = "Rating",
+                        value = rating.take(4),
+                        color = Color(0xFFF0A500),
+                        modifier = Modifier.weight(1f)
+                    )
+                    MiniStatBox(
+                        label = "xG/90",
+                        value = "$xg",
+                        color = Color(0xFFFF6B35),
+                        modifier = Modifier.weight(1f)
+                    )
                 }
             }
 
@@ -543,7 +623,9 @@ fun PlayerStatLeaderboard(
             displayPlayers.forEachIndexed { index, playerStats ->
                 val player = playerStats.player ?: return@forEachIndexed
                 val stats = playerStats.statistics?.firstOrNull()
-                val value = if (statType == "Goals") stats?.goals?.total ?: 0 else stats?.goals?.assists ?: 0
+                val value =
+                    if (statType == "Goals") stats?.goals?.total ?: 0 else stats?.goals?.assists
+                        ?: 0
                 val ratio = if (maxVal > 0) value.toFloat() / maxVal.coerceAtLeast(1) else 0f
 
                 val rankColor = when (index) {
@@ -566,7 +648,11 @@ fun PlayerStatLeaderboard(
                             .size(22.dp)
                             .clip(CircleShape)
                             .background(rankColor.copy(alpha = if (index < 3) 0.15f else 0.05f))
-                            .border(0.5.dp, rankColor.copy(alpha = if (index < 3) 0.6f else 0.2f), CircleShape),
+                            .border(
+                                0.5.dp,
+                                rankColor.copy(alpha = if (index < 3) 0.6f else 0.2f),
+                                CircleShape
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -585,7 +671,11 @@ fun PlayerStatLeaderboard(
                             .size(42.dp)
                             .clip(CircleShape)
                             .background(Color(0xFF1E2433))
-                            .border(1.5.dp, accentColor.copy(alpha = if (index == 0) 0.8f else 0.25f), CircleShape),
+                            .border(
+                                1.5.dp,
+                                accentColor.copy(alpha = if (index == 0) 0.8f else 0.25f),
+                                CircleShape
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         AsyncImage(
@@ -683,7 +773,6 @@ fun PlayerStatLeaderboard(
 }
 
 
-
 @Composable
 fun LegendIndicator(color: Color, label: String) {
     Row(
@@ -722,7 +811,7 @@ fun SeasonHighlightsGrid(
                 modifier = Modifier.weight(1f)
             )
             HighlightStatCard(
-                icon = Icons.Rounded.TrendingUp,
+                icon = Icons.AutoMirrored.Rounded.TrendingUp,
                 value = String.format("%.2f", avgGoals),
                 label = "Avg goals per game",
                 trend = "+0.14 vs last season",
@@ -926,10 +1015,14 @@ fun ClubsTabContent(
 ) {
     when (state) {
         is ClubsStatsUiState.Idle, is ClubsStatsUiState.Loading -> {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(16.dp)) {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(16.dp)
+            ) {
                 items(3) { MatchRowShimmer() }
             }
         }
+
         is ClubsStatsUiState.Success -> {
             Column(
                 modifier = Modifier
@@ -1010,6 +1103,7 @@ fun ClubsTabContent(
                 Spacer(Modifier.height(30.dp))
             }
         }
+
         is ClubsStatsUiState.Error -> {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(state.message, color = Color.Red, fontSize = 13.sp)
@@ -1054,7 +1148,11 @@ fun ClubStatBarRow(
                     .size(22.dp)
                     .clip(CircleShape)
                     .background(rankColor.copy(alpha = if (rank <= 3) 0.15f else 0.05f))
-                    .border(0.5.dp, rankColor.copy(alpha = if (rank <= 3) 0.6f else 0.2f), CircleShape),
+                    .border(
+                        0.5.dp,
+                        rankColor.copy(alpha = if (rank <= 3) 0.6f else 0.2f),
+                        CircleShape
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
@@ -1216,7 +1314,12 @@ fun BestDefenseTeamsList(standings: List<StandingRecord>) {
 
 @Composable
 fun WinRateLeadersList(standings: List<StandingRecord>) {
-    data class WinRateEntry(val record: StandingRecord, val winRate: Float, val wins: Int, val played: Int)
+    data class WinRateEntry(
+        val record: StandingRecord,
+        val winRate: Float,
+        val wins: Int,
+        val played: Int
+    )
 
     val sorted = standings
         .filter { (it.all?.played ?: 0) >= 5 }
@@ -1279,11 +1382,44 @@ fun StandingsTable(
                     .padding(horizontal = 14.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Pos", color = Color(0xFF555555), fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(28.dp))
-                Text("Team Name", color = Color(0xFF555555), fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                Text("P", color = Color(0xFF555555), fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(24.dp), textAlign = TextAlign.Center)
-                Text("Form", color = Color(0xFF555555), fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(110.dp), textAlign = TextAlign.Center)
-                Text("Pts", color = Color(0xFF555555), fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(28.dp), textAlign = TextAlign.End)
+                Text(
+                    "Pos",
+                    color = Color(0xFF555555),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.width(28.dp)
+                )
+                Text(
+                    "Team Name",
+                    color = Color(0xFF555555),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    "P",
+                    color = Color(0xFF555555),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.width(24.dp),
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    "Form",
+                    color = Color(0xFF555555),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.width(110.dp),
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    "Pts",
+                    color = Color(0xFF555555),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.width(28.dp),
+                    textAlign = TextAlign.End
+                )
             }
 
             HorizontalDivider(color = Color(0xFF1A1E2A), thickness = 0.5.dp)
@@ -1398,7 +1534,12 @@ fun FormSquare(char: Char) {
             .size(14.dp)
             .clip(RoundedCornerShape(3.dp))
             .background(bg)
-            .then(if (border != null) Modifier.border(border, RoundedCornerShape(3.dp)) else Modifier),
+            .then(
+                if (border != null) Modifier.border(
+                    border,
+                    RoundedCornerShape(3.dp)
+                ) else Modifier
+            ),
         contentAlignment = Alignment.Center
     ) {
         if (char != ' ') {
@@ -1731,10 +1872,14 @@ fun XGAdvancedTabContent(
 ) {
     when (state) {
         is XGStatsUiState.Idle, is XGStatsUiState.Loading -> {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(16.dp)) {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(16.dp)
+            ) {
                 items(3) { MatchRowShimmer() }
             }
         }
+
         is XGStatsUiState.Success -> {
             Column(
                 modifier = Modifier
@@ -1791,6 +1936,7 @@ fun XGAdvancedTabContent(
                 Spacer(Modifier.height(30.dp))
             }
         }
+
         is XGStatsUiState.Error -> {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(state.message, color = Color.Red, fontSize = 13.sp)
@@ -1798,7 +1944,6 @@ fun XGAdvancedTabContent(
         }
     }
 }
-
 
 
 @Composable
@@ -1817,10 +1962,37 @@ fun ClubXgPerformanceTable(clubs: List<ClubXgPerformance>) {
                     .padding(horizontal = 14.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("Team", color = Color(0xFF555555), fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                Text("Goals", color = Color(0xFF555555), fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(44.dp), textAlign = TextAlign.Center)
-                Text("xG", color = Color(0xFF555555), fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(44.dp), textAlign = TextAlign.Center)
-                Text("Diff", color = Color(0xFF555555), fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(48.dp), textAlign = TextAlign.End)
+                Text(
+                    "Team",
+                    color = Color(0xFF555555),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    "Goals",
+                    color = Color(0xFF555555),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.width(44.dp),
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    "xG",
+                    color = Color(0xFF555555),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.width(44.dp),
+                    textAlign = TextAlign.Center
+                )
+                Text(
+                    "Diff",
+                    color = Color(0xFF555555),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.width(48.dp),
+                    textAlign = TextAlign.End
+                )
             }
 
             HorizontalDivider(color = Color(0xFF1A1E2A), thickness = 0.5.dp)
@@ -1850,13 +2022,37 @@ fun ClubXgPerformanceTable(clubs: List<ClubXgPerformance>) {
                         )
                     }
 
-                    Text("${item.goals}", color = Color.White, fontSize = 11.sp, modifier = Modifier.width(44.dp), textAlign = TextAlign.Center)
-                    Text(String.format("%.1f", item.xg), color = Color.White.copy(alpha = 0.6f), fontSize = 11.sp, modifier = Modifier.width(44.dp), textAlign = TextAlign.Center)
+                    Text(
+                        "${item.goals}",
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        modifier = Modifier.width(44.dp),
+                        textAlign = TextAlign.Center
+                    )
+                    Text(
+                        String.format("%.1f", item.xg),
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 11.sp,
+                        modifier = Modifier.width(44.dp),
+                        textAlign = TextAlign.Center
+                    )
 
-                    val diffText = if (item.diff >= 0) "+${String.format("%.1f", item.diff)}" else String.format("%.1f", item.diff)
+                    val diffText = if (item.diff >= 0) "+${
+                        String.format(
+                            "%.1f",
+                            item.diff
+                        )
+                    }" else String.format("%.1f", item.diff)
                     val diffColor = if (item.diff >= 0) Color(0xFF00E676) else Color(0xFF5B8DE8)
 
-                    Text(diffText, color = diffColor, fontSize = 12.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(48.dp), textAlign = TextAlign.End)
+                    Text(
+                        diffText,
+                        color = diffColor,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(48.dp),
+                        textAlign = TextAlign.End
+                    )
                 }
                 if (index < clubs.size - 1) {
                     HorizontalDivider(color = Color(0xFF1A1E2A), thickness = 0.5.dp)
@@ -1911,7 +2107,11 @@ fun BigChanceConversionList(conversion: List<ClubBigChanceConversion>) {
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
                             .background(Color(0xFF00E676).copy(alpha = 0.15f))
-                            .border(0.5.dp, Color(0xFF00E676).copy(alpha = 0.3f), RoundedCornerShape(6.dp))
+                            .border(
+                                0.5.dp,
+                                Color(0xFF00E676).copy(alpha = 0.3f),
+                                RoundedCornerShape(6.dp)
+                            )
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
@@ -2007,7 +2207,11 @@ fun ShotAccuracyList(leaders: List<PlayerShotAccuracy>) {
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
                             .background(Color(0xFF5B8DE8).copy(alpha = 0.15f))
-                            .border(0.5.dp, Color(0xFF5B8DE8).copy(alpha = 0.3f), RoundedCornerShape(6.dp))
+                            .border(
+                                0.5.dp,
+                                Color(0xFF5B8DE8).copy(alpha = 0.3f),
+                                RoundedCornerShape(6.dp)
+                            )
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
@@ -2036,10 +2240,14 @@ fun GoalTimingTabContent(
 ) {
     when (state) {
         is GoalTimingUiState.Idle, is GoalTimingUiState.Loading -> {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(16.dp)) {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(16.dp)
+            ) {
                 items(3) { MatchRowShimmer() }
             }
         }
+
         is GoalTimingUiState.Success -> {
             Column(
                 modifier = Modifier
@@ -2084,6 +2292,7 @@ fun GoalTimingTabContent(
                 Spacer(Modifier.height(30.dp))
             }
         }
+
         is GoalTimingUiState.Error -> {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(state.message, color = Color.Red, fontSize = 13.sp)
@@ -2142,7 +2351,16 @@ fun GoalTimingHeatmapChart(heatmap: List<Int>, viewModel: StatsViewModel) {
                             granularity = 1f
                             isGranularityEnabled = true
                             valueFormatter = IndexAxisValueFormatter(
-                                listOf("0-15", "16-30", "31-45", "45+", "46-60", "61-75", "76-90", "90+")
+                                listOf(
+                                    "0-15",
+                                    "16-30",
+                                    "31-45",
+                                    "45+",
+                                    "46-60",
+                                    "61-75",
+                                    "76-90",
+                                    "90+"
+                                )
                             )
                         }
 
@@ -2152,11 +2370,12 @@ fun GoalTimingHeatmapChart(heatmap: List<Int>, viewModel: StatsViewModel) {
                             textColor = AndroidColor.parseColor("#555555")
                             textSize = 9f
                             axisMinimum = 0f
-                            valueFormatter = object : com.github.mikephil.charting.formatter.ValueFormatter() {
-                                override fun getFormattedValue(value: Float): String {
-                                    return value.toInt().toString()
+                            valueFormatter =
+                                object : com.github.mikephil.charting.formatter.ValueFormatter() {
+                                    override fun getFormattedValue(value: Float): String {
+                                        return value.toInt().toString()
+                                    }
                                 }
-                            }
                         }
 
                         axisRight.isEnabled = false
@@ -2178,11 +2397,12 @@ fun GoalTimingHeatmapChart(heatmap: List<Int>, viewModel: StatsViewModel) {
                     }
 
                     if (entries.isNotEmpty()) {
-                        val intFormatter = object : com.github.mikephil.charting.formatter.ValueFormatter() {
-                            override fun getFormattedValue(value: Float): String {
-                                return value.toInt().toString()
+                        val intFormatter =
+                            object : com.github.mikephil.charting.formatter.ValueFormatter() {
+                                override fun getFormattedValue(value: Float): String {
+                                    return value.toInt().toString()
+                                }
                             }
-                        }
                         val dataSet = BarDataSet(entries, "Goals Timing").apply {
                             colors = colorsList
                             setDrawValues(true)
@@ -2262,7 +2482,11 @@ fun TeamTimingOverlayBlock(
                         fontWeight = FontWeight.SemiBold
                     )
                 }
-                Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Color(0xFF00E676))
+                Icon(
+                    Icons.Default.ArrowDropDown,
+                    contentDescription = null,
+                    tint = Color(0xFF00E676)
+                )
             }
 
             DropdownMenu(
@@ -2352,7 +2576,16 @@ fun TeamTimingOverlayBlock(
                                 granularity = 1f
                                 isGranularityEnabled = true
                                 valueFormatter = IndexAxisValueFormatter(
-                                    listOf("0-15", "16-30", "31-45", "45+", "46-60", "61-75", "76-90", "90+")
+                                    listOf(
+                                        "0-15",
+                                        "16-30",
+                                        "31-45",
+                                        "45+",
+                                        "46-60",
+                                        "61-75",
+                                        "76-90",
+                                        "90+"
+                                    )
                                 )
                             }
 
@@ -2362,7 +2595,8 @@ fun TeamTimingOverlayBlock(
                                 textColor = AndroidColor.parseColor("#555555")
                                 textSize = 9f
                                 axisMinimum = 0f
-                                valueFormatter = object : com.github.mikephil.charting.formatter.ValueFormatter() {
+                                valueFormatter = object :
+                                    com.github.mikephil.charting.formatter.ValueFormatter() {
                                     override fun getFormattedValue(value: Float): String {
                                         return value.toInt().toString()
                                     }
@@ -2384,11 +2618,12 @@ fun TeamTimingOverlayBlock(
                         }
 
                         if (entriesScored.isNotEmpty()) {
-                            val intFormatter = object : com.github.mikephil.charting.formatter.ValueFormatter() {
-                                override fun getFormattedValue(value: Float): String {
-                                    return value.toInt().toString()
+                            val intFormatter =
+                                object : com.github.mikephil.charting.formatter.ValueFormatter() {
+                                    override fun getFormattedValue(value: Float): String {
+                                        return value.toInt().toString()
+                                    }
                                 }
-                            }
                             val setScored = BarDataSet(entriesScored, "Scored").apply {
                                 color = AndroidColor.parseColor("#00E676")
                                 setDrawValues(true)
@@ -2469,7 +2704,12 @@ fun FirstGoalAdvantageCard(
                 )
                 Spacer(Modifier.height(4.dp))
                 Text(
-                    text = "Teams that score first win ${String.format("%.0f%%", data.firstGoalWinsPct)} of the time in the ${selectedLeague.name} this season (${data.sampleCount} matches analyzed).",
+                    text = "Teams that score first win ${
+                        String.format(
+                            "%.0f%%",
+                            data.firstGoalWinsPct
+                        )
+                    } of the time in the ${selectedLeague.name} this season (${data.sampleCount} matches analyzed).",
                     color = Color(0xFF888888),
                     fontSize = 11.sp
                 )
@@ -2488,10 +2728,14 @@ fun DisciplineTabContent(
 ) {
     when (state) {
         is DisciplineUiState.Idle, is DisciplineUiState.Loading -> {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp), contentPadding = PaddingValues(16.dp)) {
+            LazyColumn(
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                contentPadding = PaddingValues(16.dp)
+            ) {
                 items(3) { MatchRowShimmer() }
             }
         }
+
         is DisciplineUiState.Success -> {
             Column(
                 modifier = Modifier
@@ -2553,6 +2797,7 @@ fun DisciplineTabContent(
                 Spacer(Modifier.height(30.dp))
             }
         }
+
         is DisciplineUiState.Error -> {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(state.message, color = Color.Red, fontSize = 13.sp)
@@ -2648,7 +2893,11 @@ fun MostCardedPlayersList(players: List<PlayerCardsStat>) {
                                     .size(8.dp, 12.dp)
                                     .background(Color(0xFFF0A500), RoundedCornerShape(1.dp))
                             )
-                            Text(text = "${item.yellowCount}", color = Color.White, fontSize = 11.sp)
+                            Text(
+                                text = "${item.yellowCount}",
+                                color = Color.White,
+                                fontSize = 11.sp
+                            )
                         }
 
                         // Red Card
@@ -2690,12 +2939,26 @@ fun DirtiestTeamsChart(teams: List<TeamCardsStat>) {
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Box(modifier = Modifier.size(8.dp, 12.dp).background(Color(0xFFF0A500), RoundedCornerShape(1.dp)))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp, 12.dp)
+                            .background(Color(0xFFF0A500), RoundedCornerShape(1.dp))
+                    )
                     Text("Yellow", color = Color(0xFF888888), fontSize = 9.sp)
                 }
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Box(modifier = Modifier.size(8.dp, 12.dp).background(Color(0xFFFF4444), RoundedCornerShape(1.dp)))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp, 12.dp)
+                            .background(Color(0xFFFF4444), RoundedCornerShape(1.dp))
+                    )
                     Text("Red", color = Color(0xFF888888), fontSize = 9.sp)
                 }
             }
@@ -2704,7 +2967,8 @@ fun DirtiestTeamsChart(teams: List<TeamCardsStat>) {
             teams.forEachIndexed { index, team ->
                 val total = team.yellowCount + team.redCount
                 val yellowRatio = if (total > 0) team.yellowCount.toFloat() / total else 0f
-                val totalRatio = if (maxTotal > 0) total.toFloat() / maxTotal.coerceAtLeast(1) else 0f
+                val totalRatio =
+                    if (maxTotal > 0) total.toFloat() / maxTotal.coerceAtLeast(1) else 0f
 
                 val rankColor = when (index) {
                     0 -> Color(0xFFFFD700)
@@ -2725,7 +2989,11 @@ fun DirtiestTeamsChart(teams: List<TeamCardsStat>) {
                                 .size(20.dp)
                                 .clip(CircleShape)
                                 .background(rankColor.copy(alpha = if (index < 3) 0.15f else 0.05f))
-                                .border(0.5.dp, rankColor.copy(alpha = if (index < 3) 0.5f else 0.15f), CircleShape),
+                                .border(
+                                    0.5.dp,
+                                    rankColor.copy(alpha = if (index < 3) 0.5f else 0.15f),
+                                    CircleShape
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -2773,7 +3041,11 @@ fun DirtiestTeamsChart(teams: List<TeamCardsStat>) {
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(3.dp)
                         ) {
-                            Box(modifier = Modifier.size(7.dp, 10.dp).background(Color(0xFFF0A500), RoundedCornerShape(1.dp)))
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp, 10.dp)
+                                    .background(Color(0xFFF0A500), RoundedCornerShape(1.dp))
+                            )
                             Text(
                                 text = "${team.yellowCount}",
                                 color = Color(0xFFF0A500),
@@ -2789,7 +3061,11 @@ fun DirtiestTeamsChart(teams: List<TeamCardsStat>) {
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(3.dp)
                         ) {
-                            Box(modifier = Modifier.size(7.dp, 10.dp).background(Color(0xFFFF4444), RoundedCornerShape(1.dp)))
+                            Box(
+                                modifier = Modifier
+                                    .size(7.dp, 10.dp)
+                                    .background(Color(0xFFFF4444), RoundedCornerShape(1.dp))
+                            )
                             Text(
                                 text = "${team.redCount}",
                                 color = Color(0xFFFF4444),
@@ -3186,7 +3462,9 @@ fun ClinicalFinishersLeaderboard(performers: List<PlayerXgPerformance>) {
                             }
                             Text(
                                 text = if (item.diff >= 0) "Outperforming xG" else "Underperforming xG",
-                                color = if (item.diff >= 0) Color(0xFF00E676).copy(alpha = 0.6f) else Color(0xFFFF4444).copy(alpha = 0.6f),
+                                color = if (item.diff >= 0) Color(0xFF00E676).copy(alpha = 0.6f) else Color(
+                                    0xFFFF4444
+                                ).copy(alpha = 0.6f),
                                 fontSize = 9.sp
                             )
                         }
@@ -3211,10 +3489,21 @@ fun ClinicalFinishersLeaderboard(performers: List<PlayerXgPerformance>) {
                     }
 
                     // Difference Badge
-                    val diffText = if (item.diff >= 0) "+${String.format("%.2f", item.diff)}" else String.format("%.2f", item.diff)
-                    val diffBg = if (item.diff >= 0) Color(0xFF00E676).copy(alpha = 0.15f) else Color(0xFFFF4444).copy(alpha = 0.15f)
+                    val diffText = if (item.diff >= 0) "+${
+                        String.format(
+                            "%.2f",
+                            item.diff
+                        )
+                    }" else String.format("%.2f", item.diff)
+                    val diffBg =
+                        if (item.diff >= 0) Color(0xFF00E676).copy(alpha = 0.15f) else Color(
+                            0xFFFF4444
+                        ).copy(alpha = 0.15f)
                     val diffColor = if (item.diff >= 0) Color(0xFF00E676) else Color(0xFFFF4444)
-                    val diffBorder = if (item.diff >= 0) Color(0xFF00E676).copy(alpha = 0.3f) else Color(0xFFFF4444).copy(alpha = 0.3f)
+                    val diffBorder =
+                        if (item.diff >= 0) Color(0xFF00E676).copy(alpha = 0.3f) else Color(
+                            0xFFFF4444
+                        ).copy(alpha = 0.3f)
 
                     Box(
                         modifier = Modifier
