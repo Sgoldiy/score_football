@@ -189,6 +189,11 @@ fun SetupNavGraph(
                     }
                     navController.navigate(Screen.LeagueDetail.createRoute(leagueId, season))
                 },
+                onNavigateToSearch = { navController.navigate(Screen.Search.route) },
+                onNavigateToNotifications = {
+                    navController.navigate(Screen.Notifications.route)
+                },
+                unreadNotificationCount = 0,
                 onBackClick = { navController.popBackStack() }
             )
         }

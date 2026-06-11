@@ -30,6 +30,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.rounded.EmojiEvents
 import androidx.compose.material.icons.rounded.QueryStats
 import androidx.compose.material.icons.rounded.Scoreboard
@@ -69,6 +71,7 @@ import com.footballpluse.footballapp.R
 import com.footballpluse.footballapp.data.model.FixtureResponse
 import com.footballpluse.footballapp.data.model.PlayerProfileStatisticsResponse
 import com.footballpluse.footballapp.data.model.StandingRecord
+import com.footballpluse.footballapp.ui.components.HeaderIcon
 import com.footballpluse.footballapp.ui.components.MatchRowShimmer
 import com.footballpluse.footballapp.viewmodel.ClubAttackDefence
 import com.footballpluse.footballapp.viewmodel.ClubBigChanceConversion
@@ -121,24 +124,39 @@ fun StatsScreen(
             .fillMaxSize()
             .background(Color(0xFF0D0F14))
     ) {
-        // 1. Header
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 16.dp)
+                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "Stats",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-            Text(
-                text = "Deep football analytics",
-                fontSize = 11.sp,
-                color = Color(0xFF555555),
-                modifier = Modifier.padding(top = 2.dp)
-            )
+            Column {
+                Row {
+                    Text(
+                        text = "Stats & ",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Analytics",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF00E676)
+                    )
+                }
+                Text(
+                    text = "Deep football data",
+                    fontSize = 11.sp,
+                    color = Color(0xFF555555),
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                HeaderIcon(icon = Icons.Default.Search)
+                HeaderIcon(icon = Icons.Default.Notifications)
+            }
         }
 
         // 2. Scope tab row (horizontal scrollable)

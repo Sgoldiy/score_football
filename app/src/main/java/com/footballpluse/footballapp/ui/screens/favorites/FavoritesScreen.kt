@@ -13,6 +13,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -31,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 
+import com.footballpluse.footballapp.ui.components.HeaderIcon
 import com.footballpluse.footballapp.ui.components.PlayerAvatar
 import com.footballpluse.footballapp.domain.model.FavouriteClub
 import com.footballpluse.footballapp.domain.model.Match
@@ -94,21 +97,38 @@ private fun TopBar(onSearchClick: () -> Unit, onRefresh: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = "Favourites",
-            color = Color.White,
-            fontWeight = FontWeight.Black,
-            fontSize = 22.sp,
-            modifier = Modifier.weight(1f)
-        )
-        IconButton(onClick = onRefresh) {
-            Icon(Icons.Rounded.Refresh, contentDescription = "Refresh", tint = Color.White.copy(alpha = 0.8f))
+        Column {
+            Row {
+                Text(
+                    text = "Your ",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Text(
+                    text = "Favorites",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF00E676)
+                )
+            }
+            Text(
+                text = "Teams and leagues you follow",
+                fontSize = 11.sp,
+                color = Color(0xFF555555),
+                modifier = Modifier.padding(top = 2.dp)
+            )
         }
-        IconButton(onClick = onSearchClick) {
-            Icon(Icons.Rounded.Search, contentDescription = "Search", tint = Color.White.copy(alpha = 0.8f))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            HeaderIcon(
+                icon = Icons.Default.Search,
+                onClick = onSearchClick
+            )
+            HeaderIcon(icon = Icons.Default.Notifications)
         }
     }
 }

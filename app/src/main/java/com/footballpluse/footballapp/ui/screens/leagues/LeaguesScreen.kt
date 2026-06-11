@@ -15,7 +15,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.*
@@ -40,6 +39,7 @@ import kotlinx.coroutines.delay
 import com.footballpluse.footballapp.R
 import com.footballpluse.footballapp.viewmodel.League
 import com.footballpluse.footballapp.data.util.ApiResult
+import com.footballpluse.footballapp.ui.components.HeaderIcon
 import com.footballpluse.footballapp.ui.components.MatchRowShimmer
 import com.footballpluse.footballapp.viewmodel.LeagueFilter
 import com.footballpluse.footballapp.viewmodel.LeagueSortOrder
@@ -50,6 +50,9 @@ import com.footballpluse.footballapp.viewmodel.LeaguesViewModel
 @Composable
 fun LeaguesScreen(
     onNavigateToLeagueDetail: (Int) -> Unit,
+    onNavigateToSearch: () -> Unit,
+    onNavigateToNotifications: () -> Unit,
+    unreadNotificationCount: Int = 0,
     onBackClick: () -> Unit,
     viewModel: LeaguesViewModel = hiltViewModel()
 ) {
@@ -139,22 +142,46 @@ fun LeaguesScreen(
             .fillMaxSize()
             .background(Color(0xFF0D0F14))
     ) {
-        Column(modifier = Modifier.padding(
-            start = 16.dp, end = 16.dp,
-            top = 8.dp, bottom = 14.dp
-        )) {
-            Text(
-                text = "All Leagues",
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
-            )
-            Text(
-                text = "Explore Top Competitions",
-                fontSize = 11.sp,
-                color = Color(0xFF555555),
-                modifier = Modifier.padding(top = 2.dp)
-            )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Row {
+                    Text(
+                        text = "All ",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                    Text(
+                        text = "Leagues",
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF00E676)
+                    )
+                }
+                Text(
+                    text = "Explore competitions",
+                    fontSize = 11.sp,
+                    color = Color(0xFF555555),
+                    modifier = Modifier.padding(top = 2.dp)
+                )
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                HeaderIcon(
+                    icon = Icons.Default.Search,
+                    onClick = onNavigateToSearch
+                )
+                HeaderIcon(
+                    icon = Icons.Default.Notifications,
+                    onClick = onNavigateToNotifications,
+                    badgeCount = unreadNotificationCount
+                )
+            }
         }
 
         Box(

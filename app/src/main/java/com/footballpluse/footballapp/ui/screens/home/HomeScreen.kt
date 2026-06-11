@@ -13,21 +13,17 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Favorite
-import androidx.compose.material.icons.rounded.FavoriteBorder
-import androidx.compose.material.icons.rounded.Notifications
-import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
-import androidx.compose.ui.text.SpanStyle
 import androidx.compose.material3.*
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.LazyListState
@@ -51,6 +47,7 @@ import coil.compose.AsyncImage
 import com.footballpluse.footballapp.domain.model.LeagueInfo
 import com.footballpluse.footballapp.domain.model.Match
 import com.footballpluse.footballapp.data.model.LeagueResponse
+import com.footballpluse.footballapp.ui.components.HeaderIcon
 import com.footballpluse.footballapp.ui.theme.*
 import com.footballpluse.footballapp.viewmodel.HomeViewModel
 import com.footballpluse.footballapp.viewmodel.HomeUiState
@@ -587,73 +584,50 @@ private fun AppHeader(
     onNotifsClick: () -> Unit
 ) {
     val today = remember { SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(Date()) }
+    val unreadNotificationCount = 0
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(72.dp)
-            .padding(horizontal = 16.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = buildAnnotatedString {
-                    withStyle(style = SpanStyle(color = Color.White)) {
-                        append("Football ")
-                    }
-                    withStyle(style = SpanStyle(color = Color(0xFF00E676))) {
-                        append("Plus")
-                    }
-                },
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1
-            )
+        Column {
+            Row {
+                Text(
+                    text = "Football ",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
+                )
+                Text(
+                    text = "Plus",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF00E676)
+                )
+            }
             Text(
                 text = today,
                 fontSize = 11.sp,
-                color = Color(0xFF8B949E)
+                color = Color(0xFF555555),
+                modifier = Modifier.padding(top = 2.dp)
             )
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            HeaderIconButton(Icons.Rounded.Search, "Search", Color(0xFF38BDF8), onSearchClick)
-            HeaderIconButton(Icons.Rounded.Favorite, "Favorites", Color(0xFFFF4444), onFavsClick)
-            HeaderIconButton(Icons.Rounded.Notifications, "Notifications", Color(0xFFFBBF24), onNotifsClick)
-        }
-    }
-}
-
-@Composable
-private fun HeaderIconButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    contentDescription: String,
-    tintColor: Color,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .size(48.dp)
-            .clickable(
-                onClick = onClick,
-                interactionSource = remember { MutableInteractionSource() },
-                indication = null
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .size(40.dp)
-                .clip(CircleShape)
-                .background(Color(0xFF131620))
-                .border(BorderStroke(1.dp, tintColor.copy(alpha = 0.2f)), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = contentDescription,
-                tint = tintColor,
-                modifier = Modifier.size(18.dp)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            HeaderIcon(
+                icon = Icons.Default.Search,
+                onClick = onSearchClick
+            )
+            HeaderIcon(
+                icon = Icons.Default.FavoriteBorder,
+                onClick = onFavsClick
+            )
+            HeaderIcon(
+                icon = Icons.Default.Notifications,
+                badgeCount = unreadNotificationCount,
+                onClick = onNotifsClick
             )
         }
     }
