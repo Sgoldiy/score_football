@@ -1,12 +1,14 @@
 package com.footballpluse.footballapp.ui.screens.leagues
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,24 +17,22 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
-import com.footballpluse.footballapp.data.model.PlayerProfileStatisticsResponse
 import com.footballpluse.footballapp.data.util.ApiResult
-import com.footballpluse.footballapp.domain.model.Match
-import com.footballpluse.footballapp.domain.model.StandingItem
-import com.footballpluse.footballapp.ui.components.MatchRow
-import com.footballpluse.footballapp.ui.components.MatchRowShimmer
-import com.footballpluse.footballapp.ui.components.SectionHeader
 import com.footballpluse.footballapp.ui.theme.*
 import com.footballpluse.footballapp.viewmodel.LeagueDetailViewModel
 
@@ -52,8 +52,8 @@ fun LeagueDetailScreen(
         viewModel.load(leagueId, season)
     }
 
-    var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Standings", "Fixtures", "Player Stats")
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    val tabs = LeagueTab.entries
 
     Scaffold(
         topBar = {
@@ -61,7 +61,8 @@ fun LeagueDetailScreen(
                 title = {
                     Text(
                         text = state.leagueInfo?.name ?: "League Detail",
-                        fontWeight = FontWeight.Bold,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 20.sp,
                         color = Color.White
                     )
                 },
@@ -70,9 +71,7 @@ fun LeagueDetailScreen(
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = Color.White)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = PitchBlack
-                )
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0F0F0F))
             )
         }
     ) { padding ->
@@ -80,40 +79,90 @@ fun LeagueDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(DeepNavy)
+                .background(Color(0xFF0F0F0F))
         ) {
             if (state.leagueInfo != null) {
                 LeagueHeader(state.leagueInfo!!)
             }
 
-            TabRow(
-                selectedTabIndex = selectedTab,
-                containerColor = PitchBlack,
-                contentColor = LiveGreen,
-                divider = {},
-                indicator = { tabPositions ->
-                    TabRowDefaults.SecondaryIndicator(
-                        Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                        color = LiveGreen
+            LeagueTabRow(
+                tabs = tabs.map { it.label },
+                selectedTab = selectedTab,
+                onTabSelected = { selectedTab = it }
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            Crossfade(
+                targetState = selectedTab,
+                animationSpec = tween(200),
+                label = "tab-crossfade"
+            ) { tabIndex ->
+                when (tabs[tabIndex]) {
+                    LeagueTab.STANDINGS -> StandingsTab(
+                        standings = state.standings,
+                        onTeamClick = onTeamClick
                     )
-                }
-            ) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        text = { Text(title, fontWeight = FontWeight.Bold) }
+                    LeagueTab.FIXTURES -> FixturesTab(
+                        fixtures = state.fixtures,
+                        onMatchClick = onMatchClick
+                    )
+                    LeagueTab.PLAYER_STATS -> PlayerStatsTab(
+                        topScorers = state.topScorers,
+                        topAssists = state.topAssists,
+                        topYellowCards = state.topYellowCards,
+                        topRedCards = state.topRedCards
+                    )
+                    LeagueTab.SEASON_STATS -> SeasonStatsTab(
+                        seasonStats = state.seasonStats
+                    )
+                    LeagueTab.H2H -> HeadToHeadTab(
+                        teams = state.teams,
+                        selectedTeamA = state.selectedTeamA,
+                        selectedTeamB = state.selectedTeamB,
+                        h2hData = state.h2hData,
+                        onSelectTeamA = { viewModel.selectTeamA(it) },
+                        onSelectTeamB = { viewModel.selectTeamB(it) }
                     )
                 }
             }
+        }
+    }
+}
 
-            Spacer(Modifier.height(12.dp))
-
-            when (selectedTab) {
-                0 -> StandingsTab(state.standings, onTeamClick)
-                1 -> FixturesTab(state.fixtures, onMatchClick)
-                2 -> PlayerStatsTab(state.topScorers, state.topAssists)
-            }
+@Composable
+fun LeagueTabRow(
+    tabs: List<String>,
+    selectedTab: Int,
+    onTabSelected: (Int) -> Unit
+) {
+    ScrollableTabRow(
+        selectedTabIndex = selectedTab,
+        containerColor = Color(0xFF0F0F0F),
+        contentColor = Color(0xFF4ADE80),
+        edgePadding = 16.dp,
+        divider = {},
+        indicator = { tabPositions ->
+            TabRowDefaults.SecondaryIndicator(
+                modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                height = 3.dp,
+                color = Color(0xFF4ADE80)
+            )
+        }
+    ) {
+        tabs.forEachIndexed { index, title ->
+            Tab(
+                selected = selectedTab == index,
+                onClick = { onTabSelected(index) },
+                text = {
+                    Text(
+                        title,
+                        fontSize = 13.sp,
+                        fontWeight = if (selectedTab == index) FontWeight.SemiBold else FontWeight.Normal,
+                        color = if (selectedTab == index) Color.White else Color(0xFF555555)
+                    )
+                }
+            )
         }
     }
 }
@@ -123,356 +172,393 @@ fun LeagueHeader(leagueInfo: com.footballpluse.footballapp.domain.model.LeagueIn
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(16.dp),
+            .padding(horizontal = 16.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             modifier = Modifier
-                .size(64.dp)
+                .size(56.dp)
                 .clip(CircleShape)
                 .background(Color.White.copy(alpha = 0.05f))
-                .border(1.dp, Color.White.copy(alpha = 0.1f), CircleShape),
-            contentAlignment = Alignment.Center
         ) {
             AsyncImage(
                 model = leagueInfo.logo,
                 contentDescription = leagueInfo.name,
-                modifier = Modifier.size(48.dp)
+                modifier = Modifier.size(40.dp).align(Alignment.Center)
             )
         }
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(6.dp))
         Text(
             text = leagueInfo.name,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
+            fontSize = 20.sp,
+            fontWeight = FontWeight.Medium,
             color = Color.White
         )
         if (leagueInfo.country != null) {
             Text(
-                text = leagueInfo.country,
-                style = MaterialTheme.typography.bodyMedium,
-                color = Color.White.copy(alpha = 0.4f)
+                text = "${leagueInfo.country} \u00B7 ${leagueInfo.season ?: ""}",
+                fontSize = 11.sp,
+                letterSpacing = 0.08.sp,
+                color = Color(0xFFA0A0A0)
             )
         }
     }
-    HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
 }
 
+// ─── STANDINGS TAB ────────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun StandingsTab(standingsResult: ApiResult<List<StandingItem>>, onTeamClick: (Int) -> Unit) {
-    when (standingsResult) {
+fun StandingsTab(
+    standings: ApiResult<List<StandingRowUiModel>>,
+    onTeamClick: (Int) -> Unit
+) {
+    var selectedTeam by remember { mutableStateOf<StandingRowUiModel?>(null) }
+
+    if (selectedTeam != null) {
+        ModalBottomSheet(
+            onDismissRequest = { selectedTeam = null },
+            containerColor = Color(0xFF161616),
+            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
+        ) {
+            TeamDetailBottomSheet(selectedTeam!!)
+        }
+    }
+
+    when (standings) {
         is ApiResult.Loading -> {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(5) { MatchRowShimmer() }
+                items(5) {
+                    StandingsRowShimmer()
+                }
             }
         }
         is ApiResult.Success -> {
-            val standings = standingsResult.data
-            if (standings.isEmpty()) {
+            if (standings.data.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No standings available", color = Color.White.copy(alpha = 0.4f))
+                    Text("No standings available", color = Color(0xFFA0A0A0))
                 }
             } else {
+                val items = standings.data
+                val totalRows = items.size
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 80.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    item {
-                        StandingsHeader()
+                    item { StandingsHeaderRow() }
+                    itemsIndexed(items) { index, item ->
+                        StandingRow(
+                            item = item,
+                            isTopThree = item.rank <= 3,
+                            isBottomThree = item.rank > totalRows - 3,
+                            showPromotionDivider = item.rank == 3,
+                            showRelegationDivider = item.rank == totalRows - 3,
+                            onClick = { selectedTeam = item },
+                            onTeamClick = { onTeamClick(item.team.id) }
+                        )
                     }
-                    items(standings) { item -> StandingRow(item, onTeamClick) }
                 }
             }
         }
         is ApiResult.Error -> {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    standingsResult.message,
-                    color = MaterialTheme.colorScheme.error,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(16.dp)
-                )
+                Text(standings.message, color = Color(0xFFEF4444), textAlign = TextAlign.Center, modifier = Modifier.padding(16.dp))
             }
         }
     }
 }
 
 @Composable
-fun StandingsHeader() {
+fun StandingsHeaderRow() {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(horizontal = 4.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text("#", modifier = Modifier.width(32.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.4f))
-        Text("Team", modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = Color.White.copy(alpha = 0.4f))
-        Text("P", modifier = Modifier.width(28.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, color = Color.White.copy(alpha = 0.4f))
-        Text("W", modifier = Modifier.width(28.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, color = Color.White.copy(alpha = 0.4f))
-        Text("D", modifier = Modifier.width(28.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, color = Color.White.copy(alpha = 0.4f))
-        Text("L", modifier = Modifier.width(28.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, color = Color.White.copy(alpha = 0.4f))
-        Text("GD", modifier = Modifier.width(32.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, color = Color.White.copy(alpha = 0.4f))
-        Text("Pts", modifier = Modifier.width(32.dp), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, color = Color.White.copy(alpha = 0.4f))
+        Text("#", modifier = Modifier.width(24.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFA0A0A0))
+        Spacer(Modifier.width(4.dp))
+        Text("Team", modifier = Modifier.weight(1f), fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFFA0A0A0))
+        Text("P", modifier = Modifier.width(24.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, color = Color(0xFFA0A0A0))
+        Text("W", modifier = Modifier.width(24.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, color = Color(0xFFA0A0A0))
+        Text("D", modifier = Modifier.width(24.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, color = Color(0xFFA0A0A0))
+        Text("L", modifier = Modifier.width(24.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, color = Color(0xFFA0A0A0))
+        Text("GD", modifier = Modifier.width(28.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, color = Color(0xFFA0A0A0))
+        Text("Pts", modifier = Modifier.width(28.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, color = Color(0xFFA0A0A0))
+        Spacer(Modifier.width(4.dp))
+        Text("Form", modifier = Modifier.width(52.dp), fontSize = 11.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, color = Color(0xFFA0A0A0))
     }
 }
 
 @Composable
-fun StandingRow(item: StandingItem, onTeamClick: (Int) -> Unit) {
-    val zoneColor = when {
-        item.rank <= 4 -> LiveGreen // Champions League
-        item.rank == 5 -> Color(0xFFFF9800) // Europa League
-        item.rank >= 18 -> Color(0xFFF44336) // Relegation
-        else -> Color.Transparent
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable { onTeamClick(item.team.id) },
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
-        border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.06f))
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
+fun StandingRow(
+    item: StandingRowUiModel,
+    isTopThree: Boolean,
+    isBottomThree: Boolean,
+    showPromotionDivider: Boolean,
+    showRelegationDivider: Boolean,
+    onClick: () -> Unit,
+    onTeamClick: () -> Unit
+) {
+    Column {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onClick() },
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF161616)),
+            border = BorderStroke(0.5.dp, Color(0xFF242424))
         ) {
-            // Qualification stripe indicator
-            if (zoneColor != Color.Transparent) {
-                Box(
-                    modifier = Modifier
-                        .width(4.dp)
-                        .height(38.dp)
-                        .background(zoneColor)
-                )
-            } else {
-                Spacer(Modifier.width(4.dp))
-            }
-
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 10.dp),
+                    .padding(start = 0.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = item.rank.toString(),
-                    modifier = Modifier.width(28.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = if (item.rank <= 4) LiveGreen else Color.White
+                Box(
+                    modifier = Modifier
+                        .width(3.dp)
+                        .height(40.dp)
+                        .background(
+                            when {
+                                isTopThree -> Color(0xFF4ADE80)
+                                isBottomThree -> Color(0xFFEF4444)
+                                else -> Color.Transparent
+                            }
+                        )
                 )
-                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                    AsyncImage(
-                        model = item.team.logo,
-                        contentDescription = null,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = item.team.name,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White,
-                        maxLines = 1
-                    )
-                }
-                Text(item.played.toString(), modifier = Modifier.width(28.dp), style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.7f), textAlign = TextAlign.Center)
-                Text(item.win.toString(), modifier = Modifier.width(28.dp), style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.7f), textAlign = TextAlign.Center)
-                Text(item.draw.toString(), modifier = Modifier.width(28.dp), style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.7f), textAlign = TextAlign.Center)
-                Text(item.lose.toString(), modifier = Modifier.width(28.dp), style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.7f), textAlign = TextAlign.Center)
-                Text(
-                    text = if (item.goalsDiff >= 0) "+${item.goalsDiff}" else item.goalsDiff.toString(),
-                    modifier = Modifier.width(32.dp),
-                    style = MaterialTheme.typography.bodySmall,
-                    textAlign = TextAlign.Center,
-                    color = if (item.goalsDiff >= 0) LiveGreen else DangerRed
-                )
-                Text(
-                    item.points.toString(),
-                    modifier = Modifier.width(32.dp),
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = Color.White,
-                    textAlign = TextAlign.Center
-                )
-            }
-        }
-    }
-}
 
-@Composable
-fun FixturesTab(
-    fixturesResult: ApiResult<List<Match>>,
-    onMatchClick: (Int) -> Unit
-) {
-    when (fixturesResult) {
-        is ApiResult.Loading -> {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                items(5) { MatchRowShimmer() }
-            }
-        }
-        is ApiResult.Success -> {
-            val matches = fixturesResult.data
-            if (matches.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No fixtures available", color = Color.White.copy(alpha = 0.4f))
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 80.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    items(matches) { match ->
-                        Card(
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
-                            border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.06f))
+                    Text(
+                        text = item.rank.toString(),
+                        modifier = Modifier.width(24.dp),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isTopThree) Color(0xFF4ADE80) else Color.White
+                    )
+
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier.size(20.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.1f)),
+                            contentAlignment = Alignment.Center
                         ) {
-                            MatchRow(match = match, onClick = { idStr -> onMatchClick(idStr.toInt()) })
+                            AsyncImage(
+                                model = item.team.logo,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
                         }
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            text = item.team.name,
+                            fontSize = 12.sp,
+                            color = Color.White,
+                            maxLines = 1,
+                            modifier = Modifier.clickable { onTeamClick() }
+                        )
                     }
+
+                    Text(item.played.toString(), modifier = Modifier.width(24.dp), fontSize = 11.sp, color = Color(0xFFA0A0A0), textAlign = TextAlign.Center)
+                    Text(item.win.toString(), modifier = Modifier.width(24.dp), fontSize = 11.sp, color = Color(0xFFA0A0A0), textAlign = TextAlign.Center)
+                    Text(item.draw.toString(), modifier = Modifier.width(24.dp), fontSize = 11.sp, color = Color(0xFFA0A0A0), textAlign = TextAlign.Center)
+                    Text(item.lose.toString(), modifier = Modifier.width(24.dp), fontSize = 11.sp, color = Color(0xFFA0A0A0), textAlign = TextAlign.Center)
+
+                    Text(
+                        text = if (item.goalsDiff >= 0) "+${item.goalsDiff}" else item.goalsDiff.toString(),
+                        modifier = Modifier.width(28.dp),
+                        fontSize = 11.sp,
+                        textAlign = TextAlign.Center,
+                        color = if (item.goalsDiff >= 0) Color(0xFF4ADE80) else Color(0xFFEF4444)
+                    )
+
+                    Text(
+                        item.points.toString(),
+                        modifier = Modifier.width(28.dp),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = Color.White,
+                        textAlign = TextAlign.Center
+                    )
+
+                    Spacer(Modifier.width(4.dp))
+
+                    FormDots(
+                        form = item.form ?: "UUUUU",
+                        dotSize = 8.dp,
+                        modifier = Modifier.width(52.dp)
+                    )
                 }
             }
         }
-        is ApiResult.Error -> {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    fixturesResult.message,
-                    color = MaterialTheme.colorScheme.error,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(16.dp)
-                )
-            }
+
+        if (showPromotionDivider) {
+            DashedLine(color = Color(0xFF4ADE80).copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 2.dp))
+        }
+        if (showRelegationDivider) {
+            DashedLine(color = Color(0xFFEF4444).copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 2.dp))
         }
     }
 }
-
-// ─── PLAYER STATS LEAGUE TAB ────────────────────────────────────────────────
 
 @Composable
-fun PlayerStatsTab(
-    scorersState: ApiResult<List<PlayerProfileStatisticsResponse>>,
-    assistsState: ApiResult<List<PlayerProfileStatisticsResponse>>
+fun FormDots(
+    form: String,
+    dotSize: Dp = 8.dp,
+    modifier: Modifier = Modifier
 ) {
-    var selectedSubTab by remember { mutableIntStateOf(0) }
-    
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            TextButton(
-                onClick = { selectedSubTab = 0 },
-                modifier = Modifier
-                    .weight(1f)
-                    .background(
-                        if (selectedSubTab == 0) LiveGreen.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.04f),
-                        RoundedCornerShape(12.dp)
-                    )
-            ) {
-                Text("Top Goals", color = if (selectedSubTab == 0) LiveGreen else Color.White, fontWeight = FontWeight.Bold)
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        val results = form.takeLast(5).padStart(5, 'U')
+        results.forEach { result ->
+            val color = when (result) {
+                'W' -> Color(0xFF4ADE80)
+                'D' -> Color(0xFF555555)
+                'L' -> Color(0xFFEF4444)
+                else -> Color(0xFF1E1E1E)
             }
-            
-            TextButton(
-                onClick = { selectedSubTab = 1 },
+            val isLoss = result == 'L'
+            Box(
                 modifier = Modifier
-                    .weight(1f)
-                    .background(
-                        if (selectedSubTab == 1) LiveGreen.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.04f),
-                        RoundedCornerShape(12.dp)
+                    .size(dotSize)
+                    .then(
+                        if (isLoss) Modifier.clip(CircleShape).border(1.5.dp, color, CircleShape)
+                        else Modifier.clip(CircleShape).background(color)
                     )
-            ) {
-                Text("Top Assists", color = if (selectedSubTab == 1) LiveGreen else Color.White, fontWeight = FontWeight.Bold)
-            }
+            )
         }
-        
+    }
+}
+
+@Composable
+fun DashedLine(
+    color: Color = Color(0xFF4ADE80),
+    modifier: Modifier = Modifier
+) {
+    Canvas(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(1.dp)
+    ) {
+        val pathEffect = PathEffect.dashPathEffect(floatArrayOf(8f, 6f), 0f)
+        drawLine(
+            color = color,
+            start = Offset(0f, 0f),
+            end = Offset(size.width, 0f),
+            strokeWidth = 1.5f,
+            pathEffect = pathEffect
+        )
+    }
+}
+
+@Composable
+fun StandingsRowShimmer() {
+    Card(
+        modifier = Modifier.fillMaxWidth().height(44.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF161616))
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(Modifier.size(24.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.05f)))
+            Spacer(Modifier.width(8.dp))
+            Box(Modifier.weight(1f).height(12.dp).clip(RoundedCornerShape(4.dp)).background(Color.White.copy(alpha = 0.05f)))
+            Spacer(Modifier.width(8.dp))
+            Box(Modifier.width(24.dp).height(12.dp).clip(RoundedCornerShape(4.dp)).background(Color.White.copy(alpha = 0.05f)))
+            Box(Modifier.width(24.dp).height(12.dp).clip(RoundedCornerShape(4.dp)).background(Color.White.copy(alpha = 0.05f)))
+            Box(Modifier.width(24.dp).height(12.dp).clip(RoundedCornerShape(4.dp)).background(Color.White.copy(alpha = 0.05f)))
+            Box(Modifier.width(24.dp).height(12.dp).clip(RoundedCornerShape(4.dp)).background(Color.White.copy(alpha = 0.05f)))
+            Box(Modifier.width(28.dp).height(12.dp).clip(RoundedCornerShape(4.dp)).background(Color.White.copy(alpha = 0.05f)))
+            Box(Modifier.width(28.dp).height(12.dp).clip(RoundedCornerShape(4.dp)).background(Color.White.copy(alpha = 0.05f)))
+        }
+    }
+}
+
+// ─── TEAM DETAIL BOTTOM SHEET ────────────────────────────────────────────────
+
+@Composable
+fun TeamDetailBottomSheet(team: StandingRowUiModel) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .padding(bottom = 32.dp)
+    ) {
+        Spacer(Modifier.height(8.dp))
+
+        Text(
+            text = team.team.name,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = Color.White
+        )
+
         Spacer(Modifier.height(16.dp))
-        
-        val activeResult = if (selectedSubTab == 0) scorersState else assistsState
-        when (activeResult) {
-            is ApiResult.Loading -> {
-                Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = LiveGreen)
-                }
+
+        Text(
+            text = "RECENT FORM",
+            fontSize = 11.sp,
+            letterSpacing = 0.08.sp,
+            color = Color(0xFFA0A0A0)
+        )
+        Spacer(Modifier.height(8.dp))
+        FormDots(form = team.form ?: "UUUUU", dotSize = 10.dp)
+
+        Spacer(Modifier.height(16.dp))
+        HorizontalDivider(color = Color(0xFF1E1E1E), thickness = 1.dp)
+
+        StatRow(label = "Goals Scored", value = "${team.goalsFor}")
+        StatRow(label = "Goals Conceded", value = "${team.goalsAgainst}")
+        StatRow(label = "Goal Difference", value = if (team.goalsDiff >= 0) "+${team.goalsDiff}" else team.goalsDiff.toString())
+
+        Spacer(Modifier.height(12.dp))
+        Text(
+            text = "HOME VS AWAY RECORD",
+            fontSize = 11.sp,
+            letterSpacing = 0.08.sp,
+            color = Color(0xFFA0A0A0)
+        )
+        Spacer(Modifier.height(8.dp))
+
+        Row(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Home", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                Text("P${team.homePlayed} \u00B7 W${team.homeWon} D${team.homeDraw} L${team.homeLost}", fontSize = 11.sp, color = Color(0xFFA0A0A0))
+                Text("GF ${team.homeGoalsFor} \u00B7 GA ${team.homeGoalsAgainst}", fontSize = 11.sp, color = Color(0xFF555555))
             }
-            is ApiResult.Success -> {
-                val players = activeResult.data
-                if (players.isEmpty()) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("No statistical records found", color = Color.White.copy(alpha = 0.4f))
-                    }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 80.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        itemsIndexed(players) { index, entry ->
-                            val player = entry.player
-                            val stats = entry.statistics?.firstOrNull()
-                            val value = if (selectedSubTab == 0) {
-                                stats?.goals?.total?.toString() ?: "0"
-                            } else {
-                                stats?.goals?.assists?.toString() ?: "0"
-                            }
-                            if (player != null) {
-                                Card(
-                                    shape = RoundedCornerShape(14.dp),
-                                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
-                                    border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.06f))
-                                ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = "${index + 1}",
-                                            fontWeight = FontWeight.Black,
-                                            color = LiveGreen,
-                                            fontSize = 14.sp,
-                                            modifier = Modifier.width(32.dp)
-                                        )
-                                        AsyncImage(
-                                            model = player.photo,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(36.dp).clip(CircleShape)
-                                        )
-                                        Spacer(Modifier.width(12.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(player.name ?: "Player", fontWeight = FontWeight.Bold, color = Color.White)
-                                            Text(stats?.team?.name ?: "", fontSize = 11.sp, color = Color.White.copy(alpha = 0.4f))
-                                        }
-                                        Text(
-                                            text = value,
-                                            fontWeight = FontWeight.Black,
-                                            color = Color.White,
-                                            fontSize = 16.sp
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            is ApiResult.Error -> {
-                Box(Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
-                    Text(activeResult.message, color = DangerRed)
-                }
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Away", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                Text("P${team.awayPlayed} \u00B7 W${team.awayWon} D${team.awayDraw} L${team.awayLost}", fontSize = 11.sp, color = Color(0xFFA0A0A0))
+                Text("GF ${team.awayGoalsFor} \u00B7 GA ${team.awayGoalsAgainst}", fontSize = 11.sp, color = Color(0xFF555555))
             }
         }
     }
 }
 
+@Composable
+private fun StatRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, fontSize = 13.sp, color = Color(0xFFA0A0A0))
+        Text(value, fontSize = 13.sp, fontWeight = FontWeight.Medium, color = Color.White)
+    }
+}
