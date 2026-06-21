@@ -5,13 +5,17 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.core.tween
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.navigation
-import androidx.navigation.NavType
-import androidx.navigation.navArgument
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.footballpluse.footballapp.ui.screens.home.HomeScreen
 import com.footballpluse.footballapp.ui.screens.fixtures.FixturesScreen
@@ -27,18 +31,28 @@ import com.footballpluse.footballapp.ui.screens.stats.StatsScreen
 import com.footballpluse.footballapp.viewmodel.ThemeViewModel
 import com.footballpluse.footballapp.ui.screens.leagues.LeagueDetailScreen
 import com.footballpluse.footballapp.ui.screens.competitions.ClubInfoScreen
-import com.footballpluse.footballapp.ui.screens.onboarding.flow.OnboardingClubsScreen
-import com.footballpluse.footballapp.ui.screens.onboarding.flow.OnboardingLeagueScreen
-import com.footballpluse.footballapp.ui.screens.onboarding.flow.OnboardingWelcomeScreen
+import com.footballpluse.footballapp.ui.screens.onboarding.OnboardingEvent
+import com.footballpluse.footballapp.ui.screens.onboarding.OnboardingViewModel
+import com.footballpluse.footballapp.ui.screens.onboarding.flow.WelcomeScreen
+import com.footballpluse.footballapp.ui.screens.onboarding.flow.UsernameScreen
+import com.footballpluse.footballapp.ui.screens.onboarding.flow.LeagueScreen
+import com.footballpluse.footballapp.ui.screens.onboarding.flow.ClubsScreen
+
+const val ROUTE_WELCOME = "welcome"
+const val ROUTE_USERNAME = "username"
+const val ROUTE_LEAGUE = "league"
+const val ROUTE_CLUBS = "clubs"
+const val ROUTE_HOME = "home"
 
 sealed class Screen(val route: String) {
     data object Onboarding : Screen("onboarding")
-    data object OnboardingWelcome : Screen("onboarding/welcome")
-    data object OnboardingLeague : Screen("onboarding/league")
-    object OnboardingClubs : Screen("onboarding/clubs/{mode}") {
-        fun createRoute(mode: String) = "onboarding/clubs/$mode"
+    data object OnboardingWelcome : Screen(ROUTE_WELCOME)
+    data object OnboardingUsername : Screen(ROUTE_USERNAME)
+    data object OnboardingLeague : Screen(ROUTE_LEAGUE)
+    object OnboardingClubs : Screen("$ROUTE_CLUBS/{mode}") {
+        fun createRoute(mode: String) = "$ROUTE_CLUBS/$mode"
     }
-    data object Home : Screen("home")
+    data object Home : Screen(ROUTE_HOME)
     data object Fixtures : Screen("fixtures")
     data object Leagues : Screen("leagues")
     data object Favourites : Screen("favourites")
@@ -72,7 +86,7 @@ fun SetupNavGraph(
         startDestination = startDestination
     ) {
         navigation(
-            startDestination = Screen.OnboardingWelcome.route,
+            startDestination = Screen.OnboardingLeague.route,
             route = Screen.Onboarding.route
         ) {
             composable(
@@ -84,8 +98,51 @@ fun SetupNavGraph(
                     slideOutHorizontally(tween(280)) { -it / 3 } + fadeOut(tween(280))
                 }
             ) {
-                OnboardingWelcomeScreen(
-                    onGetStarted = { navController.navigate(Screen.OnboardingLeague.route) }
+                WelcomeScreen(
+                    onGetStarted = { navController.navigate(Screen.OnboardingUsername.route) }
+                )
+            }
+
+            composable(
+                route = Screen.OnboardingUsername.route,
+                enterTransition = {
+                    slideInHorizontally(tween(280)) { it } + fadeIn(tween(280))
+                },
+                exitTransition = {
+                    slideOutHorizontally(tween(280)) { -it / 3 } + fadeOut(tween(280))
+                },
+                popEnterTransition = {
+                    slideInHorizontally(tween(280)) { -it } + fadeIn(tween(280))
+                },
+                popExitTransition = {
+                    slideOutHorizontally(tween(280)) { it / 3 } + fadeOut(tween(280))
+                }
+            ) {
+                val parentEntry = navController.getBackStackEntry(Screen.Onboarding.route)
+                val viewModel: OnboardingViewModel = hiltViewModel(parentEntry)
+                val state by viewModel.state.collectAsState()
+                val events = viewModel.events
+
+                LaunchedEffect(events) {
+                    events.collect { event ->
+                        when (event) {
+                            is OnboardingEvent.NavigateToLeague -> {
+                                navController.navigate(Screen.OnboardingLeague.route)
+                            }
+                            else -> {}
+                        }
+                    }
+                }
+
+                BackHandler(enabled = true) { }
+
+                UsernameScreen(
+                    state = state,
+                    events = events,
+                    onUsernameChanged = viewModel::onUsernameChanged,
+                    onSubmit = viewModel::submitUsername,
+                    onNavigateNext = { navController.navigate(Screen.OnboardingLeague.route) },
+                    onRandomizeUsername = viewModel::randomizeUsername
                 )
             }
 
@@ -104,8 +161,32 @@ fun SetupNavGraph(
                     slideOutHorizontally(tween(280)) { it / 3 } + fadeOut(tween(280))
                 }
             ) {
-                OnboardingLeagueScreen(
-                    onContinue = { navController.navigate(Screen.OnboardingClubs.createRoute("first")) }
+                val parentEntry = navController.getBackStackEntry(Screen.Onboarding.route)
+                val viewModel: OnboardingViewModel = hiltViewModel(parentEntry)
+                val state by viewModel.state.collectAsState()
+                val events = viewModel.events
+
+                LaunchedEffect(events) {
+                    events.collect { event ->
+                        when (event) {
+                            is OnboardingEvent.NavigateToClubs -> {
+                                navController.navigate(Screen.OnboardingClubs.createRoute("first"))
+                            }
+                            else -> {}
+                        }
+                    }
+                }
+
+                BackHandler(enabled = true) { }
+
+                LeagueScreen(
+                    state = state,
+                    events = events,
+                    greetingUsername = state.username,
+                    leagues = viewModel.defaultLeagues,
+                    onLeagueSelected = viewModel::selectLeague,
+                    onContinueClick = viewModel::confirmLeague,
+                    onNavigateNext = { navController.navigate(Screen.OnboardingClubs.createRoute("first")) }
                 )
             }
 
@@ -125,21 +206,43 @@ fun SetupNavGraph(
                     slideOutHorizontally(tween(280)) { it / 3 } + fadeOut(tween(280))
                 }
             ) { backStackEntry ->
-                val mode = backStackEntry.arguments?.getString("mode") ?: "first"
-                OnboardingClubsScreen(
-                    mode = mode,
-                    onBack = {
-                        if (mode == "edit") navController.popBackStack() else navController.popBackStack()
-                    },
-                    onDone = {
-                        if (mode == "edit") {
-                            navController.popBackStack()
-                        } else {
-                            navController.navigate(Screen.Home.route) {
-                                popUpTo(Screen.Onboarding.route) { inclusive = true }
+                val parentEntry = navController.getBackStackEntry(Screen.Onboarding.route)
+                val viewModel: OnboardingViewModel = hiltViewModel(parentEntry)
+                val state by viewModel.state.collectAsState()
+                val events = viewModel.events
+
+                LaunchedEffect(events) {
+                    events.collect { event ->
+                        when (event) {
+                            is OnboardingEvent.NavigateToHome -> {
+                                navController.navigate(Screen.Home.route) {
+                                    popUpTo(Screen.Onboarding.route) { inclusive = true }
+                                }
                             }
+                            else -> {}
                         }
                     }
+                }
+
+                val mode = backStackEntry.arguments?.getString("mode") ?: "first"
+
+                BackHandler(enabled = true) { }
+
+                ClubsScreen(
+                    state = state,
+                    events = events,
+                    leagues = viewModel.defaultLeagues,
+                    onClubToggled = viewModel::toggleClub,
+                    onContinue = {
+                        if (mode == "edit") {
+                            viewModel.saveClubsEdit()
+                            navController.popBackStack()
+                        } else {
+                            viewModel.clubsContinue()
+                        }
+                    },
+                    getClubsForLeague = viewModel::getClubsForLeague,
+                    mode = mode
                 )
             }
         }

@@ -1,3 +1,36 @@
 <resources>
     <string name="app_name">Football Plus</string>
+    <string name="app_name_football">Football</string>
+    <string name="app_name_plus">Plus</string>
+    <string name="onboarding_welcome_subtitle">Let\'s personalise your experience</string>
+    <string name="onboarding_btn_get_started">Get Started</string>
+    <string name="onboarding_btn_continue">Continue</string>
+    <string name="onboarding_btn_checking">Checking...</string>
+    
+    <!-- Username Setup Screen -->
+    <string name="onboarding_username_title">Choose your username</string>
+    <string name="onboarding_username_subtitle">This is how other fans will see you. Make it unique.</string>
+    <string name="onboarding_profile_avatar_label">Your profile</string>
+    <string name="onboarding_username_placeholder">username</string>
+    <string name="onboarding_username_idle_info">3–20 characters, letters, numbers, underscores only</string>
+    <string name="onboarding_username_typing_warning">⚠ Only letters, numbers and underscores allowed</string>
+    <string name="onboarding_username_checking">Checking availability…</string>
+    <string name="onboarding_username_available">✓ @%1$s is available!</string>
+    <string name="onboarding_username_taken">✗ @%1$s is already taken. Try another.</string>
+    <string name="onboarding_username_too_short">Username must be at least 3 characters</string>
+    <string name="onboarding_username_suggestions_label">Suggestions:</string>
+    <string name="onboarding_username_save_error">Couldn\'t save username. Check your connection and try again.</string>
+    <string name="onboarding_username_race_error">Someone just took that username! Please choose another.</string>
+
+    <!-- Pick League Screen -->
+    <string name="onboarding_league_greeting">Hey @%1$s 👋</string>
+    <string name="onboarding_league_title">Pick Your League</string>
+    <string name="onboarding_league_subtitle">Choose the league you follow most</string>
+
+    <!-- Pick Clubs Screen -->
+    <string name="onboarding_clubs_title">Pick Your Clubs</string>
+    <string name="onboarding_clubs_subtitle">Select all the clubs you support</string>
+    <string name="onboarding_clubs_continue_single">Continue with 1 club</string>
+    <string name="onboarding_clubs_continue_multiple">Continue with %1$d clubs</string>
+    <string name="onboarding_clubs_select_min">Select at least 1 club</string>
 </resources>

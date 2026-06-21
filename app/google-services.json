@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "449314516775",
+    "project_id": "football-plus-22cff",
+    "storage_bucket": "football-plus-22cff.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:449314516775:android:4a094cf878786cfe6e8302",
+        "android_client_info": {
+          "package_name": "com.footballpluse.footballapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCR9eGAFPODa3uj8r3ktaqgcmRWJsZFPrE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

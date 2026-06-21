@@ -28,8 +28,7 @@ import com.footballpluse.footballapp.data.util.ApiResult
 
 @Composable
 fun FixturesTab(
-    fixtures: ApiResult<List<FixtureUiModel>>,
-    onMatchClick: (Int) -> Unit
+    fixtures: ApiResult<List<FixtureUiModel>>, onMatchClick: (Int) -> Unit
 ) {
     when (fixtures) {
         is ApiResult.Loading -> {
@@ -41,6 +40,7 @@ fun FixturesTab(
                 items(5) { FixtureCardShimmer() }
             }
         }
+
         is ApiResult.Success -> {
             val allFixtures = fixtures.data
             if (allFixtures.isEmpty()) {
@@ -51,9 +51,15 @@ fun FixturesTab(
                 FixturesContent(allFixtures = allFixtures, onMatchClick = onMatchClick)
             }
         }
+
         is ApiResult.Error -> {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(fixtures.message, color = Color(0xFFEF4444), textAlign = TextAlign.Center, modifier = Modifier.padding(16.dp))
+                Text(
+                    fixtures.message,
+                    color = Color(0xFFEF4444),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(16.dp)
+                )
             }
         }
     }
@@ -61,8 +67,7 @@ fun FixturesTab(
 
 @Composable
 private fun FixturesContent(
-    allFixtures: List<FixtureUiModel>,
-    onMatchClick: (Int) -> Unit
+    allFixtures: List<FixtureUiModel>, onMatchClick: (Int) -> Unit
 ) {
     val liveFixtures = allFixtures.filter { it.status == MatchStatusUi.LIVE }
     val completedFixtures = allFixtures.filter { it.status == MatchStatusUi.COMPLETED }
@@ -98,7 +103,12 @@ private fun FixturesContent(
                 FixtureSectionHeader(title = "UPCOMING", color = Color(0xFFA0A0A0))
             }
             items(upcomingFixtures) { fixture ->
-                FixtureCard(fixture = fixture, isLive = false, isUpcoming = true, onMatchClick = onMatchClick)
+                FixtureCard(
+                    fixture = fixture,
+                    isLive = false,
+                    isUpcoming = true,
+                    onMatchClick = onMatchClick
+                )
             }
         }
 
@@ -108,7 +118,12 @@ private fun FixturesContent(
                 FixtureSectionHeader(title = "COMPLETED", color = Color(0xFF555555))
             }
             items(completedFixtures) { fixture ->
-                FixtureCard(fixture = fixture, isLive = false, isUpcoming = false, onMatchClick = onMatchClick)
+                FixtureCard(
+                    fixture = fixture,
+                    isLive = false,
+                    isUpcoming = false,
+                    onMatchClick = onMatchClick
+                )
             }
         }
     }
@@ -160,10 +175,7 @@ fun MatchdayHeaderChip(hasLive: Boolean = false, liveCount: Int = 0) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = "Matchday",
-            fontSize = 11.sp,
-            letterSpacing = 0.08.sp,
-            color = Color(0xFFA0A0A0)
+            text = "Matchday", fontSize = 11.sp, letterSpacing = 0.08.sp, color = Color(0xFFA0A0A0)
         )
 
         Row(
@@ -173,9 +185,7 @@ fun MatchdayHeaderChip(hasLive: Boolean = false, liveCount: Int = 0) {
             if (hasLive) {
                 LivePulsingDot()
                 Text(
-                    text = "$liveCount live",
-                    fontSize = 11.sp,
-                    color = Color(0xFFEF4444)
+                    text = "$liveCount live", fontSize = 11.sp, color = Color(0xFFEF4444)
                 )
             }
         }
@@ -186,13 +196,9 @@ fun MatchdayHeaderChip(hasLive: Boolean = false, liveCount: Int = 0) {
 fun LivePulsingDot() {
     val infiniteTransition = rememberInfiniteTransition(label = "live-dot")
     val alpha by infiniteTransition.animateFloat(
-        initialValue = 0.2f,
-        targetValue = 1.0f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(700),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "live-alpha"
+        initialValue = 0.2f, targetValue = 1.0f, animationSpec = infiniteRepeatable(
+            animation = tween(700), repeatMode = RepeatMode.Reverse
+        ), label = "live-alpha"
     )
     Box(
         modifier = Modifier
@@ -223,9 +229,7 @@ fun FixtureSectionHeader(title: String, color: Color) {
             )
         }
         HorizontalDivider(
-            modifier = Modifier.weight(1f),
-            color = Color(0xFF1E1E1E),
-            thickness = 1.dp
+            modifier = Modifier.weight(1f), color = Color(0xFF1E1E1E), thickness = 1.dp
         )
     }
 }
@@ -255,16 +259,13 @@ fun FixtureCard(
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically
             ) {
                 TeamColumn(
                     team = fixture.homeTeam,
                     score = fixture.homeScore,
                     status = fixture.status,
-                    isWinner = fixture.homeScore != null && fixture.awayScore != null &&
-                            fixture.homeScore > fixture.awayScore &&
-                            (fixture.status == MatchStatusUi.COMPLETED || fixture.status == MatchStatusUi.LIVE),
+                    isWinner = fixture.homeScore != null && fixture.awayScore != null && fixture.homeScore > fixture.awayScore && (fixture.status == MatchStatusUi.COMPLETED || fixture.status == MatchStatusUi.LIVE),
                     modifier = Modifier.weight(1f)
                 )
 
@@ -297,9 +298,7 @@ fun FixtureCard(
                     team = fixture.awayTeam,
                     score = fixture.awayScore,
                     status = fixture.status,
-                    isWinner = fixture.homeScore != null && fixture.awayScore != null &&
-                            fixture.awayScore > fixture.homeScore &&
-                            (fixture.status == MatchStatusUi.COMPLETED || fixture.status == MatchStatusUi.LIVE),
+                    isWinner = fixture.homeScore != null && fixture.awayScore != null && fixture.awayScore > fixture.homeScore && (fixture.status == MatchStatusUi.COMPLETED || fixture.status == MatchStatusUi.LIVE),
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -341,20 +340,16 @@ private fun TeamColumn(
     modifier: Modifier = Modifier
 ) {
     Column(
-        modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally
+        modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             modifier = Modifier
                 .size(28.dp)
                 .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.1f)),
-            contentAlignment = Alignment.Center
+                .background(Color.White.copy(alpha = 0.1f)), contentAlignment = Alignment.Center
         ) {
             AsyncImage(
-                model = team.logo,
-                contentDescription = null,
-                modifier = Modifier.size(22.dp)
+                model = team.logo, contentDescription = null, modifier = Modifier.size(22.dp)
             )
         }
         Spacer(Modifier.height(4.dp))
@@ -399,9 +394,7 @@ private fun FixtureFooterStrip(fixture: FixtureUiModel, isLive: Boolean) {
                 if (fixture.yellowCards > 0) parts.add("\uD83D\uDFE8 ${fixture.yellowCards}")
                 if (fixture.redCards > 0) parts.add("\uD83D\uDFE5 ${fixture.redCards}")
                 Text(
-                    text = parts.joinToString("  "),
-                    fontSize = 10.sp,
-                    color = Color(0xFFA0A0A0)
+                    text = parts.joinToString("  "), fontSize = 10.sp, color = Color(0xFFA0A0A0)
                 )
             }
             if (fixture.attendance != null) {
@@ -438,25 +431,57 @@ private fun FixtureFooterStrip(fixture: FixtureUiModel, isLive: Boolean) {
 @Composable
 private fun FixtureCardShimmer() {
     Card(
-        modifier = Modifier.fillMaxWidth().height(80.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(80.dp),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFF161616))
     ) {
         Row(
-            modifier = Modifier.fillMaxSize().padding(12.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.size(28.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.05f)))
+                Box(
+                    Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.05f))
+                )
                 Spacer(Modifier.height(6.dp))
-                Box(Modifier.width(60.dp).height(10.dp).clip(RoundedCornerShape(2.dp)).background(Color.White.copy(alpha = 0.05f)))
+                Box(
+                    Modifier
+                        .width(60.dp)
+                        .height(10.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color.White.copy(alpha = 0.05f))
+                )
             }
-            Box(Modifier.width(40.dp).height(16.dp).clip(RoundedCornerShape(4.dp)).background(Color.White.copy(alpha = 0.05f)))
+            Box(
+                Modifier
+                    .width(40.dp)
+                    .height(16.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color.White.copy(alpha = 0.05f))
+            )
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(Modifier.size(28.dp).clip(CircleShape).background(Color.White.copy(alpha = 0.05f)))
+                Box(
+                    Modifier
+                        .size(28.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.05f))
+                )
                 Spacer(Modifier.height(6.dp))
-                Box(Modifier.width(60.dp).height(10.dp).clip(RoundedCornerShape(2.dp)).background(Color.White.copy(alpha = 0.05f)))
+                Box(
+                    Modifier
+                        .width(60.dp)
+                        .height(10.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color.White.copy(alpha = 0.05f))
+                )
             }
         }
     }

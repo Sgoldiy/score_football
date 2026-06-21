@@ -30,7 +30,9 @@ sealed class HomeUiState {
         val topLeagues: List<LeagueInfo>,
         val isLive: Boolean,
         val topScorers: List<PlayerProfileStatisticsResponse> = emptyList(),
-        val favouriteLeagues: List<LeagueResponse> = emptyList()
+        val favouriteLeagues: List<LeagueResponse> = emptyList(),
+        val favouriteLeagueId: Int = 39,
+        val favouriteLeagueName: String = "Premier League"
     ) : HomeUiState()
     data class Error(val message: String) : HomeUiState()
 }
@@ -117,10 +119,9 @@ class HomeViewModel @Inject constructor(
             combine(
                 repository.getFixturesByDate(today),
                 dataStoreManager.followedLeagues,
-                dataStoreManager.favouriteLeagueId
-            ) { result, followed, onboardingFav ->
-                Triple(result, followed, onboardingFav)
-            }.collect { (result, followed, onboardingFav) ->
+                dataStoreManager.favouriteLeagueId,
+                dataStoreManager.favouriteLeagueName
+            ) { result, followed, onboardingFavId, onboardingFavName ->
                 when (result) {
                     is ApiResult.Loading -> {
                         if (_uiState.value !is HomeUiState.Success) {
@@ -144,7 +145,7 @@ class HomeViewModel @Inject constructor(
                         val topLeagues = matches.map { it.league }.distinctBy { it.id }
                             .sortedByDescending { it.id in priorityLeagues }
 
-                        val favLeagueIds = followed.ifEmpty { setOf(onboardingFav) }
+                        val favLeagueIds = followed.ifEmpty { setOf(onboardingFavId) }
                         val favLeaguesList = allLeagues.filter { it.league?.id in favLeagueIds }
 
                         _uiState.value = HomeUiState.Success(
@@ -155,7 +156,9 @@ class HomeViewModel @Inject constructor(
                             topLeagues = topLeagues,
                             isLive = live.isNotEmpty(),
                             topScorers = scorersList,
-                            favouriteLeagues = favLeaguesList
+                            favouriteLeagues = favLeaguesList,
+                            favouriteLeagueId = onboardingFavId,
+                            favouriteLeagueName = onboardingFavName
                         )
                     }
                     is ApiResult.Error -> {

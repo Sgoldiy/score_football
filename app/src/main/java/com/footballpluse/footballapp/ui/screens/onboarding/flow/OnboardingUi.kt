@@ -27,14 +27,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.footballpluse.footballapp.ui.theme.DeepNavy
-import com.footballpluse.footballapp.ui.theme.GlassGlowGreen
+import com.footballpluse.footballapp.ui.theme.*
 
 @Composable
 fun OnboardingPrimaryButton(
     text: String,
     enabled: Boolean,
     loading: Boolean = false,
+    containerColor: Color = GreenAccent,
+    contentColor: Color = Color.Black,
+    disabledContainerColor: Color = DisabledButtonBg,
+    disabledContentColor: Color = DisabledButtonText,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -46,10 +49,10 @@ fun OnboardingPrimaryButton(
             .height(52.dp),
         shape = RoundedCornerShape(14.dp),
         colors = ButtonDefaults.buttonColors(
-            containerColor = GlassGlowGreen,
-            contentColor = DeepNavy,
-            disabledContainerColor = GlassGlowGreen.copy(alpha = 0.40f),
-            disabledContentColor = DeepNavy.copy(alpha = 0.70f)
+            containerColor = containerColor,
+            contentColor = contentColor,
+            disabledContainerColor = disabledContainerColor,
+            disabledContentColor = disabledContentColor
         )
     ) {
         if (loading) {

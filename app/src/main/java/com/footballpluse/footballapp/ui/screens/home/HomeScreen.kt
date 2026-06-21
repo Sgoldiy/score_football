@@ -127,6 +127,8 @@ fun HomeScreen(
             HomeContent(
                 state                  = state,
                 formMap                = formMap,
+                favouriteLeagueId      = state.favouriteLeagueId,
+                favouriteLeagueName    = state.favouriteLeagueName,
                 onSearch               = onNavigateToSearch,
                 onFavourites           = onNavigateToFavourites,
                 onNotifications        = onNavigateToNotifications,
@@ -325,6 +327,8 @@ private fun EmptyMatchesState(onRetry: () -> Unit) {
 private fun HomeContent(
     state: HomeUiState.Success,
     formMap: Map<Int, String>,
+    favouriteLeagueId: Int,
+    favouriteLeagueName: String,
     onSearch: () -> Unit,
     onFavourites: () -> Unit,
     onNotifications: () -> Unit,
@@ -341,10 +345,14 @@ private fun HomeContent(
             .distinctBy { it.id }
     }
 
-    val groupedMatches = remember(allToday) {
+    val groupedMatches = remember(allToday, favouriteLeagueId) {
         allToday.groupBy { it.league.id }
             .map { (_, matches) -> matches }
-            .sortedByDescending { group -> group.any { it.isLive } }
+            .sortedWith(
+                compareByDescending<List<Match>> { group ->
+                    group.first().league.id == favouriteLeagueId
+                }.thenByDescending { group -> group.any { it.isLive } }
+            )
     }
 
     val leagueLogoMap = remember(state.topLeagues) {
@@ -396,6 +404,7 @@ private fun HomeContent(
         // ① APP HEADER
         item {
             AppHeader(
+                favouriteLeagueName = favouriteLeagueName,
                 onSearchClick = onSearch,
                 onFavsClick = onFavourites,
                 onNotifsClick = onNotifications
@@ -440,6 +449,59 @@ private fun HomeContent(
                         hasLiveMatches = hasLive,
                         onClick = {
                             onNavigateToLeagueDetail?.invoke(competition.leagueId, competition.season)
+                                ?: onNavigateToLeagues()
+                        }
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // My League (user's selected league)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "My League",
+                    color = Color(0xFF00E676),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xFF00E676).copy(alpha = 0.15f))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = "Your League",
+                        color = Color(0xFF00E676),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                item(key = "my_league_$favouriteLeagueId") {
+                    val hasLive = favouriteLeagueId in liveLeagueIds
+                    CompetitionCard(
+                        leagueId = favouriteLeagueId,
+                        leagueName = favouriteLeagueName,
+                        logoUrl = leagueLogoMap[favouriteLeagueId],
+                        season = 2025,
+                        hasLiveMatches = hasLive,
+                        onClick = {
+                            onNavigateToLeagueDetail?.invoke(favouriteLeagueId, 2025)
                                 ?: onNavigateToLeagues()
                         }
                     )
@@ -523,6 +585,7 @@ private fun HomeContent(
                 val league = group.first().league
                 item(key = "league_group_${league.id}") {
                     var isExpanded by remember { mutableStateOf(true) }
+                    val isMyLeague = league.id == favouriteLeagueId
                     Column {
                         Card(
                             modifier = Modifier
@@ -530,7 +593,10 @@ private fun HomeContent(
                                 .padding(horizontal = 16.dp),
                             shape = RoundedCornerShape(12.dp),
                             colors = CardDefaults.cardColors(containerColor = Color(0xFF0D0F14)),
-                            border = BorderStroke(0.5.dp, Color(0xFF1A1E2A))
+                            border = BorderStroke(
+                                width = if (isMyLeague) 1.dp else 0.5.dp,
+                                color = if (isMyLeague) Color(0xFF00E676).copy(alpha = 0.4f) else Color(0xFF1A1E2A)
+                            )
                         ) {
                             Column {
                                 val hasLive = group.any { it.isLive }
@@ -540,6 +606,7 @@ private fun HomeContent(
                                     count = group.size,
                                     liveCount = liveCount,
                                     hasLive = hasLive,
+                                    isMyLeague = isMyLeague,
                                     isExpanded = isExpanded,
                                     onToggleExpand = { isExpanded = !isExpanded }
                                 )
@@ -579,6 +646,7 @@ private fun HomeContent(
 // ─────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun AppHeader(
+    favouriteLeagueName: String,
     onSearchClick: () -> Unit,
     onFavsClick: () -> Unit,
     onNotifsClick: () -> Unit
@@ -613,6 +681,13 @@ private fun AppHeader(
                 fontSize = 11.sp,
                 color = Color(0xFF555555),
                 modifier = Modifier.padding(top = 2.dp)
+            )
+            Text(
+                text = favouriteLeagueName,
+                fontSize = 11.sp,
+                color = Color(0xFF00E676),
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(top = 1.dp)
             )
         }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -729,18 +804,19 @@ private fun LeagueGroupHeader(
     count: Int,
     liveCount: Int,
     hasLive: Boolean,
+    isMyLeague: Boolean = false,
     isExpanded: Boolean,
     onToggleExpand: () -> Unit
 ) {
+    val headerBg = if (isMyLeague) Color(0xFF0D1A0D) else Color(0xFF161A26)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(Color(0xFF161A26))
+            .background(headerBg)
             .drawBehind {
-                // Draw green left accent border on the outer edge
                 drawRect(
                     color = Color(0xFF00E676),
-                    size = Size(3.dp.toPx(), size.height)
+                    size = Size(if (isMyLeague) 4.dp.toPx() else 3.dp.toPx(), size.height)
                 )
             }
             .clickable { onToggleExpand() }
@@ -781,6 +857,23 @@ private fun LeagueGroupHeader(
                 )
             }
         }
+        if (isMyLeague) {
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color(0xFF00E676).copy(alpha = 0.15f))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    text = "Your League",
+                    color = Color(0xFF00E676),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(Modifier.width(6.dp))
+        }
+
         val badgeBgColor = if (hasLive) Color(0xFF1A0A0A) else Color(0xFF1E2230)
         val badgeTextColor = if (hasLive) Color(0xFFFF4444) else Color(0xFF555555)
         val badgeBorderModifier = if (hasLive) Modifier.border(0.5.dp, Color(0xFF3A1212), RoundedCornerShape(4.dp)) else Modifier

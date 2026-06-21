@@ -14,6 +14,10 @@ import androidx.compose.runtime.getValue
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.footballpluse.footballapp.navigation.ROUTE_CLUBS
+import com.footballpluse.footballapp.navigation.ROUTE_LEAGUE
+import com.footballpluse.footballapp.navigation.ROUTE_USERNAME
+import com.footballpluse.footballapp.navigation.ROUTE_WELCOME
 import com.footballpluse.footballapp.navigation.Screen
 import com.footballpluse.footballapp.navigation.SetupNavGraph
 import com.footballpluse.footballapp.ui.components.BottomNavigationBar
@@ -41,6 +45,10 @@ class MainActivity : ComponentActivity() {
                 val startDestination by splashViewModel.startDestination.collectAsState()
 
                 val noBottomBarScreens = listOf(
+                    ROUTE_WELCOME,
+                    ROUTE_USERNAME,
+                    ROUTE_LEAGUE,
+                    ROUTE_CLUBS,
                     Screen.Onboarding.route,
                     Screen.MatchCenter.route,
                     Screen.Search.route,
