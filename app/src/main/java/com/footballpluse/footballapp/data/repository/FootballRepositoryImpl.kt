@@ -55,9 +55,7 @@ class FootballRepositoryImpl @Inject constructor(
             try {
                 val events = apiService.getLivescore()
                 val liveFixtures = events.toFixtureResponseList()
-                val liveMatches = liveFixtures.filter {
-                    it.fixture?.status?.short in listOf("LIVE", "HT", "ET", "P", "INT", "AET", "AP")
-                }.map { it.toMatch() }
+                val liveMatches = liveFixtures.map { it.toMatch() }.filter { it.isLive }
                 emit(ApiResult.Success(liveMatches))
             } catch (e: Exception) {
                 emit(ApiResult.Error(e.message ?: "Failed to refresh live matches"))

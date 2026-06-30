@@ -117,61 +117,65 @@ class HomeViewModel @Inject constructor(
                 emptyList()
             }
 
-            combine(
-                repository.getFixturesByDate(today),
-                dataStoreManager.followedLeagues,
-                dataStoreManager.favouriteLeagueId,
-                dataStoreManager.favouriteLeagueName
-            ) { result, followed, onboardingFavId, onboardingFavName ->
-                when (result) {
-                    is ApiResult.Loading -> {
-                        if (_uiState.value !is HomeUiState.Success) {
-                            _uiState.value = HomeUiState.Loading
+            try {
+                combine(
+                    repository.getFixturesByDate(today),
+                    dataStoreManager.followedLeagues,
+                    dataStoreManager.favouriteLeagueId,
+                    dataStoreManager.favouriteLeagueName
+                ) { result, followed, onboardingFavId, onboardingFavName ->
+                    when (result) {
+                        is ApiResult.Loading -> {
+                            if (_uiState.value !is HomeUiState.Success) {
+                                _uiState.value = HomeUiState.Loading
+                            }
+                        }
+                        is ApiResult.Success -> {
+                            val matches = result.data
+                            val live = matches.filter { it.isLive }
+                            val upcoming = matches.filter { it.status.short == "NS" || it.status.short == "TBD" }
+                            val finished = matches.filter { it.status.short in listOf("FT", "AET", "PEN") }
+
+                            val priorityLeagues = setOf(152, 302, 207, 175, 168, 3, 4, 28)
+                            val featured = matches.sortedWith(
+                                compareByDescending<Match> { it.isLive }
+                                    .thenByDescending { it.league.id in priorityLeagues }
+                                    .thenBy { it.timestamp }
+                            ).take(10)
+
+                            val topLeagues = matches.map { it.league }.distinctBy { it.id }
+                                .sortedByDescending { it.id in priorityLeagues }
+
+                            val favLeagueIds = followed.ifEmpty { setOf(onboardingFavId) }
+                            val favLeaguesList = allLeagues.filter { it.league_id?.toIntOrNull() in favLeagueIds }.map { it.toLeagueResponse() }
+
+                            _uiState.value = HomeUiState.Success(
+                                featuredMatches = featured,
+                                liveMatches = live,
+                                upcomingMatches = upcoming,
+                                finishedMatches = finished,
+                                topLeagues = topLeagues,
+                                isLive = live.isNotEmpty(),
+                                topScorers = scorersList,
+                                favouriteLeagues = favLeaguesList,
+                                favouriteLeagueId = onboardingFavId,
+                                favouriteLeagueName = onboardingFavName
+                            )
+                        }
+                        is ApiResult.Error -> {
+                            if (_uiState.value !is HomeUiState.Success) {
+                                _uiState.value = HomeUiState.Error(result.message)
+                            }
                         }
                     }
-                    is ApiResult.Success -> {
-                        val matches = result.data
-                        val live = matches.filter { it.isLive }
-                        val upcoming = matches.filter { it.status.short == "NS" || it.status.short == "TBD" }
-                        val finished = matches.filter { it.status.short in listOf("FT", "AET", "PEN") }
-                        
-                        // Priority leagues for featured
-                        val priorityLeagues = setOf(152, 302, 207, 175, 168, 3, 4, 28)
-                        val featured = matches.sortedWith(
-                            compareByDescending<Match> { it.isLive }
-                                .thenByDescending { it.league.id in priorityLeagues }
-                                .thenBy { it.timestamp }
-                        ).take(10)
-
-                        val topLeagues = matches.map { it.league }.distinctBy { it.id }
-                            .sortedByDescending { it.id in priorityLeagues }
-
-                        val favLeagueIds = followed.ifEmpty { setOf(onboardingFavId) }
-                        val favLeaguesList = allLeagues.filter { it.league_id?.toIntOrNull() in favLeagueIds }.map { it.toLeagueResponse() }
-
-                        _uiState.value = HomeUiState.Success(
-                            featuredMatches = featured,
-                            liveMatches = live,
-                            upcomingMatches = upcoming,
-                            finishedMatches = finished,
-                            topLeagues = topLeagues,
-                            isLive = live.isNotEmpty(),
-                            topScorers = scorersList,
-                            favouriteLeagues = favLeaguesList,
-                            favouriteLeagueId = onboardingFavId,
-                            favouriteLeagueName = onboardingFavName
-                        )
-                    }
-                    is ApiResult.Error -> {
-                        if (_uiState.value !is HomeUiState.Success) {
-                            _uiState.value = HomeUiState.Error(result.message)
-                        }
-                    }
+                }.collect()
+            } catch (e: Exception) {
+                if (_uiState.value !is HomeUiState.Success) {
+                    _uiState.value = HomeUiState.Error(e.message ?: "Failed to load data")
                 }
-            }.collect()
+            }
         }
         
-        // Start live matches polling if needed
         startLiveUpdates()
     }
 

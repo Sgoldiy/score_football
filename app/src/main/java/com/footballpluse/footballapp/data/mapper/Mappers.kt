@@ -7,21 +7,23 @@ import com.footballpluse.footballapp.domain.model.*
 
 // ─── New API model → Old model mappers ───
 internal fun String?.toIntOr(def: Int = 0): Int = this?.toIntOrNull() ?: def
-private fun mapStatus(status: String?): String = when (status) {
-    "Finished" -> "FT"
-    "Not Started" -> "NS"
-    "In Play" -> "LIVE"
-    "Halftime" -> "HT"
-    "Extra Time" -> "ET"
-    "Penalties" -> "P"
-    "Postponed" -> "PST"
-    "Cancelled" -> "CAN"
-    "Suspended" -> "SUS"
-    "Interrupted" -> "INT"
-    "After Extra Time" -> "AET"
-    "After Penalties" -> "AP"
-    "Awarded" -> "AW"
-    else -> status?.take(3)?.uppercase() ?: ""
+private fun mapStatus(status: String?, matchLive: String?): String = when {
+    status.isNullOrEmpty() -> "NS"
+    status == "Finished" -> "FT"
+    status == "Not Started" -> "NS"
+    status == "In Play" || matchLive == "1" -> "LIVE"
+    status == "Halftime" -> "HT"
+    status == "Extra Time" -> "ET"
+    status == "Penalties" -> "P"
+    status == "Postponed" -> "PST"
+    status == "Cancelled" -> "CAN"
+    status == "Suspended" -> "SUS"
+    status == "Interrupted" -> "INT"
+    status == "After Extra Time" || status == "After ET" -> "AET"
+    status == "After Penalties" || status == "After Pen." -> "AP"
+    status == "Awarded" -> "AW"
+    status.firstOrNull()?.isDigit() == true -> "LIVE"
+    else -> status.take(3).uppercase()
 }
 
 fun ApiEvent.toFixtureResponse(): FixtureResponse {
@@ -38,7 +40,7 @@ fun ApiEvent.toFixtureResponse(): FixtureResponse {
             date = match_date, timestamp = timestamp,
             periods = Periods(null, null),
             venue = Venue(id = null, name = match_stadium, address = null, city = null, capacity = null, surface = null, image = null),
-            status = FixtureStatus(long = match_status, short = mapStatus(match_status), elapsed = match_time?.split(":")?.firstOrNull()?.toIntOrNull(), extra = null)
+            status = FixtureStatus(long = match_status, short = mapStatus(match_status, match_live), elapsed = match_status?.takeWhile { it.isDigit() }?.toIntOrNull(), extra = null)
         ),
         league = League(id = league_id.toIntOr(0), name = league_name, type = null, country = country_name, logo = league_logo, flag = null, season = null, round = match_round, standings = null),
         teams = FixtureTeams(
@@ -297,7 +299,7 @@ fun FixtureResponse.toMatch(): Match {
         ),
         homeScore = goals?.home,
         awayScore = goals?.away,
-        isLive = fixture?.status?.short in listOf("1H", "2H", "HT", "ET", "BT", "P", "INT", "LIVE")
+        isLive = fixture?.status?.short in listOf("1H", "2H", "HT", "ET", "BT", "P", "INT", "LIVE") || fixture?.status?.elapsed != null
     )
 }
 
@@ -319,7 +321,7 @@ fun FixtureResponse.toEntity(date: String): FixtureEntity {
         statusShort = fixture?.status?.short,
         elapsed = fixture?.status?.elapsed,
         timestamp = fixture?.timestamp ?: 0L,
-        isLive = fixture?.status?.short in listOf("1H", "2H", "HT", "ET", "BT", "P", "INT", "LIVE")
+        isLive = fixture?.status?.short in listOf("1H", "2H", "HT", "ET", "BT", "P", "INT", "LIVE") || fixture?.status?.elapsed != null
     )
 }
 
