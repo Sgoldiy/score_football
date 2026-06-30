@@ -1,10 +1,268 @@
 package com.footballpluse.footballapp.data.mapper
 
-import com.footballpluse.footballapp.data.model.LineupPlayer as DataLineupPlayer
 import com.footballpluse.footballapp.domain.model.LineupPlayer as DomainLineupPlayer
 import com.footballpluse.footballapp.data.local.db.FixtureEntity
 import com.footballpluse.footballapp.data.model.*
 import com.footballpluse.footballapp.domain.model.*
+
+// ─── New API model → Old model mappers ───
+internal fun String?.toIntOr(def: Int = 0): Int = this?.toIntOrNull() ?: def
+private fun mapStatus(status: String?): String = when (status) {
+    "Finished" -> "FT"
+    "Not Started" -> "NS"
+    "In Play" -> "LIVE"
+    "Halftime" -> "HT"
+    "Extra Time" -> "ET"
+    "Penalties" -> "P"
+    "Postponed" -> "PST"
+    "Cancelled" -> "CAN"
+    "Suspended" -> "SUS"
+    "Interrupted" -> "INT"
+    "After Extra Time" -> "AET"
+    "After Penalties" -> "AP"
+    "Awarded" -> "AW"
+    else -> status?.take(3)?.uppercase() ?: ""
+}
+
+fun ApiEvent.toFixtureResponse(): FixtureResponse {
+    val fixtureId = match_id.toIntOr(0)
+    val homeId = match_hometeam_id.toIntOr(0)
+    val awayId = match_awayteam_id.toIntOr(0)
+    val timestamp = try {
+        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+            .parse(match_date ?: "")?.time ?: 0L
+    } catch (_: Exception) { 0L }
+    return FixtureResponse(
+        fixture = Fixture(
+            id = fixtureId, referee = match_referee, timezone = null,
+            date = match_date, timestamp = timestamp,
+            periods = Periods(null, null),
+            venue = Venue(id = null, name = match_stadium, address = null, city = null, capacity = null, surface = null, image = null),
+            status = FixtureStatus(long = match_status, short = mapStatus(match_status), elapsed = match_time?.split(":")?.firstOrNull()?.toIntOrNull(), extra = null)
+        ),
+        league = League(id = league_id.toIntOr(0), name = league_name, type = null, country = country_name, logo = league_logo, flag = null, season = null, round = match_round, standings = null),
+        teams = FixtureTeams(
+            home = FixtureTeam(id = homeId, name = match_hometeam_name, logo = team_home_badge, winner = null, update = null, colors = null),
+            away = FixtureTeam(id = awayId, name = match_awayteam_name, logo = team_away_badge, winner = null, update = null, colors = null)
+        ),
+        goals = FixtureGoals(home = match_hometeam_score?.toIntOrNull(), away = match_awayteam_score?.toIntOrNull()),
+        score = FixtureScore(
+            halftime = FixtureGoals(home = match_hometeam_halftime_score?.toIntOrNull(), away = match_awayteam_halftime_score?.toIntOrNull()),
+            fulltime = FixtureGoals(home = match_hometeam_ft_score?.toIntOrNull() ?: match_hometeam_score?.toIntOrNull(), away = match_awayteam_ft_score?.toIntOrNull() ?: match_awayteam_score?.toIntOrNull()),
+            extratime = FixtureGoals(home = match_hometeam_extra_score?.toIntOrNull(), away = match_awayteam_extra_score?.toIntOrNull()),
+            penalty = FixtureGoals(home = match_hometeam_penalty_score?.toIntOrNull(), away = match_awayteam_penalty_score?.toIntOrNull())
+        ),
+        events = (goalscorer?.map { it.toFixtureEvent(homeId, awayId) } ?: emptyList()) +
+            (cards?.map { it.toFixtureEvent(homeId, awayId) } ?: emptyList()),
+        lineups = lineup?.let { l ->
+            listOfNotNull(
+                l.home?.toFixtureLineup(homeId, match_hometeam_name, team_home_badge),
+                l.away?.toFixtureLineup(awayId, match_awayteam_name, team_away_badge)
+            )
+        },
+        statistics = statistics?.map { it.toFixtureTeamStatistics(homeId, awayId) },
+        players = null
+    )
+}
+
+fun List<ApiEvent>.toFixtureResponseList(): List<FixtureResponse> = map { it.toFixtureResponse() }
+
+internal fun ApiGoalScorer.toFixtureEvent(homeId: Int, awayId: Int): FixtureEvent {
+    val scorerName = if (home_scorer != null && home_scorer != score) home_scorer else away_scorer
+    val isHome = home_scorer != null && home_scorer != score
+    return FixtureEvent(
+        time = EventTime(elapsed = time?.toIntOrNull(), extra = null),
+        team = EventTeam(id = if (isHome) homeId else awayId, name = if (isHome) null else null, logo = null),
+        player = EventPlayer(id = null, name = scorerName),
+        assist = null,
+        type = "Goal",
+        detail = score,
+        comments = null
+    )
+}
+
+internal fun ApiCard.toFixtureEvent(homeId: Int, awayId: Int): FixtureEvent {
+    val isHome = home_fault != null
+    return FixtureEvent(
+        time = EventTime(elapsed = time?.toIntOrNull(), extra = info_time?.toIntOrNull()),
+        team = EventTeam(id = if (isHome) homeId else awayId, name = null, logo = null),
+        player = EventPlayer(id = null, name = if (isHome) home_fault else away_fault),
+        assist = null,
+        type = card,
+        detail = info,
+        comments = null
+    )
+}
+
+internal fun ApiMatchStatistic.toFixtureTeamStatistics(homeId: Int, awayId: Int): FixtureTeamStatistics {
+    return FixtureTeamStatistics(
+        team = FixtureTeam(id = homeId, name = null, logo = null, winner = null, update = null, colors = null),
+        statistics = listOf(
+            StatisticItem(type = type, value = home),
+            StatisticItem(type = "${type}_away", value = away)
+        )
+    )
+}
+
+internal fun ApiTeamLineup.toFixtureLineup(teamId: Int, teamName: String?, badge: String?): FixtureLineup {
+    return FixtureLineup(
+        team = FixtureTeam(id = teamId, name = teamName, logo = badge, winner = null, update = null, colors = null),
+        coach = coaches?.firstOrNull()?.let { LineupCoach(id = null, name = it.coach_name, photo = null) },
+        formation = null,
+        startXI = starting_lineups?.map { it.toLineupPlayerWrapper() } ?: emptyList(),
+        substitutes = substitutes?.map { it.toLineupPlayerWrapper() } ?: emptyList()
+    )
+}
+
+private fun ApiLineupPlayer.toLineupPlayerWrapper(): LineupPlayerWrapper {
+    val num = player_number?.toIntOrNull()
+    return LineupPlayerWrapper(
+        player = LineupPlayer(id = player_key?.toIntOrNull(), name = player, number = num ?: 0, pos = player_pos, grid = null)
+    )
+}
+
+fun List<ApiStanding>.toStanding(): Standing {
+    val records = map { it.toStandingRecord() }
+    val first = firstOrNull()
+    return Standing(
+        league = LeagueStanding(
+            id = first?.league_id.toIntOr(0), name = first?.league_name,
+            country = first?.country_name, logo = first?.league_logo,
+            flag = null, season = null,
+            standings = listOf(records.sortedBy { it.rank })
+        )
+    )
+}
+
+private fun ApiStanding.toStandingRecord(): StandingRecord {
+    val rank = standing_place.toIntOr(0)
+    val wins = standing_W?.toIntOrNull()
+    val draws = standing_D?.toIntOrNull()
+    val loses = standing_L?.toIntOrNull()
+    val played = standing_total?.toIntOrNull() ?: (wins?.let { w -> draws?.let { d -> loses?.let { l -> w + d + l } } } ?: 0)
+    val goalsFor = overall_GF?.toIntOrNull()
+    val goalsAgainst = overall_GA?.toIntOrNull()
+    val goalsDiff = if (goalsFor != null && goalsAgainst != null) goalsFor - goalsAgainst else null
+    return StandingRecord(
+        rank = rank, team = Team(id = team_id.toIntOr(0), name = team_name, code = null, country = country_name,
+            founded = null, national = null, logo = team_badge),
+        points = standing_PTS?.toIntOrNull(), goalsDiff = goalsDiff, group = standing_group,
+        form = null, status = standing_place_type, description = null,
+        all = StandingGoals(played = played, win = wins, draw = draws, lose = loses,
+            goals = StandingGoalsDetail(goalsFor = goalsFor, against = goalsAgainst)),
+        home = StandingGoals(played = null, win = null, draw = null, lose = null, goals = null),
+        away = StandingGoals(played = null, win = null, draw = null, lose = null, goals = null),
+        update = null
+    )
+}
+
+fun ApiLeague.toLeagueResponse(): LeagueResponse {
+    return LeagueResponse(
+        league = League(id = league_id.toIntOr(0), name = league_name, type = null, country = country_name,
+            logo = league_logo, flag = country_logo, season = league_season?.toIntOrNull(), round = null, standings = null),
+        country = Country(name = country_name ?: "", code = null, flag = country_logo),
+        seasons = league_season?.let { listOf(Season(year = it.toIntOr(0), start = null, end = null, current = true, coverage = null)) }
+    )
+}
+
+fun ApiTeam.toTeamInfoResponse(): TeamInfoResponse {
+    return TeamInfoResponse(
+        team = Team(id = team_key.toIntOr(0), name = team_name, code = null, country = team_country,
+            founded = team_founded?.toIntOrNull(), national = null, logo = team_badge),
+        venue = venue?.let { Venue(id = null, name = it.venue_name, address = it.venue_address,
+            city = it.venue_city, capacity = it.venue_capacity?.toIntOrNull(), surface = it.venue_surface, image = null) }
+    )
+}
+
+fun ApiPlayer.toPlayerProfileStatisticsResponse(): PlayerProfileStatisticsResponse {
+    return PlayerProfileStatisticsResponse(
+        player = Player(
+            id = player_key ?: 0, name = player_name, firstname = null, lastname = null,
+            age = player_age?.toIntOrNull(),
+            birth = player_birthdate?.let { PlayerBirth(date = it, place = null, country = player_country) },
+            nationality = player_country, height = null, weight = null, injured = player_injured?.toIntOrNull()?.let { it == 1 },
+            photo = player_image, type = player_type, reason = null
+        ),
+        statistics = listOf(
+            PlayerStatistics(
+                player = null, team = null, league = null,
+                games = PlayerGames(appearances = player_match_played?.toIntOrNull(), lineups = null,
+                    minutes = null, number = player_number?.toIntOrNull(), position = player_type, rating = player_rating, captain = player_is_captain?.toIntOrNull()?.let { it == 1 }),
+                offsides = null,
+                substitutes = PlayerSubstitutes(`in` = null, out = player_substitute_out?.toIntOrNull(), bench = player_substitutes_on_bench?.toIntOrNull()),
+                shots = PlayerShots(total = player_shots_total?.toIntOrNull(), on = null),
+                goals = PlayerGoals(total = player_goals?.toIntOrNull(), conceded = player_goals_conceded?.toIntOrNull(), assists = player_assists?.toIntOrNull(), saves = player_saves?.toIntOrNull()),
+                passes = PlayerPasses(total = player_passes?.toIntOrNull(), key = player_key_passes?.toIntOrNull(), accuracy = player_passes_accuracy?.toIntOrNull()),
+                tackles = PlayerTackles(total = player_tackles?.toIntOrNull(), blocks = player_blocks?.toIntOrNull(), interceptions = player_interceptions?.toIntOrNull()),
+                duels = PlayerDuels(total = player_duels_total?.toIntOrNull(), won = player_duels_won?.toIntOrNull()),
+                dribbles = PlayerDribbles(attempts = player_dribble_attempts?.toIntOrNull(), success = player_dribble_succ?.toIntOrNull(), past = null),
+                fouls = PlayerFouls(drawn = null, committed = player_fouls_committed?.toIntOrNull()),
+                cards = PlayerCards(yellow = player_yellow_cards?.toIntOrNull(), yellowred = null, red = player_red_cards?.toIntOrNull()),
+                penalty = PlayerPenalty(won = player_pen_won?.toIntOrNull(), commited = player_pen_comm?.toIntOrNull(),
+                    scored = player_pen_scored?.toIntOrNull(), missed = player_pen_missed?.toIntOrNull(), saved = null)
+            )
+        )
+    )
+}
+
+fun ApiTopScorer.toPlayerProfileStatisticsResponse(): PlayerProfileStatisticsResponse {
+    return PlayerProfileStatisticsResponse(
+        player = Player(
+            id = player_id ?: 0, name = player_name, firstname = null, lastname = null,
+            age = null, birth = null, nationality = null, height = null, weight = null,
+            injured = null, photo = null, type = null, reason = null
+        ),
+        statistics = listOf(
+            PlayerStatistics(
+                player = null,
+                team = Team(id = team_id?.toIntOrNull() ?: 0, name = team_name, code = null, country = null,
+                    founded = null, national = null, logo = null),
+                league = null,
+                games = null, offsides = null, substitutes = null, shots = null,
+                goals = PlayerGoals(total = goals?.toIntOrNull(), conceded = null, assists = assists?.toIntOrNull(), saves = null),
+                passes = null, tackles = null, duels = null, dribbles = null, fouls = null, cards = null,
+                penalty = PlayerPenalty(won = null, commited = null, scored = penalty_goals?.toIntOrNull(), missed = null, saved = null)
+            )
+        )
+    )
+}
+
+fun ApiOdd.toOddsResponse(): OddsResponse {
+    return OddsResponse(
+        league = null, fixture = FixtureBrief(id = null),
+        bookmakers = listOf(
+            Bookmaker(id = 0, name = bookmaker, bets = listOf(
+                OddsBet(id = 0, name = "Match Winner", values = listOf(
+                    OddsValue(value = "Home", odd = homeOdd),
+                    OddsValue(value = "Draw", odd = drawOdd),
+                    OddsValue(value = "Away", odd = awayOdd)
+                ))
+            ))
+        )
+    )
+}
+
+fun ApiPrediction.toPrediction(): Prediction {
+    return Prediction(
+        predictions = PredictionDetail(
+            winner = null, win_or_draw = null, under_over = null, goals = null, advice = null,
+            percent = PredictionPercent(home = homeWin, draw = draw, away = awayWin)
+        ),
+        league = null, teams = null, comparison = null, h2h = null
+    )
+}
+
+fun List<ApiPlayer>.toSquadPlayers(): List<SquadPlayer> = map {
+    SquadPlayer(id = it.player_key, name = it.player_name, age = it.player_age?.toIntOrNull(),
+        number = it.player_number?.toIntOrNull(), position = it.player_type, photo = it.player_image)
+}
+
+fun List<ApiCoach>.toCoaches(): List<Coach> = map {
+    Coach(id = null, name = it.coach_name, firstname = null, lastname = null, age = it.coach_age?.toIntOrNull(),
+        birth = null, nationality = it.coach_country, height = null, weight = null, photo = null, team = null, career = null)
+}
+
+// ─── Existing mappers (old model → domain) ───
 
 fun FixtureResponse.toMatch(): Match {
     return Match(

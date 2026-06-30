@@ -79,14 +79,15 @@ class MainActivity : ComponentActivity() {
                     }
                 ) { innerPadding ->
                     Box(modifier = androidx.compose.ui.Modifier.padding(innerPadding)) {
-                        if (startDestination == null) {
+                        val destination = startDestination
+                        if (destination == null) {
                             // Prevent any nav graph from composing until we know where to start.
                             SplashScreen()
                         } else {
                             SetupNavGraph(
                                 navController = navController,
                                 themeViewModel = themeViewModel,
-                                startDestination = startDestination!!
+                                startDestination = destination
                             )
                         }
                     }

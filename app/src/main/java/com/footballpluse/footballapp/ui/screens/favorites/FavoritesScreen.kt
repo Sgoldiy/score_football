@@ -269,7 +269,7 @@ private fun ClubHeader(
             Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 AsyncImage(
-                    model = OnboardingDefaults.leagueLogoUrl(club.leagueId),
+                    model = OnboardingDefaults.leagueLogoUrl(club.leagueId, club.leagueName),
                     contentDescription = null,
                     modifier = Modifier.size(14.dp)
                 )

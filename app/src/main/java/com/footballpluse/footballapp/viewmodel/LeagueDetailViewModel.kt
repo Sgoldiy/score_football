@@ -2,6 +2,7 @@ package com.footballpluse.footballapp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.footballpluse.footballapp.data.mapper.*
 import com.footballpluse.footballapp.data.model.FixtureResponse
 import com.footballpluse.footballapp.data.model.PlayerProfileStatisticsResponse
 import com.footballpluse.footballapp.data.model.StandingRecord
@@ -84,8 +85,10 @@ class LeagueDetailViewModel @Inject constructor(
         _state.update { it.copy(h2hData = ApiResult.Loading) }
         viewModelScope.launch {
             try {
-                val response = apiService.getHeadToHead("$teamAId-$teamBId", 10)
-                val fixtures = response.response
+                val fixtures = apiService.getHeadToHead(
+                    firstTeamId = teamAId.toString(),
+                    secondTeamId = teamBId.toString()
+                ).toFixtureResponseList()
                 val teamAWins = fixtures.count { f ->
                     val w = f.teams?.home?.winner == true && f.teams?.home?.id == teamAId ||
                             f.teams?.away?.winner == true && f.teams?.away?.id == teamAId
@@ -149,8 +152,8 @@ class LeagueDetailViewModel @Inject constructor(
             when (result) {
                 is ApiResult.Success -> {
                     val rawRecords = try {
-                        apiService.getStandings(leagueId, season)
-                            .response.firstOrNull()?.league?.standings?.firstOrNull() ?: emptyList()
+                        apiService.getStandings(leagueId.toString())
+                            .toStanding().league?.standings?.firstOrNull() ?: emptyList()
                     } catch (_: Exception) { emptyList() }
 
                     val uiModels = result.data.map { standing ->
@@ -190,8 +193,8 @@ class LeagueDetailViewModel @Inject constructor(
     private suspend fun loadFixtures(leagueId: Int, season: Int) {
         try {
             _state.update { it.copy(fixtures = ApiResult.Loading) }
-            val response = apiService.getFixturesByLeagueSeason(leagueId, season)
-            val uiModels = response.response.map { it.toFixtureUiModel() }
+            val uiModels = apiService.getEvents(leagueId = leagueId.toString())
+                .toFixtureResponseList().map { it.toFixtureUiModel() }
 
             _state.update { it.copy(fixtures = ApiResult.Success(uiModels)) }
             computeSeasonStats(_state.value.standings, ApiResult.Success(uiModels))
@@ -282,9 +285,10 @@ class LeagueDetailViewModel @Inject constructor(
 
     private suspend fun loadTopScorers(leagueId: Int, season: Int) {
         try {
-            val response = apiService.getTopScorers(leagueId, season)
-            val maxVal = response.response.maxOfOrNull { it.statistics?.firstOrNull()?.goals?.total ?: 0 } ?: 1
-            val models = response.response.mapIndexed { idx, entry ->
+            val response = apiService.getTopScorers(leagueId.toString())
+                .map { it.toPlayerProfileStatisticsResponse() }
+            val maxVal = response.maxOfOrNull { it.statistics?.firstOrNull()?.goals?.total ?: 0 } ?: 1
+            val models = response.mapIndexed { idx, entry ->
                 val stats = entry.statistics?.firstOrNull()
                 val valTotal = stats?.goals?.total ?: 0
                 PlayerStatUiModel(
@@ -305,78 +309,21 @@ class LeagueDetailViewModel @Inject constructor(
     }
 
     private suspend fun loadTopAssists(leagueId: Int, season: Int) {
-        try {
-            val response = apiService.getTopAssists(leagueId, season)
-            val maxVal = response.response.maxOfOrNull { it.statistics?.firstOrNull()?.goals?.assists ?: 0 } ?: 1
-            val models = response.response.mapIndexed { idx, entry ->
-                val stats = entry.statistics?.firstOrNull()
-                val valTotal = stats?.goals?.assists ?: 0
-                PlayerStatUiModel(
-                    rank = idx + 1,
-                    playerName = entry.player?.name ?: "Player",
-                    clubName = stats?.team?.name ?: "",
-                    avatarUrl = entry.player?.photo,
-                    statValue = valTotal,
-                    secondaryStatLabel = "${stats?.passes?.key ?: 0} key passes",
-                    progressFraction = if (maxVal > 0) valTotal.toFloat() / maxVal else 0f
-                )
-            }
-            _state.update { it.copy(topAssists = ApiResult.Success(models)) }
-        } catch (e: Exception) {
-            _state.update { it.copy(topAssists = ApiResult.Error(e.message ?: "Failed")) }
-        }
+        _state.update { it.copy(topAssists = ApiResult.Error("Not available in current API version")) }
     }
 
     private suspend fun loadTopYellowCards(leagueId: Int, season: Int) {
-        try {
-            val response = apiService.getTopYellowCards(leagueId, season)
-            val maxVal = response.response.maxOfOrNull { it.statistics?.firstOrNull()?.cards?.yellow ?: 0 } ?: 1
-            val models = response.response.mapIndexed { idx, entry ->
-                val stats = entry.statistics?.firstOrNull()
-                val valTotal = stats?.cards?.yellow ?: 0
-                PlayerStatUiModel(
-                    rank = idx + 1,
-                    playerName = entry.player?.name ?: "Player",
-                    clubName = stats?.team?.name ?: "",
-                    avatarUrl = entry.player?.photo,
-                    statValue = valTotal,
-                    secondaryStatLabel = "\uD83D\uDFE8 $valTotal  \uD83D\uDFE5 ${stats?.cards?.red ?: 0}",
-                    progressFraction = if (maxVal > 0) valTotal.toFloat() / maxVal else 0f
-                )
-            }
-            _state.update { it.copy(topYellowCards = ApiResult.Success(models)) }
-        } catch (e: Exception) {
-            _state.update { it.copy(topYellowCards = ApiResult.Error(e.message ?: "Failed")) }
-        }
+        _state.update { it.copy(topYellowCards = ApiResult.Error("Not available in current API version")) }
     }
 
     private suspend fun loadTopRedCards(leagueId: Int, season: Int) {
-        try {
-            val response = apiService.getTopRedCards(leagueId, season)
-            val maxVal = response.response.maxOfOrNull { it.statistics?.firstOrNull()?.cards?.red ?: 0 } ?: 1
-            val models = response.response.mapIndexed { idx, entry ->
-                val stats = entry.statistics?.firstOrNull()
-                val valTotal = stats?.cards?.red ?: 0
-                PlayerStatUiModel(
-                    rank = idx + 1,
-                    playerName = entry.player?.name ?: "Player",
-                    clubName = stats?.team?.name ?: "",
-                    avatarUrl = entry.player?.photo,
-                    statValue = valTotal,
-                    secondaryStatLabel = "\uD83D\uDFE5 $valTotal",
-                    progressFraction = if (maxVal > 0) valTotal.toFloat() / maxVal else 0f
-                )
-            }
-            _state.update { it.copy(topRedCards = ApiResult.Success(models)) }
-        } catch (e: Exception) {
-            _state.update { it.copy(topRedCards = ApiResult.Error(e.message ?: "Failed")) }
-        }
+        _state.update { it.copy(topRedCards = ApiResult.Error("Not available in current API version")) }
     }
 
     private suspend fun loadTeams(leagueId: Int, season: Int) {
         try {
-            val response = apiService.getTeamsForLeagueSeason(leagueId, season)
-            val models = response.response.map { TeamUiModel(it.team?.id ?: 0, it.team?.name ?: "", it.team?.logo) }
+            val teams = apiService.getTeams(leagueId = leagueId.toString())
+            val models = teams.map { TeamUiModel(it.team_key.toIntOr(0), it.team_name ?: "", it.team_badge) }
             _state.update { it.copy(teams = ApiResult.Success(models)) }
         } catch (e: Exception) {
             _state.update { it.copy(teams = ApiResult.Error(e.message ?: "Failed")) }

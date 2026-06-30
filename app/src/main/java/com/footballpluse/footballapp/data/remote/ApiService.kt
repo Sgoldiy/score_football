@@ -6,229 +6,85 @@ import retrofit2.http.Query
 
 interface ApiService {
 
-    // Fixtures
-    @GET("fixtures")
-    suspend fun getFixturesByDate(
-        @Query("date") date: String
-    ): ApiResponse<List<FixtureResponse>>
-
-    @GET("fixtures")
-    suspend fun getLiveFixtures(
-        @Query("live") live: String = "all"
-    ): ApiResponse<List<FixtureResponse>>
-
-    @GET("fixtures")
-    suspend fun getTodayFixtures(
-        @Query("date") date: String = "today"
-    ): ApiResponse<List<FixtureResponse>>
-
-    @GET("fixtures")
-    suspend fun getFixturesByTeamSeasonLeague(
-        @Query("team") teamId: Int,
-        @Query("season") season: Int,
-        @Query("league") leagueId: Int
-    ): ApiResponse<List<FixtureResponse>>
-
-    @GET("fixtures")
-    suspend fun getFixturesByLeagueSeason(
-        @Query("league") leagueId: Int,
-        @Query("season") season: Int
-    ): ApiResponse<List<FixtureResponse>>
-
-    @GET("fixtures")
-    suspend fun getFixtureById(
-        @Query("id") fixtureId: Int
-    ): ApiResponse<List<FixtureResponse>>
-
-    @GET("fixtures")
-    suspend fun getNextFixtureForTeam(
-        @Query("team") teamId: Int,
-        @Query("next") next: Int = 1
-    ): ApiResponse<List<FixtureResponse>>
-
-    @GET("fixtures/headtohead")
-    suspend fun getHeadToHead(
-        @Query("h2h") teamsPair: String,
-        @Query("last") last: Int = 5
-    ): ApiResponse<List<FixtureResponse>>
-
-    @GET("fixtures/lineups")
-    suspend fun getFixtureLineups(
-        @Query("fixture") fixtureId: Int
-    ): ApiResponse<List<FixtureLineup>>
-
-    @GET("fixtures/events")
-    suspend fun getFixtureEvents(
-        @Query("fixture") fixtureId: Int
-    ): ApiResponse<List<FixtureEvent>>
-
-    @GET("fixtures/statistics")
-    suspend fun getFixtureStatistics(
-        @Query("fixture") fixtureId: Int
-    ): ApiResponse<List<FixtureTeamStatistics>>
-
-    @GET("fixtures/players")
-    suspend fun getFixturePlayerStatistics(
-        @Query("fixture") fixtureId: Int
-    ): ApiResponse<List<FixturePlayerStatisticsResponse>>
-
-    // Standings
-    @GET("standings")
-    suspend fun getStandings(
-        @Query("league") leagueId: Int,
-        @Query("season") season: Int
-    ): ApiResponse<List<Standing>>
-
-    // Teams
-    @GET("teams")
-    suspend fun getTeamInfo(
-        @Query("id") teamId: Int
-    ): ApiResponse<List<TeamInfoResponse>>
-
-    @GET("teams")
-    suspend fun getTeamsForLeagueSeason(
-        @Query("league") leagueId: Int,
-        @Query("season") season: Int
-    ): ApiResponse<List<TeamInfoResponse>>
-
-    @GET("teams/statistics")
-    suspend fun getTeamStatistics(
-        @Query("team") teamId: Int,
-        @Query("league") leagueId: Int,
-        @Query("season") season: Int
-    ): ApiResponse<TeamStatistics>
-
-    @GET("venues")
-    suspend fun getVenueById(
-        @Query("id") venueId: Int
-    ): ApiResponse<List<Venue>>
-
-    @GET("players/squads")
-    suspend fun getTeamSquad(
-        @Query("team") teamId: Int
-    ): ApiResponse<List<SquadResponse>>
-
-    @GET("coachs")
-    suspend fun getTeamCoaches(
-        @Query("team") teamId: Int
-    ): ApiResponse<List<Coach>>
-
-    @GET("transfers")
-    suspend fun getTeamTransfers(
-        @Query("team") teamId: Int
-    ): ApiResponse<List<Transfer>>
-
-    // Players
-    @GET("players")
-    suspend fun getPlayerStats(
-        @Query("id") playerId: Int,
-        @Query("season") season: Int
-    ): ApiResponse<List<PlayerProfileStatisticsResponse>>
-
-    @GET("trophies")
-    suspend fun getPlayerTrophies(
-        @Query("player") playerId: Int
-    ): ApiResponse<List<PlayerTrophy>>
-
-    @GET("sidelined")
-    suspend fun getPlayerSidelined(
-        @Query("player") playerId: Int
-    ): ApiResponse<List<PlayerSidelined>>
+    // Countries
+    @GET("?action=get_countries")
+    suspend fun getCountries(): List<ApiCountry>
 
     // Leagues
-    @GET("leagues")
-    suspend fun getLeagues(): ApiResponse<List<LeagueResponse>>
+    @GET("?action=get_leagues")
+    suspend fun getLeagues(
+        @Query("country_id") countryId: String? = null
+    ): List<ApiLeague>
 
-    @GET("leagues")
-    suspend fun getLeagueByIdAndCurrent(
-        @Query("id") leagueId: Int,
-        @Query("current") current: String = "true"
-    ): ApiResponse<List<LeagueResponse>>
+    // Teams
+    @GET("?action=get_teams")
+    suspend fun getTeams(
+        @Query("league_id") leagueId: String? = null,
+        @Query("team_id") teamId: String? = null
+    ): List<ApiTeam>
 
-    @GET("fixtures/rounds")
-    suspend fun getCurrentRound(
-        @Query("league") leagueId: Int,
-        @Query("season") season: Int,
-        @Query("current") current: String = "true"
-    ): ApiResponse<List<String>>
+    // Players
+    @GET("?action=get_players")
+    suspend fun getPlayers(
+        @Query("player_id") playerId: String? = null,
+        @Query("player_name") playerName: String? = null
+    ): List<ApiPlayer>
 
-    @GET("countries")
-    suspend fun getCountries(): ApiResponse<List<Country>>
+    // Standings
+    @GET("?action=get_standings")
+    suspend fun getStandings(
+        @Query("league_id") leagueId: String
+    ): List<ApiStanding>
 
-    @GET("leagues/seasons")
-    suspend fun getSeasons(): ApiResponse<List<Int>>
+    // Events (Fixtures)
+    @GET("?action=get_events")
+    suspend fun getEvents(
+        @Query("from") from: String? = null,
+        @Query("to") to: String? = null,
+        @Query("league_id") leagueId: String? = null,
+        @Query("match_id") matchId: String? = null
+    ): List<ApiEvent>
 
-    // Top Players
-    @GET("players/topscorers")
-    suspend fun getTopScorers(
-        @Query("league") leagueId: Int,
-        @Query("season") season: Int
-    ): ApiResponse<List<PlayerProfileStatisticsResponse>>
+    // Lineups
+    @GET("?action=get_lineups")
+    suspend fun getLineups(
+        @Query("match_id") matchId: String
+    ): List<ApiTeamLineup>
 
-    @GET("players/topassists")
-    suspend fun getTopAssists(
-        @Query("league") leagueId: Int,
-        @Query("season") season: Int
-    ): ApiResponse<List<PlayerProfileStatisticsResponse>>
+    // Statistics
+    @GET("?action=get_statistics")
+    suspend fun getMatchStatistics(
+        @Query("match_id") matchId: String
+    ): List<ApiMatchStatistic>
 
-    @GET("players/topyellowcards")
-    suspend fun getTopYellowCards(
-        @Query("league") leagueId: Int,
-        @Query("season") season: Int
-    ): ApiResponse<List<PlayerProfileStatisticsResponse>>
-
-    @GET("players/topredcards")
-    suspend fun getTopRedCards(
-        @Query("league") leagueId: Int,
-        @Query("season") season: Int
-    ): ApiResponse<List<PlayerProfileStatisticsResponse>>
-
-    // Search
-    @GET("teams")
-    suspend fun searchTeams(
-        @Query("search") query: String
-    ): ApiResponse<List<TeamInfoResponse>>
-
-    @GET("leagues")
-    suspend fun searchLeagues(
-        @Query("search") query: String
-    ): ApiResponse<List<LeagueResponse>>
-
-    @GET("players")
-    suspend fun searchPlayers(
-        @Query("search") query: String,
-        @Query("league") leagueId: Int? = null,
-        @Query("season") season: Int? = null
-    ): ApiResponse<List<PlayerProfileStatisticsResponse>>
-
-    @GET("players")
-    suspend fun getPlayersByLeagueSeason(
-        @Query("league") leagueId: Int,
-        @Query("season") season: Int,
-        @Query("page") page: Int = 1
-    ): ApiResponse<List<PlayerProfileStatisticsResponse>>
-
-    @GET("fixtures/events")
-    suspend fun getLeagueEvents(
-        @Query("league") leagueId: Int,
-        @Query("season") season: Int,
-        @Query("type") type: String = "Goal"
-    ): ApiResponse<List<FixtureEvent>>
-
-    // Others
-    @GET("predictions")
-    suspend fun getPredictions(
-        @Query("fixture") fixtureId: Int
-    ): ApiResponse<List<Prediction>>
-
-    @GET("odds")
+    // Odds
+    @GET("?action=get_odds")
     suspend fun getOdds(
-        @Query("fixture") fixtureId: Int,
-        @Query("bookmaker") bookmakerId: Int? = null
-    ): ApiResponse<List<OddsResponse>>
+        @Query("match_id") matchId: String
+    ): List<ApiOdd>
 
-    @GET("injuries")
-    suspend fun getInjuries(
-        @Query("fixture") fixtureId: Int
-    ): ApiResponse<List<Injury>>
+    // Top Scorers
+    @GET("?action=get_topscorers")
+    suspend fun getTopScorers(
+        @Query("league_id") leagueId: String
+    ): List<ApiTopScorer>
+
+    // Head to Head
+    @GET("?action=get_H2H")
+    suspend fun getHeadToHead(
+        @Query("firstTeamId") firstTeamId: String,
+        @Query("secondTeamId") secondTeamId: String
+    ): List<ApiEvent>
+
+    // Livescore
+    @GET("?action=get_livescore")
+    suspend fun getLivescore(
+        @Query("match_id") matchId: String? = null
+    ): List<ApiEvent>
+
+    // Predictions
+    @GET("?action=get_predictions")
+    suspend fun getPredictions(
+        @Query("match_id") matchId: String
+    ): List<ApiPrediction>
 }

@@ -1,39 +1,10 @@
 package com.footballpluse.footballapp.data.remote
 
-import com.footballpluse.footballapp.data.model.StatisticValue
+import com.footballpluse.footballapp.data.model.*
 import com.squareup.moshi.FromJson
 import com.squareup.moshi.JsonReader
 
 class FlexibleJsonAdapters {
-
-    @FromJson
-    fun apiParametersFromJson(reader: JsonReader): ApiParameters {
-        return when (val raw = reader.readJsonValue()) {
-            is Map<*, *> -> ApiParameters(
-                raw.mapNotNull { (key, value) ->
-                    val k = key?.toString() ?: return@mapNotNull null
-                    k to value.toString()
-                }.toMap()
-            )
-            else -> ApiParameters()
-        }
-    }
-
-    @FromJson
-    fun apiErrorsFromJson(reader: JsonReader): ApiErrors {
-        return when (val raw = reader.readJsonValue()) {
-            is Map<*, *> -> ApiErrors(
-                raw.mapNotNull { (key, value) ->
-                    val k = key?.toString() ?: return@mapNotNull null
-                    "$k: $value"
-                }
-            )
-            is List<*> -> ApiErrors(raw.mapNotNull { it?.toString() })
-            is String -> ApiErrors(listOf(raw))
-            null -> ApiErrors()
-            else -> ApiErrors(listOf(raw.toString()))
-        }
-    }
 
     @FromJson
     fun statisticValueFromJson(reader: JsonReader): StatisticValue {

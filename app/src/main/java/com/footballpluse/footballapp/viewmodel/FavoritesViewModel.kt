@@ -49,7 +49,7 @@ class FavoritesViewModel @Inject constructor(
                             async {
                                 val result = fixturesRepository.getNextFixtureForTeam(club.clubId, 1)
                                 val nextFixture = when (result) {
-                                    is ApiResult.Success -> result.data.firstOrNull()
+                                    is ApiResult.Success -> result.data
                                     else -> null
                                 }
                                 

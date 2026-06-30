@@ -48,7 +48,7 @@ class AppSettingsDataStore @Inject constructor(
 
     // Favourite league (DataStore keys required by onboarding)
     val favouriteLeagueId: Flow<Int> = context.dataStore.data
-        .map { preferences -> preferences[FAVOURITE_LEAGUE_ID_KEY] ?: 39 } // default EPL
+        .map { preferences -> preferences[FAVOURITE_LEAGUE_ID_KEY] ?: 152 } // default EPL
 
     val favouriteLeagueName: Flow<String> = context.dataStore.data
         .map { preferences -> preferences[FAVOURITE_LEAGUE_NAME_KEY] ?: "Premier League" }

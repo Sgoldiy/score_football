@@ -2,6 +2,7 @@ package com.footballpluse.footballapp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.footballpluse.footballapp.data.mapper.*
 import com.footballpluse.footballapp.data.model.*
 import com.footballpluse.footballapp.data.remote.ApiService
 import com.footballpluse.footballapp.data.util.ApiResult
@@ -143,15 +144,15 @@ class StatsViewModel @Inject constructor(
 
     // Default supported leagues for the selector sheet
     val availableLeagues = listOf(
-        StatsLeague(39, "Premier League", "https://media.api-sports.io/football/leagues/39.png", 2025),
-        StatsLeague(140, "La Liga", "https://media.api-sports.io/football/leagues/140.png", 2025),
-        StatsLeague(135, "Serie A", "https://media.api-sports.io/football/leagues/135.png", 2025),
-        StatsLeague(78, "Bundesliga", "https://media.api-sports.io/football/leagues/78.png", 2025),
-        StatsLeague(61, "Ligue 1", "https://media.api-sports.io/football/leagues/61.png", 2025),
-        StatsLeague(2, "Champions League", "https://media.api-sports.io/football/leagues/2.png", 2025),
-        StatsLeague(3, "Europa League", "https://media.api-sports.io/football/leagues/3.png", 2025),
-        StatsLeague(1, "FIFA World Cup", "https://media.api-sports.io/football/leagues/1.png", 2026),
-        StatsLeague(4, "UEFA Euros", "https://media.api-sports.io/football/leagues/4.png", 2024)
+        StatsLeague(152, "Premier League", "https://apiv3.apifootball.com/badges/logo_leagues/152_premier-league.png", 2025),
+        StatsLeague(302, "La Liga", "https://apiv3.apifootball.com/badges/logo_leagues/302_la-liga.png", 2025),
+        StatsLeague(207, "Serie A", "https://apiv3.apifootball.com/badges/logo_leagues/207_serie-a.png", 2025),
+        StatsLeague(175, "Bundesliga", "https://apiv3.apifootball.com/badges/logo_leagues/175_bundesliga.png", 2025),
+        StatsLeague(168, "Ligue 1", "https://apiv3.apifootball.com/badges/logo_leagues/168_ligue-1.png", 2025),
+        StatsLeague(3, "Champions League", "https://apiv3.apifootball.com/badges/logo_leagues/3_uefa-champions-league.png", 2025),
+        StatsLeague(4, "Europa League", "https://apiv3.apifootball.com/badges/logo_leagues/4_uefa-europa-league.png", 2025),
+        StatsLeague(28, "FIFA World Cup", "https://apiv3.apifootball.com/badges/logo_leagues/28_world-cup.png", 2026),
+        StatsLeague(1, "UEFA Euros", "https://apiv3.apifootball.com/badges/logo_leagues/1_uefa-european-championship.png", 2024)
     )
 
     init {
@@ -216,19 +217,16 @@ class StatsViewModel @Inject constructor(
             }
 
             try {
-                // Fetch scorers and assists in parallel
-                val scorersDeferred = async { apiService.getTopScorers(leagueId, season).response }
-                val assistsDeferred = async { apiService.getTopAssists(leagueId, season).response }
-                val ratingsDeferred = async {
-                    try {
-                        apiService.getPlayersByLeagueSeason(leagueId, season, 1).response
-                    } catch (e: Exception) {
-                        emptyList()
-                    }
+                val scorersDeferred = async {
+                    apiService.getTopScorers(leagueId.toString())
+                        .map { it.toPlayerProfileStatisticsResponse() }
                 }
+                val assistsDeferred = async { emptyList<PlayerProfileStatisticsResponse>() }
+                val ratingsDeferred = async { emptyList<PlayerProfileStatisticsResponse>() }
                 val fixturesDeferred = async {
                     try {
-                        apiService.getFixturesByLeagueSeason(leagueId, season).response
+                        apiService.getEvents(leagueId = leagueId.toString())
+                            .toFixtureResponseList()
                     } catch (e: Exception) {
                         emptyList()
                     }
@@ -297,13 +295,17 @@ class StatsViewModel @Inject constructor(
             }
 
             try {
-                val standingsDeferred = async { apiService.getStandings(leagueId, season).response }
-                val fixturesDeferred = async { apiService.getFixturesByLeagueSeason(leagueId, season).response }
+                val standingsDeferred = async {
+                    apiService.getStandings(leagueId.toString()).toStanding()
+                }
+                val fixturesDeferred = async {
+                    apiService.getEvents(leagueId = leagueId.toString()).toFixtureResponseList()
+                }
 
-                val standingsResponse = standingsDeferred.await()
+                val standing = standingsDeferred.await()
                 val fixtures = fixturesDeferred.await()
 
-                val standingsRecords = standingsResponse.firstOrNull()?.league?.standings?.flatten() ?: emptyList()
+                val standingsRecords = standing.league?.standings?.flatten() ?: emptyList()
 
                 if (standingsRecords.isEmpty()) {
                     _clubsState.value = ClubsStatsUiState.Error("No standings found for this competition.")
@@ -372,9 +374,10 @@ class StatsViewModel @Inject constructor(
             }
 
             try {
-                val scorers = apiService.getTopScorers(leagueId, season).response
-                val standings = apiService.getStandings(leagueId, season).response
-                val standingsRecords = standings.firstOrNull()?.league?.standings?.flatten() ?: emptyList()
+                val scorers = apiService.getTopScorers(leagueId.toString())
+                    .map { it.toPlayerProfileStatisticsResponse() }
+                val standing = apiService.getStandings(leagueId.toString()).toStanding()
+                val standingsRecords = standing.league?.standings?.flatten() ?: emptyList()
 
                 // 1. Player XG Performance
                 val playerXg = scorers.take(5).mapIndexed { idx, playerStats ->
@@ -476,7 +479,7 @@ class StatsViewModel @Inject constructor(
             }
 
             try {
-                val fixtures = apiService.getFixturesByLeagueSeason(leagueId, season).response
+                val fixtures = apiService.getEvents(leagueId = leagueId.toString()).toFixtureResponseList()
                 val finished = fixtures.filter { it.fixture?.status?.short == "FT" }
 
                 if (finished.isEmpty()) {
@@ -612,11 +615,8 @@ class StatsViewModel @Inject constructor(
             }
 
             try {
-                val yellowDeferred = async { apiService.getTopYellowCards(leagueId, season).response }
-                val redDeferred = async { apiService.getTopRedCards(leagueId, season).response }
-
-                val yellow = yellowDeferred.await()
-                val red = redDeferred.await()
+                val yellow = emptyList<PlayerProfileStatisticsResponse>()
+                val red = emptyList<PlayerProfileStatisticsResponse>()
 
                 if (yellow.isEmpty() && red.isEmpty()) {
                     _disciplineState.value = DisciplineUiState.Error("No card data available for this competition.")

@@ -2,8 +2,9 @@ package com.footballpluse.footballapp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.footballpluse.footballapp.data.model.PlayerProfileStatisticsResponse
+import com.footballpluse.footballapp.data.mapper.*
 import com.footballpluse.footballapp.data.model.LeagueResponse
+import com.footballpluse.footballapp.data.model.PlayerProfileStatisticsResponse
 import com.footballpluse.footballapp.data.remote.ApiService
 import com.footballpluse.footballapp.data.util.ApiResult
 import com.footballpluse.footballapp.data.util.SeasonUtils
@@ -97,11 +98,11 @@ class HomeViewModel @Inject constructor(
             val season = 2025 // Ensure we fetch 2025/26 scorers
 
             // Fetch top scorers from all top-5 European leagues concurrently
-            val top5LeagueIds = listOf(39, 140, 78, 135, 61) // EPL, La Liga, Bundesliga, Serie A, Ligue 1
+            val top5LeagueIds = listOf(152, 302, 175, 207, 168) // EPL, La Liga, Bundesliga, Serie A, Ligue 1
             val scorersList = try {
                 coroutineScope {
                     top5LeagueIds
-                        .map { leagueId -> async { runCatching { apiService.getTopScorers(leagueId, season).response }.getOrDefault(emptyList()) } }
+                        .map { leagueId -> async { runCatching { apiService.getTopScorers(leagueId.toString()).map { it.toPlayerProfileStatisticsResponse() } }.getOrDefault(emptyList()) } }
                         .flatMap { it.await() }
                         .sortedByDescending { it.statistics?.firstOrNull()?.goals?.total ?: 0 }
                         .take(10)
@@ -111,7 +112,7 @@ class HomeViewModel @Inject constructor(
             }
 
             val allLeagues = try {
-                apiService.getLeagues().response
+                apiService.getLeagues()
             } catch (e: Exception) {
                 emptyList()
             }
@@ -135,7 +136,7 @@ class HomeViewModel @Inject constructor(
                         val finished = matches.filter { it.status.short in listOf("FT", "AET", "PEN") }
                         
                         // Priority leagues for featured
-                        val priorityLeagues = setOf(39, 140, 135, 78, 61, 2, 3)
+                        val priorityLeagues = setOf(152, 302, 207, 175, 168, 3, 4, 28)
                         val featured = matches.sortedWith(
                             compareByDescending<Match> { it.isLive }
                                 .thenByDescending { it.league.id in priorityLeagues }
@@ -146,7 +147,7 @@ class HomeViewModel @Inject constructor(
                             .sortedByDescending { it.id in priorityLeagues }
 
                         val favLeagueIds = followed.ifEmpty { setOf(onboardingFavId) }
-                        val favLeaguesList = allLeagues.filter { it.league?.id in favLeagueIds }
+                        val favLeaguesList = allLeagues.filter { it.league_id?.toIntOrNull() in favLeagueIds }.map { it.toLeagueResponse() }
 
                         _uiState.value = HomeUiState.Success(
                             featuredMatches = featured,
@@ -167,7 +168,7 @@ class HomeViewModel @Inject constructor(
                         }
                     }
                 }
-            }
+            }.collect()
         }
         
         // Start live matches polling if needed

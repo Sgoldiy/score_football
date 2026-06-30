@@ -26,8 +26,8 @@ class SplashViewModel @Inject constructor(
 
     private fun resolveStartDestination() {
         viewModelScope.launch {
-            val isCompleted = dataStoreManager.isOnboardingCompleted.first()
-            _startDestination.value = if (isCompleted) Screen.Home.route else Screen.Onboarding.route
+            // Force start at Home as requested, ignoring onboarding status for now.
+            _startDestination.value = Screen.Home.route
         }
     }
 }

@@ -2,6 +2,7 @@ package com.footballpluse.footballapp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.footballpluse.footballapp.data.mapper.*
 import com.footballpluse.footballapp.data.model.Country
 import com.footballpluse.footballapp.data.model.LeagueResponse
 import com.footballpluse.footballapp.data.model.FixtureResponse
@@ -114,32 +115,34 @@ class LeaguesViewModel @Inject constructor(
 
         val activeFavIds = if (followedIds.isEmpty()) setOf(onboardingFavId) else followedIds
 
-        rawLeagues.map { item ->
-            val id = item.league?.id ?: 0
-            val cachedDetails = stageAndTeamCache[id]
-            val type = item.league?.type ?: "League"
-            val countryName = item.country?.name ?: "International"
-            val isInternational = item.league?.country == "World" || countryName == "World" || item.country?.code == null
+        rawLeagues
+            .map { item ->
+                val id = item.league?.id ?: 0
+                val cachedDetails = stageAndTeamCache[id]
+                val type = item.league?.type ?: "League"
+                val countryName = item.country?.name ?: "International"
+                val isInternational = item.league?.country == "World" || countryName == "World" || item.country?.code == null
 
-            League(
-                id = id,
-                name = item.league?.name ?: "Unknown League",
-                country = countryName,
-                logoUrl = item.league?.logo ?: "",
-                season = item.seasons?.find { it.current == true }?.year?.toString() ?: item.league?.season?.toString() ?: "2025",
-                leagueType = type,
-                isInternational = isInternational,
-                currentRound = cachedDetails?.first,
-                teamCount = cachedDetails?.second,
-                liveCount = liveCounts[id] ?: 0,
-                todayCount = todayCounts[id] ?: 0,
-                isFavorited = id in activeFavIds
-            )
-        }
+                League(
+                    id = id,
+                    name = item.league?.name ?: "Unknown League",
+                    country = countryName,
+                    logoUrl = item.league?.logo ?: "",
+                    season = item.seasons?.find { it.current == true }?.year?.toString() ?: item.league?.season?.toString() ?: "2025",
+                    leagueType = type,
+                    isInternational = isInternational,
+                    currentRound = cachedDetails?.first,
+                    teamCount = cachedDetails?.second,
+                    liveCount = liveCounts[id] ?: 0,
+                    todayCount = todayCounts[id] ?: 0,
+                    isFavorited = id in activeFavIds
+                )
+            }
+            .distinctBy { it.id }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val popularLeagues: StateFlow<List<League>> = allLeagues.map { list ->
-        val topCompetitionsIds = setOf(1, 2, 3, 4, 39, 140, 78, 135, 61, 88)
+        val topCompetitionsIds = setOf(152, 302, 207, 175, 168, 3, 4, 683, 1, 28)
         list.filter { it.id in topCompetitionsIds || it.isFavorited }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -257,31 +260,17 @@ class LeaguesViewModel @Inject constructor(
 
         val job = viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
-                val leagueRes = apiService.getLeagueByIdAndCurrent(leagueId).response.firstOrNull()
-                val currentSeason = leagueRes?.seasons?.firstOrNull()
-                val year = currentSeason?.year ?: 2025
-                val hasStandings = currentSeason?.coverage?.standings ?: false
-
-                val roundRes = try {
-                    apiService.getCurrentRound(leagueId, year).response.firstOrNull()
-                } catch (e: Exception) {
-                    null
-                }
-
                 val teamCount = try {
-                    if (hasStandings) {
-                        val standingsRes = apiService.getStandings(leagueId, year).response
-                        standingsRes.firstOrNull()?.league?.standings?.flatten()?.size ?: 20
-                    } else {
-                        val teamsRes = apiService.getTeamsForLeagueSeason(leagueId, year).response
-                        teamsRes.size
-                    }
+                    val standingsRes = apiService.getStandings(leagueId.toString())
+                    standingsRes.size
                 } catch (e: Exception) {
-                    20
+                    try {
+                        val teamsRes = apiService.getTeams(leagueId = leagueId.toString())
+                        teamsRes.size
+                    } catch (_: Exception) { 20 }
                 }
 
-                val stage = roundRes ?: "Regular Season"
-                stageAndTeamCache[leagueId] = Pair(stage, teamCount)
+                stageAndTeamCache[leagueId] = Pair("Regular Season", teamCount)
                 _triggerDetailsUpdate.update { it + 1 }
             } catch (e: Exception) {
                 // Ignore background errors
@@ -303,11 +292,12 @@ class LeaguesViewModel @Inject constructor(
 
     private suspend fun refreshFixtureCountsOnly() = coroutineScope {
         try {
+            val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
             val liveDeferred = async(kotlinx.coroutines.Dispatchers.IO) {
-                try { apiService.getLiveFixtures().response } catch (e: Exception) { emptyList<FixtureResponse>() }
+                try { apiService.getLivescore().toFixtureResponseList() } catch (e: Exception) { emptyList<FixtureResponse>() }
             }
             val todayDeferred = async(kotlinx.coroutines.Dispatchers.IO) {
-                try { apiService.getTodayFixtures().response } catch (e: Exception) { emptyList<FixtureResponse>() }
+                try { apiService.getEvents(from = todayStr, to = todayStr).toFixtureResponseList() } catch (e: Exception) { emptyList<FixtureResponse>() }
             }
 
             val liveFixtures = liveDeferred.await()
@@ -336,17 +326,18 @@ class LeaguesViewModel @Inject constructor(
             _isLoading.value = true
             _errorMessage.value = null
             try {
+                val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
                 val leaguesDeferred = async { repository.getLeagues() }
                 val liveDeferred = async {
                     try {
-                        apiService.getLiveFixtures().response
+                        apiService.getLivescore().toFixtureResponseList()
                     } catch (e: Exception) {
                         emptyList<FixtureResponse>()
                     }
                 }
                 val todayDeferred = async {
                     try {
-                        apiService.getTodayFixtures().response
+                        apiService.getEvents(from = todayStr, to = todayStr).toFixtureResponseList()
                     } catch (e: Exception) {
                         emptyList<FixtureResponse>()
                     }

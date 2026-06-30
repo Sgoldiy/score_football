@@ -41,7 +41,7 @@ object NetworkModule {
     @Singleton
     fun provideRetrofit(okHttpClient: OkHttpClient, moshi: Moshi): Retrofit {
         return Retrofit.Builder()
-            .baseUrl("https://api-football-v1.p.rapidapi.com/v3/")
+            .baseUrl("https://apifootball3.p.rapidapi.com/")
             .client(okHttpClient)
             .addConverterMoshi(MoshiConverterFactory.create(moshi))
             .build()

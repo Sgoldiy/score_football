@@ -2,6 +2,7 @@ package com.footballpluse.footballapp.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.footballpluse.footballapp.data.mapper.*
 import com.footballpluse.footballapp.data.model.PlayerProfileStatisticsResponse
 import com.footballpluse.footballapp.data.remote.ApiService
 import com.footballpluse.footballapp.data.util.ApiResult
@@ -25,17 +26,17 @@ class TopPlayersViewModel @Inject constructor(
     )
 
     val tabs = listOf(
-        CompetitionTab("europe", "Europe", listOf(39, 140, 135, 78, 61), 2025),
-        CompetitionTab("premier_league", "Premier League", listOf(39), 2025),
-        CompetitionTab("la_liga", "La Liga", listOf(140), 2025),
-        CompetitionTab("serie_a", "Serie A", listOf(135), 2025),
-        CompetitionTab("bundesliga", "Bundesliga", listOf(78), 2025),
-        CompetitionTab("ligue_1", "Ligue 1", listOf(61), 2025),
-        CompetitionTab("ucl", "UCL", listOf(2), 2025),
-        CompetitionTab("uel", "UEL", listOf(3), 2025),
-        CompetitionTab("uecl", "UECL", listOf(848), 2025),
-        CompetitionTab("world_cup", "World Cup", listOf(1), 2026),
-        CompetitionTab("euro", "Euro", listOf(4), 2024),
+        CompetitionTab("europe", "Europe", listOf(152, 302, 207, 175, 168), 2025),
+        CompetitionTab("premier_league", "Premier League", listOf(152), 2025),
+        CompetitionTab("la_liga", "La Liga", listOf(302), 2025),
+        CompetitionTab("serie_a", "Serie A", listOf(207), 2025),
+        CompetitionTab("bundesliga", "Bundesliga", listOf(175), 2025),
+        CompetitionTab("ligue_1", "Ligue 1", listOf(168), 2025),
+        CompetitionTab("ucl", "UCL", listOf(3), 2025),
+        CompetitionTab("uel", "UEL", listOf(4), 2025),
+        CompetitionTab("uecl", "UECL", listOf(683), 2025),
+        CompetitionTab("world_cup", "World Cup", listOf(28), 2026),
+        CompetitionTab("euro", "Euro", listOf(1), 2024),
         CompetitionTab("copa_america", "Copa America", listOf(9), 2024),
     )
 
@@ -64,16 +65,19 @@ class TopPlayersViewModel @Inject constructor(
             try {
                 if (tab.leagueIds.size > 1) {
                     val scorersDefs = tab.leagueIds.map { leagueId ->
-                        async { apiService.getTopScorers(leagueId, tab.season).response }
+                        async {
+                            apiService.getTopScorers(leagueId.toString())
+                                .map { it.toPlayerProfileStatisticsResponse() }
+                        }
                     }
                     val assistsDefs = tab.leagueIds.map { leagueId ->
-                        async { apiService.getTopAssists(leagueId, tab.season).response }
+                        async { emptyList<PlayerProfileStatisticsResponse>() }
                     }
                     val yellowDefs = tab.leagueIds.map { leagueId ->
-                        async { apiService.getTopYellowCards(leagueId, tab.season).response }
+                        async { emptyList<PlayerProfileStatisticsResponse>() }
                     }
                     val redDefs = tab.leagueIds.map { leagueId ->
-                        async { apiService.getTopRedCards(leagueId, tab.season).response }
+                        async { emptyList<PlayerProfileStatisticsResponse>() }
                     }
 
                     _tabData.value = _tabData.value + (tab.id to ApiResult.Success(
@@ -98,22 +102,25 @@ class TopPlayersViewModel @Inject constructor(
                     ))
                 } else {
                     val leagueId = tab.leagueIds.first()
-                    val scorersDef = async { apiService.getTopScorers(leagueId, tab.season) }
-                    val assistsDef = async { apiService.getTopAssists(leagueId, tab.season) }
-                    val yellowDef = async { apiService.getTopYellowCards(leagueId, tab.season) }
-                    val redDef = async { apiService.getTopRedCards(leagueId, tab.season) }
+                    val scorersDef = async {
+                        apiService.getTopScorers(leagueId.toString())
+                            .map { it.toPlayerProfileStatisticsResponse() }
+                    }
+                    val assistsDef = async { emptyList<PlayerProfileStatisticsResponse>() }
+                    val yellowDef = async { emptyList<PlayerProfileStatisticsResponse>() }
+                    val redDef = async { emptyList<PlayerProfileStatisticsResponse>() }
 
-                    val scorers = scorersDef.await()
+                    val scorers = scorersDef.await().sortedByDescending { it.statistics?.firstOrNull()?.goals?.total ?: 0 }.take(30)
                     val assists = assistsDef.await()
                     val yellow = yellowDef.await()
                     val red = redDef.await()
 
                     _tabData.value = _tabData.value + (tab.id to ApiResult.Success(
                         TopPlayersData(
-                            scorers = scorers.response.sortedByDescending { it.statistics?.firstOrNull()?.goals?.total ?: 0 }.take(30),
-                            assists = assists.response.sortedByDescending { it.statistics?.firstOrNull()?.goals?.assists ?: 0 }.take(30),
-                            yellowCards = yellow.response.sortedByDescending { it.statistics?.firstOrNull()?.cards?.yellow ?: 0 }.take(20),
-                            redCards = red.response.sortedByDescending { it.statistics?.firstOrNull()?.cards?.red ?: 0 }.take(20)
+                            scorers = scorers,
+                            assists = assists,
+                            yellowCards = yellow,
+                            redCards = red
                         )
                     ))
                 }

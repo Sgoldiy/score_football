@@ -86,7 +86,7 @@ fun SetupNavGraph(
         startDestination = startDestination
     ) {
         navigation(
-            startDestination = Screen.OnboardingLeague.route,
+            startDestination = Screen.OnboardingWelcome.route,
             route = Screen.Onboarding.route
         ) {
             composable(
@@ -260,12 +260,6 @@ fun SetupNavGraph(
                 onNavigateToLeagues = { navController.navigate(Screen.Leagues.route) },
                 onNavigateToLeagueDetail = { leagueId, season ->
                     navController.navigate(Screen.LeagueDetail.createRoute(leagueId, season))
-                },
-                onNavigateToPlayerProfile = { playerId ->
-                    navController.navigate(Screen.PlayerProfile.createRoute(playerId))
-                },
-                onNavigateToTopPlayers = {
-                    navController.navigate(Screen.Stats.route)
                 },
                 onNavigateToClubInfo = { teamId, leagueId ->
                     navController.navigate(Screen.ClubInfo.createRoute(teamId, leagueId))

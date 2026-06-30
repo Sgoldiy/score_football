@@ -9,10 +9,9 @@ class AuthInterceptor @Inject constructor() : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val originalRequest = chain.request()
         val requestWithHeaders = originalRequest.newBuilder()
-            .header("x-rapidapi-host", "api-football-v1.p.rapidapi.com")
-            .header("x-rapidapi-key", "3bdb371035msh4a88eff8edf2ec5p103690jsnd48d0c24e31b")
-            .header("Accept", "application/json")
-            .header("User-Agent", "PostmanRuntime/7.32.3") // Imitate Postman if it works there
+            .header("x-rapidapi-host", "apifootball3.p.rapidapi.com")
+            .header("x-rapidapi-key", "cfd7436d97mshd821fb1a26e77c5p1cd2c4jsn6f8e04c498fa")
+            .header("Content-Type", "application/json")
             .build()
         return chain.proceed(requestWithHeaders)
     }
