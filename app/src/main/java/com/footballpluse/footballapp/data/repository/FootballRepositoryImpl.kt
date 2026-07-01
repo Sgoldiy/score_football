@@ -72,13 +72,13 @@ class FootballRepositoryImpl @Inject constructor(
 
             val detailedEvents = response.events ?: emptyList()
 
-            val newLineups = try {
-                apiService.getLineups(matchId = fixtureId.toString())
-            } catch (_: Exception) { emptyList() }
+            val lineupWrapper = try {
+                apiService.getLineups(matchId = fixtureId.toString()).values.firstOrNull()?.lineup
+            } catch (_: Exception) { null }
 
-            val newStats = try {
-                apiService.getMatchStatistics(matchId = fixtureId.toString())
-            } catch (_: Exception) { emptyList() }
+            val statsWrapper = try {
+                apiService.getMatchStatistics(matchId = fixtureId.toString()).values.firstOrNull()
+            } catch (_: Exception) { null }
 
             val predictions = try {
                 apiService.getPredictions(matchId = fixtureId.toString())
@@ -95,15 +95,15 @@ class FootballRepositoryImpl @Inject constructor(
                     apiService.getHeadToHead(
                         firstTeamId = homeId.toString(),
                         secondTeamId = awayId.toString()
-                    ).toFixtureResponseList()
+                    ).allEvents().toFixtureResponseList()
                 } catch (_: Exception) { emptyList() }
             } else emptyList()
 
-            val lineups = if (newLineups.isNotEmpty()) {
-                val homeLineup = newLineups.firstOrNull()?.toFixtureLineup(
+            val lineups = if (lineupWrapper != null) {
+                val homeLineup = lineupWrapper.home?.toFixtureLineup(
                     homeId ?: 0, response.teams?.home?.name, response.teams?.home?.logo
                 )
-                val awayLineup = newLineups.getOrNull(1)?.toFixtureLineup(
+                val awayLineup = lineupWrapper.away?.toFixtureLineup(
                     awayId ?: 0, response.teams?.away?.name, response.teams?.away?.logo
                 )
                 homeLineup?.toMatchLineups(awayLineup)
@@ -111,8 +111,8 @@ class FootballRepositoryImpl @Inject constructor(
                 (response.lineups?.getOrNull(0))?.toMatchLineups(response.lineups?.getOrNull(1))
             }
 
-            val matchStats = if (newStats.isNotEmpty()) {
-                newStats.map { stat ->
+            val matchStats = if (statsWrapper != null) {
+                (statsWrapper.statistics ?: emptyList()).map { stat ->
                     MatchStat(
                         teamId = -1,
                         type = stat.type ?: "",

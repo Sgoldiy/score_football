@@ -109,7 +109,7 @@ internal fun ApiMatchStatistic.toFixtureTeamStatistics(homeId: Int, awayId: Int)
 internal fun ApiTeamLineup.toFixtureLineup(teamId: Int, teamName: String?, badge: String?): FixtureLineup {
     return FixtureLineup(
         team = FixtureTeam(id = teamId, name = teamName, logo = badge, winner = null, update = null, colors = null),
-        coach = coaches?.firstOrNull()?.let { LineupCoach(id = null, name = it.coach_name, photo = null) },
+        coach = coaches?.firstOrNull()?.let { LineupCoach(id = null, name = it.player, photo = null) },
         formation = null,
         startXI = starting_lineups?.map { it.toLineupPlayerWrapper() } ?: emptyList(),
         substitutes = substitutes?.map { it.toLineupPlayerWrapper() } ?: emptyList()

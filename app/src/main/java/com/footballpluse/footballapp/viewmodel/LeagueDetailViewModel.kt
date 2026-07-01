@@ -88,7 +88,7 @@ class LeagueDetailViewModel @Inject constructor(
                 val fixtures = apiService.getHeadToHead(
                     firstTeamId = teamAId.toString(),
                     secondTeamId = teamBId.toString()
-                ).toFixtureResponseList()
+                ).allEvents().toFixtureResponseList()
                 val teamAWins = fixtures.count { f ->
                     val w = f.teams?.home?.winner == true && f.teams?.home?.id == teamAId ||
                             f.teams?.away?.winner == true && f.teams?.away?.id == teamAId

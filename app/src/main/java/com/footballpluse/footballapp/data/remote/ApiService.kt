@@ -49,13 +49,13 @@ interface ApiService {
     @GET("?action=get_lineups")
     suspend fun getLineups(
         @Query("match_id") matchId: String
-    ): List<ApiTeamLineup>
+    ): Map<String, ApiLineupResponse>
 
     // Statistics
     @GET("?action=get_statistics")
     suspend fun getMatchStatistics(
         @Query("match_id") matchId: String
-    ): List<ApiMatchStatistic>
+    ): Map<String, ApiMatchStatisticsResponse>
 
     // Odds
     @GET("?action=get_odds")
@@ -74,7 +74,7 @@ interface ApiService {
     suspend fun getHeadToHead(
         @Query("firstTeamId") firstTeamId: String,
         @Query("secondTeamId") secondTeamId: String
-    ): List<ApiEvent>
+    ): ApiH2HResponse
 
     // Livescore
     @GET("?action=get_livescore")

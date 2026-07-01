@@ -155,12 +155,24 @@ data class ApiEvent(
     val team_home_badge: String?,
     val team_away_badge: String?,
     val league_logo: String?,
-    val goalscorer: List<ApiGoalScorer>?,
+    @Json(name = "goalscorers") val goalscorer: List<ApiGoalScorer>?,
     val cards: List<ApiCard>?,
     val substitutions: ApiSubstitutions?,
     val statistics: List<ApiMatchStatistic>?,
     val lineup: ApiLineupWrapper?
 )
+
+@JsonClass(generateAdapter = true)
+data class ApiH2HResponse(
+    val firstTeam_lastResults: List<ApiEvent>?,
+    val secondTeam_lastResults: List<ApiEvent>?,
+    val firstTeam_VS_secondTeam: List<ApiEvent>?
+) {
+    fun allEvents(): List<ApiEvent> =
+        (firstTeam_lastResults ?: emptyList()) +
+        (secondTeam_lastResults ?: emptyList()) +
+        (firstTeam_VS_secondTeam ?: emptyList())
+}
 
 @JsonClass(generateAdapter = true)
 data class ApiGoalScorer(
@@ -177,7 +189,7 @@ data class ApiCard(
     val card: String?,
     val away_fault: String?,
     val info: String?,
-    val info_time: String?
+    @Json(name = "score_info_time") val info_time: String?
 )
 
 @JsonClass(generateAdapter = true)
@@ -189,8 +201,8 @@ data class ApiSubstitutions(
 @JsonClass(generateAdapter = true)
 data class ApiSubstitution(
     val time: String?,
-    val substitution_in: String?,
-    val substitution_out: String?
+    val substitution: String?,
+    val substitution_player_id: String?
 )
 
 @JsonClass(generateAdapter = true)
@@ -201,31 +213,74 @@ data class ApiMatchStatistic(
 )
 
 @JsonClass(generateAdapter = true)
+data class ApiMatchStatisticsResponse(
+    val statistics: List<ApiMatchStatistic>?,
+    val player_statistics: List<ApiMatchPlayerStatistic>?,
+    val statistics_1half: List<ApiMatchStatistic>?
+)
+
+@JsonClass(generateAdapter = true)
+data class ApiMatchPlayerStatistic(
+    val player_name: String?,
+    val player_key: String?,
+    val team_name: String?,
+    val player_number: String?,
+    val player_position: String?,
+    val player_is_captain: String?,
+    val player_is_subst: String?,
+    val player_goals: String?,
+    val player_assists: String?,
+    val player_shots_total: String?,
+    val player_shots_on_goal: String?,
+    val player_goals_conceded: String?,
+    val player_fouls_commited: String?,
+    val player_tackles: String?,
+    val player_blocks: String?,
+    val player_clearances: String?,
+    val player_interceptions: String?,
+    val player_duels_total: String?,
+    val player_duels_won: String?,
+    val player_dribble_attempts: String?,
+    val player_dribble_succ: String?,
+    val player_passes: String?,
+    val player_passes_acc: String?,
+    val player_key_passes: String?,
+    val player_minutes_played: String?,
+    val player_rating: String?,
+    val player_yellowcards: String?,
+    val player_redcards: String?,
+    val player_saves: String?,
+    val player_pen_score: String?,
+    val player_pen_miss: String?,
+    val player_pen_save: String?,
+    val player_pen_won: String?,
+    val match_id: String?
+)
+
+@JsonClass(generateAdapter = true)
 data class ApiLineupWrapper(
     val home: ApiTeamLineup?,
     val away: ApiTeamLineup?
 )
 
 @JsonClass(generateAdapter = true)
+data class ApiLineupResponse(
+    val lineup: ApiLineupWrapper
+)
+
+@JsonClass(generateAdapter = true)
 data class ApiTeamLineup(
     val starting_lineups: List<ApiLineupPlayer>?,
     val substitutes: List<ApiLineupPlayer>?,
-    val coaches: List<ApiLineupCoach>?
+    val coaches: List<ApiLineupPlayer>?
 )
 
 @JsonClass(generateAdapter = true)
 data class ApiLineupPlayer(
-    val player: String?,
-    val player_number: String?,
-    val player_pos: String?,
-    val player_key: String?
-)
-
-@JsonClass(generateAdapter = true)
-data class ApiLineupCoach(
-    val coach_name: String?,
-    val coach_country: String?,
-    val coach_age: String?
+    @Json(name = "lineup_player") val player: String?,
+    @Json(name = "lineup_number") val player_number: String?,
+    @Json(name = "lineup_position") val player_pos: String?,
+    @Json(name = "player_key") val player_key: String?
 )
 
 @JsonClass(generateAdapter = true)
@@ -236,10 +291,10 @@ data class StatisticValue(
 
 @JsonClass(generateAdapter = true)
 data class ApiOdd(
-    val bookmaker: String?,
-    @Json(name = "1") val homeOdd: String?,
-    @Json(name = "X") val drawOdd: String?,
-    @Json(name = "2") val awayOdd: String?
+    @Json(name = "odd_bookmakers") val bookmaker: String?,
+    @Json(name = "odd_1") val homeOdd: String?,
+    @Json(name = "odd_x") val drawOdd: String?,
+    @Json(name = "odd_2") val awayOdd: String?
 )
 
 @JsonClass(generateAdapter = true)

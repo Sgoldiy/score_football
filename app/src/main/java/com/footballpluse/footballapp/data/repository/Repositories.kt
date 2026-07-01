@@ -61,8 +61,8 @@ class FixturesRepository @Inject constructor(
         return try {
             val parts = teamsPair.split("-")
             if (parts.size != 2) return ApiResult.Error("Invalid team pair")
-            val events = apiService.getHeadToHead(firstTeamId = parts[0], secondTeamId = parts[1])
-            ApiResult.Success(events.take(last).toFixtureResponseList())
+            val h2h = apiService.getHeadToHead(firstTeamId = parts[0], secondTeamId = parts[1])
+            ApiResult.Success(h2h.allEvents().take(last).toFixtureResponseList())
         } catch (e: Exception) {
             ApiResult.Error(e.message ?: "Unknown error")
         }
@@ -70,14 +70,15 @@ class FixturesRepository @Inject constructor(
 
     suspend fun getLineups(fixtureId: Int): ApiResult<List<FixtureLineup>> {
         return try {
-            val lineups = apiService.getLineups(matchId = fixtureId.toString())
+            val lineupMap = apiService.getLineups(matchId = fixtureId.toString())
+            val lineupWrapper = lineupMap.values.firstOrNull()?.lineup
             val events = apiService.getEvents(matchId = fixtureId.toString())
             val event = events.firstOrNull()
             val homeId = event?.match_hometeam_id.toIntOr(0)
             val awayId = event?.match_awayteam_id.toIntOr(0)
             ApiResult.Success(listOfNotNull(
-                lineups.getOrNull(0)?.toFixtureLineup(homeId, event?.match_hometeam_name, event?.team_home_badge),
-                lineups.getOrNull(1)?.toFixtureLineup(awayId, event?.match_awayteam_name, event?.team_away_badge)
+                lineupWrapper?.home?.toFixtureLineup(homeId, event?.match_hometeam_name, event?.team_home_badge),
+                lineupWrapper?.away?.toFixtureLineup(awayId, event?.match_awayteam_name, event?.team_away_badge)
             ))
         } catch (e: Exception) {
             ApiResult.Error(e.message ?: "Unknown error")
@@ -96,7 +97,8 @@ class FixturesRepository @Inject constructor(
 
     suspend fun getStatistics(fixtureId: Int): ApiResult<List<FixtureTeamStatistics>> {
         return try {
-            val stats = apiService.getMatchStatistics(matchId = fixtureId.toString())
+            val statsMap = apiService.getMatchStatistics(matchId = fixtureId.toString())
+            val stats = statsMap.values.firstOrNull()?.statistics ?: emptyList()
             val events = apiService.getEvents(matchId = fixtureId.toString())
             val event = events.firstOrNull()
             val homeId = event?.match_hometeam_id.toIntOr(0)
