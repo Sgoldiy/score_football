@@ -310,9 +310,9 @@ data class ApiTopScorer(
 
 @JsonClass(generateAdapter = true)
 data class ApiPrediction(
-    val homeWin: String?,
-    val draw: String?,
-    val awayWin: String?
+    @Json(name = "prob_HW") val homeWin: String?,
+    @Json(name = "prob_D") val draw: String?,
+    @Json(name = "prob_AW") val awayWin: String?
 )
 
 // Keep existing wrapper types needed by domain
