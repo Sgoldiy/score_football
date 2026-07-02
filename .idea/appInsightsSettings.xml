@@ -22,10 +22,10 @@
             <InsightsFilterSettings>
               <option name="connection">
                 <ConnectionSetting>
-                  <option name="appId" value="PLACEHOLDER" />
-                  <option name="mobileSdkAppId" value="" />
-                  <option name="projectId" value="" />
-                  <option name="projectNumber" value="" />
+                  <option name="appId" value="com.footballpluse.footballapp" />
+                  <option name="mobileSdkAppId" value="1:449314516775:android:4a094cf878786cfe6e8302" />
+                  <option name="projectId" value="football-plus-22cff" />
+                  <option name="projectNumber" value="449314516775" />
                 </ConnectionSetting>
               </option>
               <option name="signal" value="SIGNAL_UNSPECIFIED" />

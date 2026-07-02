@@ -59,8 +59,9 @@ class MainActivity : ComponentActivity() {
                 Scaffold(
                     containerColor = MaterialTheme.colorScheme.background,
                     bottomBar = {
-                        val show = currentRoute != null && noBottomBarScreens.none { 
-                            currentRoute.startsWith(it.split("/")[0]) 
+                        val currentBase = currentRoute?.split("/")?.firstOrNull()
+                        val show = currentBase != null && noBottomBarScreens.none { 
+                            it.split("/")[0] == currentBase
                         }
                         if (show) {
                             BottomNavigationBar(
