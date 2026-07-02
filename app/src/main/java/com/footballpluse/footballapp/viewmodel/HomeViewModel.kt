@@ -3,6 +3,7 @@ package com.footballpluse.footballapp.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.footballpluse.footballapp.data.mapper.*
+import com.footballpluse.footballapp.data.model.ApiTeam
 import com.footballpluse.footballapp.data.model.LeagueResponse
 import com.footballpluse.footballapp.data.model.PlayerProfileStatisticsResponse
 import com.footballpluse.footballapp.data.remote.ApiService
@@ -32,7 +33,7 @@ sealed class HomeUiState {
         val isLive: Boolean,
         val topScorers: List<PlayerProfileStatisticsResponse> = emptyList(),
         val favouriteLeagues: List<LeagueResponse> = emptyList(),
-        val favouriteLeagueId: Int = 39,
+        val favouriteLeagueId: Int = 152,
         val favouriteLeagueName: String = "Premier League"
     ) : HomeUiState()
     data class Error(val message: String) : HomeUiState()
@@ -101,10 +102,18 @@ class HomeViewModel @Inject constructor(
             val top5LeagueIds = listOf(152, 302, 175, 207, 168) // EPL, La Liga, Bundesliga, Serie A, Ligue 1
             val scorersList = try {
                 coroutineScope {
-                    top5LeagueIds
+                    val rawScorers = top5LeagueIds
                         .map { leagueId -> async { runCatching { apiService.getTopScorers(leagueId.toString()).map { it.toPlayerProfileStatisticsResponse() } }.getOrDefault(emptyList()) } }
                         .flatMap { it.await() }
-                        .sortedByDescending { it.statistics?.firstOrNull()?.goals?.total ?: 0 }
+
+                    // Enrich with player images and team badges
+                    val teamsByLeague = top5LeagueIds.map { leagueId ->
+                        leagueId to try { apiService.getTeams(leagueId = leagueId.toString()) } catch (e: Exception) { emptyList() }
+                    }
+                    val allTeams = teamsByLeague.flatMap { it.second }
+                    val enriched = enrichWithImages(rawScorers, allTeams)
+
+                    enriched.sortedByDescending { it.statistics?.firstOrNull()?.goals?.total ?: 0 }
                         .take(10)
                 }
             } catch (e: Exception) {
@@ -195,6 +204,49 @@ class HomeViewModel @Inject constructor(
                 }
             }
             .launchIn(viewModelScope)
+    }
+
+    private fun enrichWithImages(
+        scorers: List<PlayerProfileStatisticsResponse>,
+        teams: List<ApiTeam>
+    ): List<PlayerProfileStatisticsResponse> {
+        val teamBadgeMap = mutableMapOf<String, String>()
+        val playerImageMap = mutableMapOf<String, String>()
+
+        teams.forEach { team ->
+            team.team_name?.let { name ->
+                team.team_badge?.let { badge -> teamBadgeMap[name] = badge }
+            }
+            team.players?.forEach { player ->
+                player.player_name?.let { name ->
+                    player.player_image?.let { image -> playerImageMap[name] = image }
+                }
+            }
+        }
+
+        if (teamBadgeMap.isEmpty() && playerImageMap.isEmpty()) return scorers
+
+        return scorers.map { scorer ->
+            val stats = scorer.statistics?.firstOrNull()
+            val needsPhoto = scorer.player?.photo == null
+            val needsLogo = stats?.team?.logo == null
+            if (!needsPhoto && !needsLogo) return@map scorer
+
+            scorer.copy(
+                player = if (needsPhoto) scorer.player?.copy(
+                    photo = playerImageMap[scorer.player?.name]
+                        ?: scorer.player?.photo
+                ) else scorer.player,
+                statistics = if (needsLogo) scorer.statistics?.map { s ->
+                    s.copy(
+                        team = s.team?.copy(
+                            logo = teamBadgeMap[s.team?.name]
+                                ?: s.team?.logo
+                        )
+                    )
+                } else scorer.statistics
+            )
+        }
     }
 }
 

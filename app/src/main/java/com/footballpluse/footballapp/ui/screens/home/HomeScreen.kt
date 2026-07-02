@@ -52,7 +52,14 @@ private data class Competition(
     val season: Int
 )
 
-private val INTERNATIONAL_COMPETITIONS = listOf(
+private val ALL_COMPETITIONS = listOf(
+    Competition(id = 152, name = "Premier League", leagueId = 152, season = 2025),
+    Competition(id = 302, name = "La Liga", leagueId = 302, season = 2025),
+    Competition(id = 207, name = "Serie A", leagueId = 207, season = 2025),
+    Competition(id = 175, name = "Bundesliga", leagueId = 175, season = 2025),
+    Competition(id = 168, name = "Ligue 1", leagueId = 168, season = 2025),
+    Competition(id = 88, name = "Eredivisie", leagueId = 88, season = 2025),
+    Competition(id = 94, name = "Primeira Liga", leagueId = 94, season = 2025),
     Competition(id = 3, name = "Champions League", leagueId = 3, season = 2025),
     Competition(id = 4, name = "Europa League", leagueId = 4, season = 2025),
     Competition(id = 28, name = "FIFA World Cup", leagueId = 28, season = 2026),
@@ -60,15 +67,11 @@ private val INTERNATIONAL_COMPETITIONS = listOf(
     Competition(id = 848, name = "Conf. League", leagueId = 848, season = 2025)
 )
 
-private val DOMESTIC_COMPETITIONS = listOf(
-    Competition(id = 152, name = "Premier League", leagueId = 152, season = 2025),
-    Competition(id = 302, name = "La Liga", leagueId = 302, season = 2025),
-    Competition(id = 207, name = "Serie A", leagueId = 207, season = 2025),
-    Competition(id = 175, name = "Bundesliga", leagueId = 175, season = 2025),
-    Competition(id = 168, name = "Ligue 1", leagueId = 168, season = 2025),
-    Competition(id = 88, name = "Eredivisie", leagueId = 88, season = 2025),
-    Competition(id = 94, name = "Primeira Liga", leagueId = 94, season = 2025)
-)
+private val DOMESTIC_COMPETITIONS = ALL_COMPETITIONS.take(7)
+private val INTERNATIONAL_COMPETITIONS = ALL_COMPETITIONS.drop(7)
+
+private fun leagueBadgeUrl(leagueId: Int, leagueName: String): String =
+    "https://apiv3.apifootball.com/badges/logo_leagues/${leagueId}_${leagueName.lowercase().replace(' ', '-')}.png"
 
 private fun getLeagueCardColor(leagueId: Int): Color {
     return when (leagueId) {
@@ -209,7 +212,7 @@ private fun HomeContent(
     }
     val leagueLogoMap = remember(state.topLeagues) {
         val apiLogos = state.topLeagues.associate { it.id to it.logo }
-        (INTERNATIONAL_COMPETITIONS + DOMESTIC_COMPETITIONS).associate { it.leagueId to (apiLogos[it.leagueId] ?: "https://apiv3.apifootball.com/badges/logo_leagues/${it.leagueId}.png") }
+        ALL_COMPETITIONS.associate { it.leagueId to (apiLogos[it.leagueId] ?: leagueBadgeUrl(it.leagueId, it.name)) }
     }
     val listState = rememberLazyListState()
 
@@ -353,7 +356,7 @@ private fun CompetitionCard(leagueId: Int, leagueName: String, logoUrl: String?,
         Column(modifier = Modifier.fillMaxSize().padding(10.dp), verticalArrangement = Arrangement.SpaceBetween) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                 Box(modifier = Modifier.size(28.dp).clip(CircleShape).background(Color.White).padding(4.dp), contentAlignment = Alignment.Center) {
-                    AsyncImage(model = logoUrl, contentDescription = leagueName, modifier = Modifier.size(20.dp))
+                    AsyncImage(model = logoUrl, contentDescription = leagueName, modifier = Modifier.size(20.dp), placeholder = painterResource(R.drawable.ic_placeholder), error = painterResource(R.drawable.ic_placeholder))
                 }
                 if (hasLiveMatches) {
                     Box(modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFFFF4444)).padding(horizontal = 5.dp, vertical = 2.dp)) {
@@ -371,13 +374,14 @@ private fun CompetitionCard(leagueId: Int, leagueName: String, logoUrl: String?,
 
 @Composable
 private fun LeagueGroupHeader(league: LeagueInfo, count: Int, liveCount: Int, hasLive: Boolean, isMyLeague: Boolean, isExpanded: Boolean, onToggleExpand: () -> Unit) {
+    val leagueLogo = league.logo ?: leagueBadgeUrl(league.id, league.name)
     Row(
         modifier = Modifier.fillMaxWidth().background(if (isMyLeague) Color(0xFF0D1A0D) else Color(0xFF161A26)).drawBehind {
             drawRect(color = Color(0xFF00E676), size = Size(if (isMyLeague) 4.dp.toPx() else 3.dp.toPx(), size.height))
         }.clickable { onToggleExpand() }.padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        AsyncImage(model = league.logo, contentDescription = null, modifier = Modifier.size(18.dp))
+        AsyncImage(model = leagueLogo, contentDescription = null, modifier = Modifier.size(18.dp), placeholder = painterResource(R.drawable.ic_placeholder), error = painterResource(R.drawable.ic_placeholder))
         Spacer(Modifier.width(8.dp))
         Text(league.name, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
         val badgeColor = if (hasLive) Color(0xFFFF4444) else Color(0xFF555555)

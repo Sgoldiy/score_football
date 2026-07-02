@@ -305,7 +305,9 @@ data class ApiTopScorer(
     val assists: String?,
     val penalty_goals: String?,
     @Json(name = "player_key") val player_id: String? = null,
-    @Json(name = "team_key") val team_id: String? = null
+    @Json(name = "team_key") val team_id: String? = null,
+    val player_image: String? = null,
+    val team_badge: String? = null
 )
 
 @JsonClass(generateAdapter = true)

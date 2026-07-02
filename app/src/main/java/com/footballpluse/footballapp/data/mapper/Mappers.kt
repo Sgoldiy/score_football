@@ -212,13 +212,13 @@ fun ApiTopScorer.toPlayerProfileStatisticsResponse(): PlayerProfileStatisticsRes
         player = Player(
             id = player_id?.toIntOrNull() ?: 0, name = player_name, firstname = null, lastname = null,
             age = null, birth = null, nationality = null, height = null, weight = null,
-            injured = null, photo = null, type = null, reason = null
+            injured = null, photo = player_image, type = null, reason = null
         ),
         statistics = listOf(
             PlayerStatistics(
                 player = null,
                 team = Team(id = team_id?.toIntOrNull() ?: 0, name = team_name, code = null, country = null,
-                    founded = null, national = null, logo = null),
+                    founded = null, national = null, logo = team_badge),
                 league = null,
                 games = null, offsides = null, substitutes = null, shots = null,
                 goals = PlayerGoals(total = goals?.toIntOrNull(), conceded = null, assists = assists?.toIntOrNull(), saves = null),
