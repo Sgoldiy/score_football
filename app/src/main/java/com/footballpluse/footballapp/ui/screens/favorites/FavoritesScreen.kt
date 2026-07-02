@@ -32,7 +32,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
-
 import com.footballpluse.footballapp.ui.components.HeaderIcon
 import com.footballpluse.footballapp.ui.components.PlayerAvatar
 import com.footballpluse.footballapp.domain.model.FavouriteClub
