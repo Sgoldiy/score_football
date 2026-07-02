@@ -123,7 +123,7 @@ class StatsViewModel @Inject constructor(
     val selectedTab: StateFlow<StatsTab> = _selectedTab.asStateFlow()
 
     private val _selectedLeague = MutableStateFlow(
-        StatsLeague(39, "Premier League", "https://media.api-sports.io/football/leagues/39.png", 2025)
+        StatsLeague(152, "Premier League", "https://apiv3.apifootball.com/badges/logo_leagues/152_premier-league.png", 2025)
     )
     val selectedLeague: StateFlow<StatsLeague> = _selectedLeague.asStateFlow()
 

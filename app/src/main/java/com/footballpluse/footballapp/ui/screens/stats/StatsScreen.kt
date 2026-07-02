@@ -214,7 +214,9 @@ fun StatsScreen(
                     .size(24.dp)
                     .clip(CircleShape)
                     .background(Color.White)
-                    .padding(2.dp)
+                    .padding(2.dp),
+                placeholder = painterResource(R.drawable.ic_placeholder),
+                error = painterResource(R.drawable.ic_placeholder)
             )
             Spacer(Modifier.width(10.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -312,7 +314,9 @@ fun StatsScreen(
                                     .size(28.dp)
                                     .clip(CircleShape)
                                     .background(Color.White)
-                                    .padding(3.dp)
+                                    .padding(3.dp),
+                                placeholder = painterResource(R.drawable.ic_placeholder),
+                                error = painterResource(R.drawable.ic_placeholder)
                             )
                             Spacer(Modifier.width(12.dp))
                             Column(modifier = Modifier.weight(1f)) {
@@ -503,7 +507,9 @@ fun TopScorerHeroCard(
                             AsyncImage(
                                 model = team?.logo,
                                 contentDescription = null,
-                                modifier = Modifier.size(14.dp)
+                                modifier = Modifier.size(14.dp),
+                                placeholder = painterResource(R.drawable.ic_placeholder),
+                                error = painterResource(R.drawable.ic_placeholder)
                             )
                             Text(
                                 text = team?.name ?: "",
@@ -1194,7 +1200,9 @@ fun ClubStatBarRow(
                 AsyncImage(
                     model = logo,
                     contentDescription = name,
-                    modifier = Modifier.size(24.dp)
+                    modifier = Modifier.size(24.dp),
+                    placeholder = painterResource(R.drawable.ic_placeholder),
+                    error = painterResource(R.drawable.ic_placeholder)
                 )
             }
 
@@ -1480,7 +1488,9 @@ fun StandingsTable(
                         AsyncImage(
                             model = team.logo,
                             contentDescription = null,
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(16.dp),
+                            placeholder = painterResource(R.drawable.ic_placeholder),
+                            error = painterResource(R.drawable.ic_placeholder)
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
@@ -1822,7 +1832,9 @@ fun BiggestWinsList(wins: List<FixtureResponse>) {
                                 contentDescription = teamHome?.name,
                                 modifier = Modifier
                                     .size(18.dp)
-                                    .clip(CircleShape)
+                                    .clip(CircleShape),
+                                placeholder = painterResource(R.drawable.ic_placeholder),
+                                error = painterResource(R.drawable.ic_placeholder)
                             )
                         }
 
@@ -1857,7 +1869,9 @@ fun BiggestWinsList(wins: List<FixtureResponse>) {
                                 contentDescription = teamAway?.name,
                                 modifier = Modifier
                                     .size(18.dp)
-                                    .clip(CircleShape)
+                                    .clip(CircleShape),
+                                placeholder = painterResource(R.drawable.ic_placeholder),
+                                error = painterResource(R.drawable.ic_placeholder)
                             )
                             Spacer(Modifier.width(5.dp))
                             Text(
@@ -2210,7 +2224,9 @@ fun ShotAccuracyList(leaders: List<PlayerShotAccuracy>) {
                             AsyncImage(
                                 model = item.teamLogo,
                                 contentDescription = null,
-                                modifier = Modifier.size(10.dp)
+                                modifier = Modifier.size(10.dp),
+                                placeholder = painterResource(R.drawable.ic_placeholder),
+                                error = painterResource(R.drawable.ic_placeholder)
                             )
                             Text(
                                 text = "${item.goals}G / ${item.shotsOnTarget} SoT",
@@ -2400,40 +2416,39 @@ fun GoalTimingHeatmapChart(heatmap: List<Int>, viewModel: StatsViewModel) {
                     }
                 },
                 update = { chart ->
-                    val entries = ArrayList<BarEntry>()
-                    heatmap.forEachIndexed { index, valGoal ->
-                        entries.add(BarEntry(index.toFloat(), valGoal.toFloat()))
-                    }
+                    if (heatmap.isEmpty()) {
+                        chart.clear()
+                    } else {
+                        val entries = ArrayList<BarEntry>()
+                        heatmap.forEachIndexed { index, valGoal ->
+                            entries.add(BarEntry(index.toFloat(), valGoal.toFloat()))
+                        }
 
-                    // Create color intensity array based on goal values
-                    val maxVal = heatmap.maxOrNull() ?: 1
-                    val colorsList = heatmap.map { valGoal ->
-                        val ratio = valGoal.toFloat() / maxVal
-                        // Interpolate between light green and deep green
-                        val alpha = Math.max(70, (ratio * 255).toInt())
-                        AndroidColor.argb(alpha, 0, 230, 118) // #00E676 intensity
-                    }
+                        val maxVal = heatmap.maxOrNull() ?: 1
+                        if (maxVal > 0) {
+                            val colorsList = heatmap.map { valGoal ->
+                                val ratio = valGoal.toFloat() / maxVal
+                                val alpha = Math.max(70, (ratio * 255).toInt())
+                                AndroidColor.argb(alpha, 0, 230, 118)
+                            }
 
-                    if (entries.isNotEmpty()) {
-                        val intFormatter =
-                            object : com.github.mikephil.charting.formatter.ValueFormatter() {
+                            val intFormatter = object : com.github.mikephil.charting.formatter.ValueFormatter() {
                                 override fun getFormattedValue(value: Float): String {
                                     return value.toInt().toString()
                                 }
                             }
-                        val dataSet = BarDataSet(entries, "Goals Timing").apply {
-                            colors = colorsList
-                            setDrawValues(true)
-                            valueTextColor = AndroidColor.WHITE
-                            valueTextSize = 9f
-                            valueFormatter = intFormatter
+                            val dataSet = BarDataSet(entries, "Goals Timing").apply {
+                                colors = colorsList
+                                setDrawValues(true)
+                                valueTextColor = AndroidColor.WHITE
+                                valueTextSize = 9f
+                                valueFormatter = intFormatter
+                            }
+                            chart.data = BarData(dataSet)
+                            chart.animateY(800)
+                            chart.invalidate()
                         }
-                        chart.data = BarData(dataSet)
-                    } else {
-                        chart.clear()
                     }
-                    chart.animateY(800)
-                    chart.invalidate()
                 }
             )
         }
@@ -2625,23 +2640,25 @@ fun TeamTimingOverlayBlock(
                         }
                     },
                     update = { chart ->
-                        val entriesScored = ArrayList<BarEntry>()
-                        val entriesConceded = ArrayList<BarEntry>()
+                        val currentTiming = teamTiming[selectedTeamId]
+                        if (currentTiming == null || currentTiming.scoredTiming.isEmpty()) {
+                            chart.clear()
+                        } else {
+                            val entriesScored = ArrayList<BarEntry>()
+                            val entriesConceded = ArrayList<BarEntry>()
 
-                        currentTiming.scoredTiming.forEachIndexed { idx, scored ->
-                            entriesScored.add(BarEntry(idx.toFloat(), scored.toFloat()))
-                        }
-                        currentTiming.concededTiming.forEachIndexed { idx, conceded ->
-                            entriesConceded.add(BarEntry(idx.toFloat(), conceded.toFloat()))
-                        }
+                            currentTiming.scoredTiming.forEachIndexed { idx, scored ->
+                                entriesScored.add(BarEntry(idx.toFloat(), scored.toFloat()))
+                            }
+                            currentTiming.concededTiming.forEachIndexed { idx, conceded ->
+                                entriesConceded.add(BarEntry(idx.toFloat(), conceded.toFloat()))
+                            }
 
-                        if (entriesScored.isNotEmpty()) {
-                            val intFormatter =
-                                object : com.github.mikephil.charting.formatter.ValueFormatter() {
-                                    override fun getFormattedValue(value: Float): String {
-                                        return value.toInt().toString()
-                                    }
+                            val intFormatter = object : com.github.mikephil.charting.formatter.ValueFormatter() {
+                                override fun getFormattedValue(value: Float): String {
+                                    return value.toInt().toString()
                                 }
+                            }
                             val setScored = BarDataSet(entriesScored, "Scored").apply {
                                 color = AndroidColor.parseColor("#00E676")
                                 setDrawValues(true)
@@ -2667,12 +2684,10 @@ fun TeamTimingOverlayBlock(
                             chart.groupBars(-0.5f, groupSpace, barSpace)
                             chart.xAxis.axisMaximum = 7.5f
                             chart.xAxis.axisMinimum = -0.5f
-                        } else {
-                            chart.clear()
-                        }
 
-                        chart.animateY(800)
-                        chart.invalidate()
+                            chart.animateY(800)
+                            chart.invalidate()
+                        }
                     }
                 )
             }
@@ -3035,7 +3050,9 @@ fun DirtiestTeamsChart(teams: List<TeamCardsStat>) {
                             AsyncImage(
                                 model = team.teamLogo,
                                 contentDescription = team.teamName,
-                                modifier = Modifier.size(22.dp)
+                                modifier = Modifier.size(22.dp),
+                                placeholder = painterResource(R.drawable.ic_placeholder),
+                                error = painterResource(R.drawable.ic_placeholder)
                             )
                         }
 
@@ -3366,7 +3383,9 @@ fun PodiumCol(
             AsyncImage(
                 model = stats?.team?.logo,
                 contentDescription = null,
-                modifier = Modifier.size(10.dp)
+                modifier = Modifier.size(10.dp),
+                placeholder = painterResource(R.drawable.ic_placeholder),
+                error = painterResource(R.drawable.ic_placeholder)
             )
             Text(
                 text = "$count $statType",

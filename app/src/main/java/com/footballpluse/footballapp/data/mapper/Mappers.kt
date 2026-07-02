@@ -61,8 +61,8 @@ fun ApiEvent.toFixtureResponse(): FixtureResponse {
                 l.home?.toFixtureLineup(homeId, match_hometeam_name, team_home_badge),
                 l.away?.toFixtureLineup(awayId, match_awayteam_name, team_away_badge)
             )
-        },
-        statistics = statistics?.map { it.toFixtureTeamStatistics(homeId, awayId) },
+        } ?: emptyList(),
+        statistics = statistics?.map { it.toFixtureTeamStatistics(homeId, awayId) } ?: emptyList(),
         players = null
     )
 }
@@ -136,7 +136,7 @@ fun List<ApiStanding>.toStanding(): Standing {
     )
 }
 
-private fun ApiStanding.toStandingRecord(): StandingRecord {
+internal fun ApiStanding.toStandingRecord(): StandingRecord {
     val rank = standing_place.toIntOr(0)
     val wins = standing_W?.toIntOrNull()
     val draws = standing_D?.toIntOrNull()
@@ -189,7 +189,7 @@ fun ApiPlayer.toPlayerProfileStatisticsResponse(): PlayerProfileStatisticsRespon
             PlayerStatistics(
                 player = null, team = null, league = null,
                 games = PlayerGames(appearances = player_match_played?.toIntOrNull(), lineups = null,
-                    minutes = null, number = player_number?.toIntOrNull(), position = player_type, rating = player_rating, captain = player_is_captain?.toIntOrNull()?.let { it == 1 }),
+                    minutes = null, number = player_number?.toIntOrNull(), position = player_type, rating = player_rating ?: "0.0", captain = player_is_captain?.toIntOrNull()?.let { it == 1 }),
                 offsides = null,
                 substitutes = PlayerSubstitutes(`in` = null, out = player_substitute_out?.toIntOrNull(), bench = player_substitutes_on_bench?.toIntOrNull()),
                 shots = PlayerShots(total = player_shots_total?.toIntOrNull(), on = null),
@@ -210,7 +210,7 @@ fun ApiPlayer.toPlayerProfileStatisticsResponse(): PlayerProfileStatisticsRespon
 fun ApiTopScorer.toPlayerProfileStatisticsResponse(): PlayerProfileStatisticsResponse {
     return PlayerProfileStatisticsResponse(
         player = Player(
-            id = player_id ?: 0, name = player_name, firstname = null, lastname = null,
+            id = player_id?.toIntOrNull() ?: 0, name = player_name, firstname = null, lastname = null,
             age = null, birth = null, nationality = null, height = null, weight = null,
             injured = null, photo = null, type = null, reason = null
         ),
