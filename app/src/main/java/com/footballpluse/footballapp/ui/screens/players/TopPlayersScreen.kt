@@ -414,13 +414,13 @@ private fun PlayerSection(
             TopPlayersPodium(players = players, mode = mode, onPlayerClick = onPlayerClick)
             Spacer(Modifier.height(12.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(players.drop(3), key = { it.player?.id ?: it.hashCode() }) { player ->
+                items(players.drop(3), key = { "${mode}_${it.player?.id ?: it.hashCode()}" }) { player ->
                     PlayerRankCard(player, mode, onPlayerClick)
                 }
             }
         } else {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(players, key = { it.player?.id ?: it.hashCode() }) { player ->
+                items(players, key = { "${mode}_${it.player?.id ?: it.hashCode()}" }) { player ->
                     PlayerRankCard(player, mode, onPlayerClick)
                 }
             }
@@ -594,7 +594,7 @@ private fun PositionFilterRail(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(vertical = 4.dp)
     ) {
-        items(positions) { pos ->
+        items(positions, key = { it }) { pos ->
             val isSelected = pos == selectedPosition
             val borderGlow = if (isSelected) LiveGreen else Color.White.copy(alpha = 0.15f)
             val bg = if (isSelected) LiveGreen.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.02f)

@@ -19,7 +19,8 @@ class FootballRepositoryImpl @Inject constructor(
     private val apiService: ApiService,
     private val fixtureDao: FixtureDao,
     private val standingDao: StandingDao,
-    private val leagueDao: LeagueDao
+    private val leagueDao: LeagueDao,
+    private val teamRepository: TeamRepository
 ) : FootballRepository {
 
     override fun getFixturesByDate(date: String): Flow<ApiResult<List<Match>>> = flow {
@@ -66,11 +67,23 @@ class FootballRepositoryImpl @Inject constructor(
 
     override suspend fun getMatchDetail(fixtureId: Int): ApiResult<MatchDetail> {
         return try {
-            val events = apiService.getEvents(matchId = fixtureId.toString())
-            val response = events.firstOrNull()?.toFixtureResponse()
-                ?: return ApiResult.Error("Match not found")
+            val eventsResponse = apiService.getEvents(matchId = fixtureId.toString())
+            val apiEvent = eventsResponse.firstOrNull() ?: return ApiResult.Error("Match not found")
+            val response = apiEvent.toFixtureResponse()
 
             val detailedEvents = response.events ?: emptyList()
+
+            var homeForm: String? = null
+            var awayForm: String? = null
+
+            try {
+                val leagueId = apiEvent.league_id
+                if (leagueId != null) {
+                    val standings = apiService.getStandings(leagueId = leagueId)
+                    homeForm = standings.find { it.team_id == apiEvent.match_hometeam_id }?.overall_form
+                    awayForm = standings.find { it.team_id == apiEvent.match_awayteam_id }?.overall_form
+                }
+            } catch (_: Exception) {}
 
             val lineupWrapper = try {
                 apiService.getLineups(matchId = fixtureId.toString()).values.firstOrNull()?.lineup
@@ -112,11 +125,10 @@ class FootballRepositoryImpl @Inject constructor(
             }
 
             val matchStats = if (statsWrapper != null) {
-                (statsWrapper.statistics ?: emptyList()).map { stat ->
-                    MatchStat(
-                        teamId = -1,
-                        type = stat.type ?: "",
-                        value = stat.home?.display ?: "0"
+                (statsWrapper.statistics ?: emptyList()).flatMap { stat ->
+                    listOf(
+                        MatchStat(teamId = homeId ?: 0, type = stat.type ?: "", value = stat.home?.display ?: "0"),
+                        MatchStat(teamId = awayId ?: 0, type = stat.type ?: "", value = stat.away?.display ?: "0")
                     )
                 }
             } else {
@@ -127,19 +139,38 @@ class FootballRepositoryImpl @Inject constructor(
                 }
             }
 
+            val playerPerformances = try {
+                val matchStatsResponse = apiService.getMatchStatistics(matchId = fixtureId.toString())
+                val playerStats = matchStatsResponse.values.firstOrNull()?.player_statistics ?: emptyList()
+                
+                val homePlayers = playerStats.filter { it.team_name == response.teams?.home?.name }
+                    .map { it.toPlayerPerformance() }
+                val awayPlayers = playerStats.filter { it.team_name == response.teams?.away?.name }
+                    .map { it.toPlayerPerformance() }
+                
+                listOfNotNull(
+                    if (homePlayers.isNotEmpty()) PlayerMatchStats(homeId ?: 0, homePlayers) else null,
+                    if (awayPlayers.isNotEmpty()) PlayerMatchStats(awayId ?: 0, awayPlayers) else null
+                )
+            } catch (_: Exception) {
+                emptyList<PlayerMatchStats>()
+            }
+
             ApiResult.Success(
                 MatchDetail(
                     match = response.toMatch(),
                     events = detailedEvents.map { it.toMatchEvent() },
                     lineups = lineups,
                     stats = matchStats,
-                    players = emptyList(),
+                    players = playerPerformances,
                     prediction = predictions.firstOrNull()?.toPrediction()?.toMatchPrediction(),
                     odds = odds.map { it.toOddsResponse().toMatchOdds() }.flatten(),
                     injuries = emptyList(),
                     headToHead = h2h.map { it.toMatch() },
                     venue = response.fixture?.venue?.toVenueInfo(),
-                    referee = response.fixture?.referee
+                    referee = response.fixture?.referee,
+                    homeForm = homeForm,
+                    awayForm = awayForm
                 )
             )
         } catch (e: Exception) {
@@ -163,10 +194,33 @@ class FootballRepositoryImpl @Inject constructor(
             val squadMembers = players.toSquadPlayers().map { it.toSquadMember() }
             val coachInfos = coaches.toCoaches().map { CoachInfo(it.id ?: 0, it.name ?: "", it.photo) }
 
-            val stats = TeamStats(
-                form = "WWDLW", played = 38, wins = 22, draws = 8, loses = 8,
-                goalsFor = 72, goalsAgainst = 35
-            )
+            // Extract team statistics from standings if available
+            val standings = try {
+                apiService.getStandings(leagueId = leagueId.toString())
+            } catch (_: Exception) {
+                emptyList()
+            }
+            val teamStanding = standings.find { it.team_id == teamId.toString() }
+            
+            val stats = if (teamStanding != null) {
+                val wins = teamStanding.standing_W?.toIntOrNull() ?: 0
+                val draws = teamStanding.standing_D?.toIntOrNull() ?: 0
+                val loses = teamStanding.standing_L?.toIntOrNull() ?: 0
+                TeamStats(
+                    form = teamStanding.overall_form,
+                    played = teamStanding.standing_total?.toIntOrNull() ?: (wins + draws + loses),
+                    wins = wins,
+                    draws = draws,
+                    loses = loses,
+                    goalsFor = teamStanding.overall_GF?.toIntOrNull() ?: 0,
+                    goalsAgainst = teamStanding.overall_GA?.toIntOrNull() ?: 0
+                )
+            } else {
+                TeamStats(
+                    form = null, played = 0, wins = 0, draws = 0, loses = 0,
+                    goalsFor = 0, goalsAgainst = 0
+                )
+            }
 
             ApiResult.Success(
                 TeamDetail(
@@ -288,7 +342,9 @@ class FootballRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getTeamStatisticsDirect(teamId: Int, leagueId: Int, season: Int): TeamStatistics {
-        throw Exception("Team statistics not available in current API version")
+        val res = teamRepository.getTeamStatistics(teamId, leagueId, season)
+        if (res is ApiResult.Success<TeamStatistics>) return res.data
+        throw Exception("Team statistics not available")
     }
 
     override suspend fun getTeamSquadDirect(teamId: Int): List<SquadResponse> {

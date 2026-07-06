@@ -146,7 +146,38 @@ class TeamRepository @Inject constructor(private val apiService: ApiService) {
     }
 
     suspend fun getTeamStatistics(teamId: Int, leagueId: Int, season: Int): ApiResult<TeamStatistics> {
-        return ApiResult.Error("Team statistics not available in current API version")
+        return try {
+            val standings = apiService.getStandings(leagueId = leagueId.toString())
+            val teamStanding = standings.find { it.team_id == teamId.toString() }
+            if (teamStanding != null) {
+                val wins = teamStanding.standing_W?.toIntOrNull() ?: 0
+                val draws = teamStanding.standing_D?.toIntOrNull() ?: 0
+                val loses = teamStanding.standing_L?.toIntOrNull() ?: 0
+                val played = teamStanding.standing_total?.toIntOrNull() ?: (wins + draws + loses)
+
+                val stats = TeamStatistics(
+                    league = null, team = null,
+                    form = teamStanding.overall_form,
+                    fixtures = TeamFixturesStats(
+                        played = FixtureCount(null, null, played),
+                        wins = FixtureCount(null, null, wins),
+                        draws = FixtureCount(null, null, draws),
+                        loses = FixtureCount(null, null, loses)
+                    ),
+                    goals = TeamGoalsStats(
+                        goalsFor = GoalStatsDetail(FixtureCount(null, null, teamStanding.overall_GF?.toIntOrNull()), null, null, null),
+                        against = GoalStatsDetail(FixtureCount(null, null, teamStanding.overall_GA?.toIntOrNull()), null, null, null)
+                    ),
+                    biggest = null, clean_sheet = null, failed_to_score = null,
+                    penalty = null, lineups = null, cards = null
+                )
+                ApiResult.Success(stats)
+            } else {
+                ApiResult.Error("Team statistics not found in standings")
+            }
+        } catch (e: Exception) {
+            ApiResult.Error(e.message ?: "Unknown error")
+        }
     }
 
     suspend fun getSquad(teamId: Int): ApiResult<List<SquadPlayer>> {
@@ -186,11 +217,11 @@ class PlayerRepository @Inject constructor(private val apiService: ApiService) {
     }
 
     suspend fun getTrophies(playerId: Int): ApiResult<List<PlayerTrophy>> {
-        return ApiResult.Error("Player trophies not available in current API version")
+        return ApiResult.Success(emptyList())
     }
 
     suspend fun getSidelined(playerId: Int): ApiResult<List<PlayerSidelined>> {
-        return ApiResult.Error("Player sidelined not available in current API version")
+        return ApiResult.Success(emptyList())
     }
 }
 

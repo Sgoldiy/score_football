@@ -62,7 +62,16 @@ data class FavouriteClubEntity(
     val leagueId: Int,
     val leagueName: String,
     val logoUrl: String,
-    val addedAt: Long
+    val addedAt: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "favourite_leagues")
+data class FavouriteLeagueEntity(
+    @PrimaryKey val leagueId: Int,
+    val leagueName: String,
+    val country: String?,
+    val logoUrl: String?,
+    val addedAt: Long = System.currentTimeMillis()
 )
 
 @Entity(tableName = "favourite_players")
@@ -74,5 +83,5 @@ data class FavouritePlayerEntity(
     val clubName: String,
     val position: String,
     val photoUrl: String,
-    val addedAt: Long
+    val addedAt: Long = System.currentTimeMillis()
 )

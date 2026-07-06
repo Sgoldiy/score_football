@@ -45,9 +45,12 @@ class OnboardingViewModel @Inject constructor(
     )
 
     init {
-        val savedUsername = onboardingRepository.getUsernamePref()
-        if (!savedUsername.isNullOrBlank()) {
-            _state.update { it.copy(username = savedUsername) }
+        viewModelScope.launch {
+            onboardingRepository.getProfileFlow().collect { profile ->
+                if (profile != null && profile.username.isNotBlank()) {
+                    _state.update { it.copy(username = profile.displayUsername) }
+                }
+            }
         }
 
         val savedLeague = onboardingRepository.getOnboardingLeagueProgress()

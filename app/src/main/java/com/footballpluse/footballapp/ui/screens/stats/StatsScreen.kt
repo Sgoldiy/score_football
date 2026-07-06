@@ -485,7 +485,9 @@ fun TopScorerHeroCard(
                         AsyncImage(
                             model = player.photo,
                             contentDescription = player.name,
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier.fillMaxSize(),
+                            placeholder = painterResource(R.drawable.ic_placeholder),
+                            error = painterResource(R.drawable.ic_placeholder)
                         )
                     }
 

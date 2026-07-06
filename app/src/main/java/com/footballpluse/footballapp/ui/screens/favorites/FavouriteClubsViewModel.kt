@@ -5,7 +5,6 @@ import androidx.lifecycle.viewModelScope
 import com.footballpluse.footballapp.data.repository.FavouriteRepository
 import com.footballpluse.footballapp.data.repository.BillingRepository
 import com.footballpluse.footballapp.data.util.ApiResult
-import com.footballpluse.footballapp.data.util.SeasonUtils
 import com.footballpluse.footballapp.domain.model.*
 import com.footballpluse.footballapp.domain.repository.FootballRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -132,16 +131,16 @@ class FavouriteClubsViewModel @Inject constructor(
                 }
             }
 
-            val finalFixtures = if (fixtures.isEmpty()) generateFallbackFixtures(club) else fixtures
+            val finalFixtures = fixtures.ifEmpty { generateFallbackFixtures(club) }
 
             // Enrich squad and transfers dynamically if the API returned an empty list
             val fallbackDetail = generateFallbackDetail(club)
             val finalDetail = if (detail == null) {
                 fallbackDetail
-            } else {
-                val enrichedSquad = if (detail.squad.isEmpty()) fallbackDetail.squad else detail.squad
-                val enrichedTransfers = if (detail.transfers.isEmpty()) fallbackDetail.transfers else detail.transfers
-                val enrichedCoaches = if (detail.coaches.isEmpty()) fallbackDetail.coaches else detail.coaches
+            } else {0
+                val enrichedSquad = detail.squad.ifEmpty { fallbackDetail.squad }
+                val enrichedTransfers = detail.transfers.ifEmpty { fallbackDetail.transfers }
+                val enrichedCoaches = detail.coaches.ifEmpty { fallbackDetail.coaches }
                 detail.copy(
                     squad = enrichedSquad,
                     transfers = enrichedTransfers,

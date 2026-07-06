@@ -1,6 +1,5 @@
 package com.footballpluse.footballapp.ui.screens.players
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -12,7 +11,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.TrendingUp
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,11 +29,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.footballpluse.footballapp.data.util.ApiResult
 import com.footballpluse.footballapp.data.util.SeasonUtils
-import com.footballpluse.footballapp.ui.components.PlayerAvatar
 import com.footballpluse.footballapp.ui.theme.GlassGlowGreen
-import com.footballpluse.footballapp.ui.theme.IceBlue
 import com.footballpluse.footballapp.ui.theme.PitchBlack
-import com.footballpluse.footballapp.ui.theme.PitchSurface
 import com.footballpluse.footballapp.ui.theme.PitchSurfaceHigh
 import com.footballpluse.footballapp.ui.theme.TextSecondary
 import com.footballpluse.footballapp.viewmodel.PlayerViewModel
@@ -188,7 +183,6 @@ private fun PlayerContent(detail: com.footballpluse.footballapp.domain.model.Pla
                 }
             }
         }
-
         // Season Statistics Section
         if (detail.stats.isNotEmpty()) {
             item {
@@ -324,7 +318,6 @@ private fun PlayerStatsCard(ps: com.footballpluse.footballapp.domain.model.Playe
                         Text(ps.league.name, color = TextSecondary, fontSize = 11.sp, maxLines = 1)
                     }
                 }
-                
                 // Beautiful rating pill
                 val ratingVal = ps.rating?.toFloatOrNull() ?: 0f
                 val ratingColor = when {
@@ -350,9 +343,7 @@ private fun PlayerStatsCard(ps: com.footballpluse.footballapp.domain.model.Playe
                     }
                 }
             }
-            
             Spacer(Modifier.height(16.dp))
-            
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween

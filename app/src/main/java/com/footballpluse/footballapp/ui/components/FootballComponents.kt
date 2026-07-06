@@ -340,3 +340,49 @@ fun StatComparisonBar(
         }
     }
 }
+
+@Composable
+fun FormDotsRow(
+    form: String,
+    modifier: Modifier = Modifier,
+    dotSize: androidx.compose.ui.unit.Dp = 9.dp,
+    gap: androidx.compose.ui.unit.Dp = 5.dp
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(gap),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+    ) {
+        val results = form.takeLast(5).padStart(5, 'U')
+        results.forEach { result ->
+            when (result) {
+                'W' -> Box(
+                    modifier = Modifier
+                        .size(dotSize)
+                        .clip(CircleShape)
+                        .background(Color(0xFF00E676))
+                )
+                'D' -> Box(
+                    modifier = Modifier
+                        .size(dotSize)
+                        .clip(CircleShape)
+                        .background(Color(0xFF555555))
+                )
+                'L' -> Box(
+                    modifier = Modifier
+                        .size(dotSize)
+                        .clip(CircleShape)
+                        .background(Color.Transparent)
+                        .border(1.dp, Color(0xFF555555), CircleShape)
+                )
+                else -> Box(
+                    modifier = Modifier
+                        .size(dotSize)
+                        .clip(CircleShape)
+                        .background(Color(0xFF1A1E2A))
+                )
+            }
+        }
+    }
+}
+

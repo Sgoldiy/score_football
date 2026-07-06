@@ -135,6 +135,8 @@ fun MatchCenterScreen(
                                         BroadcastMatchCard(
                                             match = data.match,
                                             expandedByDefault = true,
+                                            homeForm = data.homeForm ?: "",
+                                            awayForm = data.awayForm ?: "",
                                             onClick = {}
                                         )
                                     }
@@ -266,7 +268,14 @@ fun MatchCenterScreen(
                                             )
                                         }
                                         items(data.headToHead) { match ->
-                                            MatchRow(match = match, onClick = { /* Navigate */ })
+                                            val rowHomeForm = if (match.homeTeam.id == data.match.homeTeam.id) data.homeForm else data.awayForm
+                                            val rowAwayForm = if (match.awayTeam.id == data.match.awayTeam.id) data.awayForm else data.homeForm
+                                            MatchRow(
+                                                match = match,
+                                                homeForm = rowHomeForm ?: "",
+                                                awayForm = rowAwayForm ?: "",
+                                                onClick = { /* Navigate */ }
+                                            )
                                         }
                                     }
                                 }

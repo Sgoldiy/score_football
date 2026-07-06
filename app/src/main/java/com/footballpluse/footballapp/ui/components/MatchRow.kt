@@ -19,7 +19,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.footballpluse.footballapp.domain.model.Match
-import com.footballpluse.footballapp.ui.screens.home.FormDotsRow
 import java.text.SimpleDateFormat
 import java.util.*
 

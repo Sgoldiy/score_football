@@ -4,6 +4,7 @@ import com.footballpluse.footballapp.data.local.DataStoreManager
 import com.footballpluse.footballapp.data.local.db.FavoriteClubEntity
 import com.footballpluse.footballapp.data.local.db.FavouriteClubDao
 import com.footballpluse.footballapp.data.local.db.FavouriteClubEntity
+import com.footballpluse.footballapp.data.local.db.FavouriteLeagueEntity
 import com.footballpluse.footballapp.data.local.db.UserProfileEntity
 import com.footballpluse.footballapp.domain.model.OnboardingClub
 import com.footballpluse.footballapp.domain.model.OnboardingDefaults
@@ -17,7 +18,8 @@ class OnboardingRepository @Inject constructor(
     private val firestoreRepository: FirestoreRepository,
     private val localRepository: LocalRepository,
     private val dataStoreManager: DataStoreManager,
-    private val favouriteClubDao: FavouriteClubDao
+    private val favouriteClubDao: FavouriteClubDao,
+    private val favouriteLeagueDao: com.footballpluse.footballapp.data.local.db.FavouriteLeagueDao
 ) {
 
     fun isOnboardingCompleted(): Boolean {
@@ -103,56 +105,73 @@ class OnboardingRepository @Inject constructor(
         }
     }
 
-    suspend fun saveFavoriteLeague(leagueId: String) {
-        // Room DB update
-        localRepository.updateFavoriteLeague(leagueId)
+    suspend fun saveFavoriteLeague(leagueIdStr: String) {
+        // Room DB update (User Profile)
+        localRepository.updateFavoriteLeague(leagueIdStr)
+        
+        val leagueId = leagueIdStr.toIntOrNull() ?: 152
+        // Room DB update (Favourite League Table)
+        val leagueName = OnboardingDefaults.leagueName(leagueIdStr) ?: "Premier League"
+        val leagueLogo = OnboardingDefaults.leagueLogoUrl(leagueId, leagueName)
+        favouriteLeagueDao.clear()
+        favouriteLeagueDao.insertAll(listOf(
+            FavouriteLeagueEntity(
+                leagueId = leagueId,
+                leagueName = leagueName,
+                country = null,
+                logoUrl = leagueLogo
+            )
+        ))
+
         // SharedPreferences save
-        localRepository.saveFavoriteLeaguePref(leagueId)
-        // DataStore save: used by HomeViewModel for favouriteLeagueId/Name
-        val leagueName = OnboardingDefaults.leagueName(leagueId)
-        if (leagueName != null) {
-            dataStoreManager.saveFavouriteLeague(leagueId.toIntOrNull() ?: 39, leagueName)
-        }
+        localRepository.saveFavoriteLeaguePref(leagueIdStr)
+        // DataStore save
+        dataStoreManager.saveFavouriteLeague(leagueId, leagueName)
     }
 
     suspend fun completeOnboarding(
         uid: String,
         leagueId: String,
         leagueName: String,
-        clubs: List<FavoriteClubEntity>
+        clubs: List<com.footballpluse.footballapp.data.local.db.FavoriteClubEntity>
     ) {
-        // Room DB: Save Favorite Clubs
+        // Room DB: Save Favorite Clubs (using consolidated dao)
+        val consolidatedClubs = clubs.map { 
+            FavouriteClubEntity(
+                clubId = it.clubId.toIntOrNull() ?: 0,
+                clubName = it.clubName,
+                leagueId = it.leagueId.toIntOrNull() ?: 0,
+                leagueName = leagueName,
+                logoUrl = it.logoUrl ?: ""
+            )
+        }
+        favouriteClubDao.clear()
+        favouriteClubDao.insertAll(consolidatedClubs)
+
+        // Save also to the "Favorite" legacy table if still used by some UI
         localRepository.saveFavoriteClubs(clubs)
 
-        // App Database: Sync to favourite_clubs so FavouriteRepository can read them
-        favouriteClubDao.clear()
-        favouriteClubDao.insertAll(clubs.toFavouriteClubEntities(leagueName))
-
-        // Room DB: Mark User Profile complete
+        // Mark User Profile complete
         localRepository.completeUserProfileOnboarding()
 
         // SharedPreferences: Save favorite clubs list
         localRepository.saveFavoriteClubsPref(clubs.map { it.clubId })
 
-        // Firestore: Update remote user document (non-fatal if it fails)
+        // DataStore: Save league preference
+        dataStoreManager.saveFavouriteLeague(leagueId.toIntOrNull() ?: 152, leagueName)
+
+        // Mark onboarding complete
+        localRepository.setOnboardingCompleted(true)
+        dataStoreManager.saveOnboardingCompleted(true)
+
+        // Sync to Firestore
         try {
             firestoreRepository.saveOnboardingData(
                 uid = uid,
                 favoriteLeague = leagueId,
                 favoriteClubs = clubs.map { it.clubId }
             )
-        } catch (_: Exception) {
-            // Remote sync is best-effort; local onboarding completes regardless
-        }
-
-        // DataStore: Save league preference (HomeViewModel reads this)
-        dataStoreManager.saveFavouriteLeague(leagueId.toIntOrNull() ?: 39, leagueName)
-
-        // SharedPreferences: Mark onboarding complete
-        localRepository.setOnboardingCompleted(true)
-
-        // DataStore: Mark onboarding complete (SplashViewModel reads this)
-        dataStoreManager.saveOnboardingCompleted(true)
+        } catch (_: Exception) {}
     }
 
     fun saveFavoriteClubsPref(clubIds: List<String>) {
@@ -189,22 +208,36 @@ class OnboardingRepository @Inject constructor(
     ) {
         val uid = localRepository.getUidPref() ?: ""
 
-        val entities = clubs.map { club ->
-            FavoriteClubEntity(
-                clubId = club.clubId.toString(),
+        // Standardized Favourite entities
+        val consolidatedClubs = clubs.map { club ->
+            FavouriteClubEntity(
+                clubId = club.clubId,
                 clubName = club.clubName,
-                leagueId = club.leagueId.toString(),
-                logoUrl = OnboardingDefaults.clubLogoUrl(club.clubId),
+                leagueId = club.leagueId,
+                leagueName = favouriteLeague.name,
+                logoUrl = OnboardingDefaults.clubLogoUrl(club.clubId, club.clubName),
                 addedAt = System.currentTimeMillis()
             )
         }
 
-        localRepository.saveFavoriteClubs(entities)
+        favouriteClubDao.clear()
+        favouriteClubDao.insertAll(consolidatedClubs)
+
+        val leagueLogo = OnboardingDefaults.leagueLogoUrl(favouriteLeague.id, favouriteLeague.name)
+        favouriteLeagueDao.clear()
+        favouriteLeagueDao.insertAll(listOf(
+            FavouriteLeagueEntity(
+                leagueId = favouriteLeague.id,
+                leagueName = favouriteLeague.name,
+                country = favouriteLeague.country,
+                logoUrl = leagueLogo
+            )
+        ))
+
+        // Update profile
         localRepository.updateFavoriteLeague(favouriteLeague.id.toString())
         localRepository.saveFavoriteLeaguePref(favouriteLeague.id.toString())
-
-        favouriteClubDao.clear()
-        favouriteClubDao.insertAll(entities.toFavouriteClubEntities(favouriteLeague.name))
+        dataStoreManager.saveFavouriteLeague(favouriteLeague.id, favouriteLeague.name)
 
         if (uid.isNotBlank()) {
             try {
@@ -214,13 +247,13 @@ class OnboardingRepository @Inject constructor(
                     favoriteClubs = clubs.map { it.clubId.toString() }
                 )
             } catch (_: Exception) {
-                // Remote sync is best-effort
             }
         }
 
         if (markOnboardingCompleted) {
             localRepository.completeUserProfileOnboarding()
             localRepository.setOnboardingCompleted(true)
+            dataStoreManager.saveOnboardingCompleted(true)
         }
     }
 }

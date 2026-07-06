@@ -640,7 +640,7 @@ fun FlatLeagueList(
     LazyColumn(
         contentPadding = PaddingValues(vertical = 12.dp)
     ) {
-        items(leagues, key = { it.id }) { league ->
+        items(leagues, key = { "flat_${it.id}" }) { league ->
             LaunchedEffect(league.id) {
                 viewModel.loadExtraDetails(league.id)
             }

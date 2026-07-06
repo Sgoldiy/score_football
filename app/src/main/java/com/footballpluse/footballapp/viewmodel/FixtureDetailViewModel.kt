@@ -33,18 +33,11 @@ class FixtureDetailViewModel @Inject constructor(
     private val _pollPercentages = MutableStateFlow(Triple(42, 23, 35))
     val pollPercentages: StateFlow<Triple<Int, Int, Int>> = _pollPercentages
 
-    private val _comments = MutableStateFlow<List<ChatMessage>>(
-        listOf(
-            ChatMessage("1", "GunnerFan_99", "Odegaard magic incoming! 🪄", System.currentTimeMillis() - 120_000),
-            ChatMessage("2", "CityzensBlue", "Haaland has looked dangerous in warmups 🤖", System.currentTimeMillis() - 90_000),
-            ChatMessage("3", "System", "Live Match Chat Connected • Please be respectful", System.currentTimeMillis() - 60_000, isSystem = true),
-            ChatMessage("4", "LaLigaBoss", "Real Madrid defense will show them levels tonight! 🛡️", System.currentTimeMillis() - 30_000)
-        )
-    )
+    private val _comments = MutableStateFlow<List<ChatMessage>>(emptyList())
     val comments: StateFlow<List<ChatMessage>> = _comments
 
     init {
-        startCommentSimulator()
+        // startCommentSimulator()
     }
 
     fun loadFixtureDetails(fixtureId: Int) {

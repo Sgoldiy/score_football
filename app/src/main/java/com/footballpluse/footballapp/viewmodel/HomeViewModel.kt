@@ -155,15 +155,24 @@ class HomeViewModel @Inject constructor(
                             val topLeagues = matches.map { it.league }.distinctBy { it.id }
                                 .sortedByDescending { it.id in priorityLeagues }
 
-                            val favLeagueIds = followed.ifEmpty { setOf(onboardingFavId) }
+                            val favLeagueIds = followed.ifEmpty { 
+                                if (onboardingFavId != 0) setOf(onboardingFavId) else emptySet() 
+                            }
                             val favLeaguesList = allLeagues.filter { it.league_id?.toIntOrNull() in favLeagueIds }.map { it.toLeagueResponse() }
+
+                            // Use allLeagues from API for the Top Leagues section if matches are sparse
+                            val apiTopLeagues = allLeagues
+                                .filter { it.league_id?.toIntOrNull() in priorityLeagues }
+                                .map { it.toLeagueInfo() }
+
+                            val finalTopLeagues = (topLeagues + apiTopLeagues).distinctBy { it.id }
 
                             _uiState.value = HomeUiState.Success(
                                 featuredMatches = featured,
                                 liveMatches = live,
                                 upcomingMatches = upcoming,
                                 finishedMatches = finished,
-                                topLeagues = topLeagues,
+                                topLeagues = finalTopLeagues,
                                 isLive = live.isNotEmpty(),
                                 topScorers = scorersList,
                                 favouriteLeagues = favLeaguesList,

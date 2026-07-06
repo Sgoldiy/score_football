@@ -52,6 +52,18 @@ interface FavouriteClubDao {
 }
 
 @Dao
+interface FavouriteLeagueDao {
+    @Query("SELECT * FROM favourite_leagues ORDER BY addedAt DESC")
+    fun getFavouriteLeagues(): Flow<List<FavouriteLeagueEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(leagues: List<FavouriteLeagueEntity>)
+
+    @Query("DELETE FROM favourite_leagues")
+    suspend fun clear()
+}
+
+@Dao
 interface FavouritePlayerDao {
     @Query("SELECT * FROM favourite_players ORDER BY addedAt DESC")
     fun getFavouritePlayers(): Flow<List<FavouritePlayerEntity>>

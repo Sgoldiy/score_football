@@ -62,7 +62,9 @@ data class MatchDetail(
     val injuries: List<MatchInjury> = emptyList(),
     val headToHead: List<Match> = emptyList(),
     val venue: VenueInfo? = null,
-    val referee: String? = null
+    val referee: String? = null,
+    val homeForm: String? = null,
+    val awayForm: String? = null
 )
 
 data class MatchPrediction(

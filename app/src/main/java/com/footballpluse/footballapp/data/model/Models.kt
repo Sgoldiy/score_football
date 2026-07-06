@@ -51,7 +51,7 @@ data class ApiCoach(
 
 @JsonClass(generateAdapter = true)
 data class ApiPlayer(
-    val player_key: Int?,
+    val player_key: Long?,
     val player_id: String?,
     val player_image: String?,
     val player_name: String?,
@@ -113,6 +113,7 @@ data class ApiStanding(
     @Json(name = "overall_league_L") val standing_L: String?,
     val standing_PE: String? = null,
     @Json(name = "overall_league_PTS") val standing_PTS: String?,
+    @Json(name = "overall_league_form") val overall_form: String? = null,
     @Json(name = "overall_league_GF") val overall_GF: String? = null,
     @Json(name = "overall_league_GA") val overall_GA: String? = null,
     val team_badge: String?,
@@ -304,7 +305,7 @@ data class ApiTopScorer(
     val goals: String?,
     val assists: String?,
     val penalty_goals: String?,
-    @Json(name = "player_key") val player_id: String? = null,
+    @Json(name = "player_key") val player_id: Long? = null,
     @Json(name = "team_key") val team_id: String? = null,
     val player_image: String? = null,
     val team_badge: String? = null

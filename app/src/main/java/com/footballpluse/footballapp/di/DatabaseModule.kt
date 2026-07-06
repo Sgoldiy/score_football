@@ -59,6 +59,35 @@ object DatabaseModule {
         }
     }
 
+    private val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS favorite_clubs (
+                    clubId TEXT PRIMARY KEY NOT NULL,
+                    clubName TEXT NOT NULL,
+                    leagueId TEXT NOT NULL,
+                    logoUrl TEXT,
+                    addedAt INTEGER NOT NULL
+                )
+                """.trimIndent()
+            )
+            db.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS user_profile (
+                    id INTEGER PRIMARY KEY NOT NULL,
+                    uid TEXT NOT NULL,
+                    username TEXT NOT NULL,
+                    displayUsername TEXT NOT NULL,
+                    favoriteLeague TEXT,
+                    createdAt INTEGER NOT NULL,
+                    onboardingComplete INTEGER NOT NULL
+                )
+                """.trimIndent()
+            )
+        }
+    }
+
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase {
@@ -66,7 +95,8 @@ object DatabaseModule {
             context,
             AppDatabase::class.java,
             "football_plus_db"
-        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+        ).addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+            .fallbackToDestructiveMigration()
             .build()
     }
 
@@ -83,5 +113,14 @@ object DatabaseModule {
     fun provideFavouriteClubDao(db: AppDatabase): FavouriteClubDao = db.favouriteClubDao()
 
     @Provides
+    fun provideFavouriteLeagueDao(db: AppDatabase): com.footballpluse.footballapp.data.local.db.FavouriteLeagueDao = db.favouriteLeagueDao()
+
+    @Provides
     fun provideFavouritePlayerDao(db: AppDatabase): FavouritePlayerDao = db.favouritePlayerDao()
+
+    @Provides
+    fun provideFavoriteClubDao(db: AppDatabase): com.footballpluse.footballapp.data.local.db.FavoriteClubDao = db.favoriteClubDao()
+
+    @Provides
+    fun provideUserProfileDao(db: AppDatabase): com.footballpluse.footballapp.data.local.db.UserProfileDao = db.userProfileDao()
 }

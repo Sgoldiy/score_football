@@ -45,31 +45,6 @@ import com.footballpluse.footballapp.viewmodel.HomeViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
-private data class Competition(
-    val id: Int,
-    val name: String,
-    val leagueId: Int,
-    val season: Int
-)
-
-private val ALL_COMPETITIONS = listOf(
-    Competition(id = 152, name = "Premier League", leagueId = 152, season = 2025),
-    Competition(id = 302, name = "La Liga", leagueId = 302, season = 2025),
-    Competition(id = 207, name = "Serie A", leagueId = 207, season = 2025),
-    Competition(id = 175, name = "Bundesliga", leagueId = 175, season = 2025),
-    Competition(id = 168, name = "Ligue 1", leagueId = 168, season = 2025),
-    Competition(id = 88, name = "Eredivisie", leagueId = 88, season = 2025),
-    Competition(id = 94, name = "Primeira Liga", leagueId = 94, season = 2025),
-    Competition(id = 3, name = "Champions League", leagueId = 3, season = 2025),
-    Competition(id = 4, name = "Europa League", leagueId = 4, season = 2025),
-    Competition(id = 28, name = "FIFA World Cup", leagueId = 28, season = 2026),
-    Competition(id = 1, name = "UEFA Euros", leagueId = 1, season = 2024),
-    Competition(id = 848, name = "Conf. League", leagueId = 848, season = 2025)
-)
-
-private val DOMESTIC_COMPETITIONS = ALL_COMPETITIONS.take(7)
-private val INTERNATIONAL_COMPETITIONS = ALL_COMPETITIONS.drop(7)
-
 private fun leagueBadgeUrl(leagueId: Int, leagueName: String): String =
     "https://apiv3.apifootball.com/badges/logo_leagues/${leagueId}_${leagueName.lowercase().replace(' ', '-')}.png"
 
@@ -210,10 +185,19 @@ private fun HomeContent(
     val groupedMatches = remember(allToday, favouriteLeagueId) {
         allToday.groupBy { it.league.id }.map { (_, matches) -> matches }.sortedWith(compareByDescending<List<Match>> { group -> group.first().league.id == favouriteLeagueId }.thenByDescending { group -> group.any { it.isLive } })
     }
-    val leagueLogoMap = remember(state.topLeagues) {
-        val apiLogos = state.topLeagues.associate { it.id to it.logo }
-        ALL_COMPETITIONS.associate { it.leagueId to (apiLogos[it.leagueId] ?: leagueBadgeUrl(it.leagueId, it.name)) }
+    
+    val domesticLeagues = remember(state.topLeagues, favouriteLeagueId) {
+        val domesticIds = setOf(152, 302, 207, 175, 168, 88, 94)
+        state.topLeagues.filter { it.id in domesticIds || it.id == favouriteLeagueId }
+            .sortedByDescending { it.id == favouriteLeagueId }
+            .take(10)
     }
+
+    val internationalLeagues = remember(state.topLeagues) {
+        val intIds = setOf(3, 4, 28, 1, 848)
+        state.topLeagues.filter { it.id in intIds }
+    }
+
     val listState = rememberLazyListState()
 
     val leagueGroupMap = remember(groupedMatches) {
@@ -245,22 +229,48 @@ private fun HomeContent(
 
         item {
             val liveLeagueIds = state.liveMatches.map { it.league.id }.toSet()
-            LeagueSectionHeader("Top Leagues", "Major")
-            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                val topList = (listOf(favouriteLeagueId) + DOMESTIC_COMPETITIONS.map { it.leagueId }).distinct().take(7)
-                items(topList) { leagueId ->
-                    val comp = (DOMESTIC_COMPETITIONS + INTERNATIONAL_COMPETITIONS).find { it.leagueId == leagueId }
-                    CompetitionCard(leagueId = leagueId, leagueName = if (leagueId == favouriteLeagueId) favouriteLeagueName else comp?.name ?: "League", logoUrl = leagueLogoMap[leagueId], season = comp?.season ?: 2025, hasLiveMatches = leagueId in liveLeagueIds, onClick = { onNavigateToLeagueDetail?.invoke(leagueId, comp?.season ?: 2025) ?: onNavigateToLeagues() })
+            
+            if (domesticLeagues.isNotEmpty()) {
+                LeagueSectionHeader("Top Leagues", "Major")
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(domesticLeagues, key = { "dom_lg_${it.id}" }) { league ->
+                        CompetitionCard(
+                            leagueId = league.id,
+                            leagueName = league.name,
+                            logoUrl = league.logo ?: leagueBadgeUrl(league.id, league.name),
+                            season = league.season ?: 2025,
+                            hasLiveMatches = league.id in liveLeagueIds,
+                            onClick = { onNavigateToLeagueDetail?.invoke(league.id, league.season ?: 2025) ?: onNavigateToLeagues() }
+                        )
+                    }
                 }
+                Spacer(Modifier.height(16.dp))
             }
-            Spacer(Modifier.height(16.dp))
-            LeagueSectionHeader("International & Cups", null)
-            LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                items(INTERNATIONAL_COMPETITIONS) { competition ->
-                    CompetitionCard(leagueId = competition.leagueId, leagueName = competition.name, logoUrl = leagueLogoMap[competition.leagueId], season = competition.season, hasLiveMatches = competition.leagueId in liveLeagueIds, onClick = { onNavigateToLeagueDetail?.invoke(competition.leagueId, competition.season) ?: onNavigateToLeagues() })
+
+            if (internationalLeagues.isNotEmpty()) {
+                LeagueSectionHeader("International & Cups", null)
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(internationalLeagues, key = { "int_lg_${it.id}" }) { league ->
+                        CompetitionCard(
+                            leagueId = league.id,
+                            leagueName = league.name,
+                            logoUrl = league.logo ?: leagueBadgeUrl(league.id, league.name),
+                            season = league.season ?: 2025,
+                            hasLiveMatches = league.id in liveLeagueIds,
+                            onClick = { onNavigateToLeagueDetail?.invoke(league.id, league.season ?: 2025) ?: onNavigateToLeagues() }
+                        )
+                    }
                 }
+                Spacer(Modifier.height(24.dp))
             }
-            Spacer(Modifier.height(24.dp))
         }
 
         if (state.liveMatches.isNotEmpty()) {
@@ -275,8 +285,14 @@ private fun HomeContent(
                 }
                 Spacer(Modifier.height(12.dp))
                 LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                    items(state.liveMatches, key = { it.id }) { match ->
-                        BroadcastMatchCard(match = match, modifier = Modifier.width(300.dp), onClick = { onMatchClick(match.id.toString()) })
+                    items(state.liveMatches, key = { "live_${it.id}" }) { match ->
+                        BroadcastMatchCard(
+                            match = match,
+                            modifier = Modifier.width(300.dp),
+                            onClick = { onMatchClick(match.id.toString()) },
+                            homeForm = formMap[match.homeTeam.id] ?: "",
+                            awayForm = formMap[match.awayTeam.id] ?: ""
+                        )
                     }
                 }
                 Spacer(Modifier.height(24.dp))
@@ -422,7 +438,7 @@ private fun TeamRowItem(name: String, logo: String?, score: Int?, form: String, 
             Text(name, fontSize = 13.sp, color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (form.isNotEmpty()) {
                 Spacer(Modifier.height(2.dp))
-                FormDotsRow(form = form, dotSize = 7.dp, gap = 4.dp, modifier = Modifier)
+                com.footballpluse.footballapp.ui.components.FormDotsRow(form = form, dotSize = 7.dp, gap = 4.dp, modifier = Modifier)
             }
         }
         if (showScore) {
@@ -456,17 +472,3 @@ private fun MyTeamsStrip(onEditFavorites: () -> Unit, onClubClick: (Int) -> Unit
     }
 }
 
-@Composable
-fun FormDotsRow(form: String, modifier: Modifier = Modifier, dotSize: androidx.compose.ui.unit.Dp = 9.dp, gap: androidx.compose.ui.unit.Dp = 5.dp) {
-    Row(horizontalArrangement = Arrangement.spacedBy(gap), verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
-        val results = form.takeLast(5).padStart(5, 'U')
-        results.forEach { result ->
-            when (result) {
-                'W' -> Box(modifier = Modifier.size(dotSize).clip(CircleShape).background(Color(0xFF00E676)))
-                'D' -> Box(modifier = Modifier.size(dotSize).clip(CircleShape).background(Color(0xFF555555)))
-                'L' -> Box(modifier = Modifier.size(dotSize).clip(CircleShape).background(Color.Transparent).border(1.dp, Color(0xFF555555), CircleShape))
-                else -> Box(modifier = Modifier.size(dotSize).clip(CircleShape).background(Color(0xFF1A1E2A)))
-            }
-        }
-    }
-}

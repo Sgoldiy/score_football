@@ -55,7 +55,9 @@ fun ApiEvent.toFixtureResponse(): FixtureResponse {
             penalty = FixtureGoals(home = match_hometeam_penalty_score?.toIntOrNull(), away = match_awayteam_penalty_score?.toIntOrNull())
         ),
         events = (goalscorer?.map { it.toFixtureEvent(homeId, awayId) } ?: emptyList()) +
-            (cards?.map { it.toFixtureEvent(homeId, awayId) } ?: emptyList()),
+            (cards?.map { it.toFixtureEvent(homeId, awayId) } ?: emptyList()) +
+            (substitutions?.home?.map { it.toFixtureEvent(homeId) } ?: emptyList()) +
+            (substitutions?.away?.map { it.toFixtureEvent(awayId) } ?: emptyList()),
         lineups = lineup?.let { l ->
             listOfNotNull(
                 l.home?.toFixtureLineup(homeId, match_hometeam_name, team_home_badge),
@@ -64,6 +66,21 @@ fun ApiEvent.toFixtureResponse(): FixtureResponse {
         } ?: emptyList(),
         statistics = statistics?.map { it.toFixtureTeamStatistics(homeId, awayId) } ?: emptyList(),
         players = null
+    )
+}
+
+internal fun ApiSubstitution.toFixtureEvent(teamId: Int): FixtureEvent {
+    val players = substitution?.split("|") ?: emptyList()
+    val outPlayer = players.getOrNull(0)?.trim()
+    val inPlayer = players.getOrNull(1)?.trim()
+    return FixtureEvent(
+        time = EventTime(elapsed = time?.toIntOrNull(), extra = null),
+        team = EventTeam(id = teamId, name = null, logo = null),
+        player = EventPlayer(id = null, name = outPlayer),
+        assist = EventPlayer(id = null, name = inPlayer),
+        type = "subst",
+        detail = "Substitution",
+        comments = null
     )
 }
 
@@ -149,12 +166,23 @@ internal fun ApiStanding.toStandingRecord(): StandingRecord {
         rank = rank, team = Team(id = team_id.toIntOr(0), name = team_name, code = null, country = country_name,
             founded = null, national = null, logo = team_badge),
         points = standing_PTS?.toIntOrNull(), goalsDiff = goalsDiff, group = standing_group,
-        form = null, status = standing_place_type, description = null,
+        form = overall_form, status = standing_place_type, description = null,
         all = StandingGoals(played = played, win = wins, draw = draws, lose = loses,
             goals = StandingGoalsDetail(goalsFor = goalsFor, against = goalsAgainst)),
         home = StandingGoals(played = null, win = null, draw = null, lose = null, goals = null),
         away = StandingGoals(played = null, win = null, draw = null, lose = null, goals = null),
         update = null
+    )
+}
+
+fun ApiLeague.toLeagueInfo(): LeagueInfo {
+    return LeagueInfo(
+        id = league_id.toIntOr(0),
+        name = league_name ?: "",
+        logo = league_logo,
+        country = country_name,
+        flag = country_logo,
+        season = league_season?.toIntOrNull()
     )
 }
 
@@ -179,7 +207,7 @@ fun ApiTeam.toTeamInfoResponse(): TeamInfoResponse {
 fun ApiPlayer.toPlayerProfileStatisticsResponse(): PlayerProfileStatisticsResponse {
     return PlayerProfileStatisticsResponse(
         player = Player(
-            id = player_key ?: 0, name = player_name, firstname = null, lastname = null,
+            id = (player_key ?: 0).toInt(), name = player_name, firstname = null, lastname = null,
             age = player_age?.toIntOrNull(),
             birth = player_birthdate?.let { PlayerBirth(date = it, place = null, country = player_country) },
             nationality = player_country, height = null, weight = null, injured = player_injured?.toIntOrNull()?.let { it == 1 },
@@ -210,7 +238,7 @@ fun ApiPlayer.toPlayerProfileStatisticsResponse(): PlayerProfileStatisticsRespon
 fun ApiTopScorer.toPlayerProfileStatisticsResponse(): PlayerProfileStatisticsResponse {
     return PlayerProfileStatisticsResponse(
         player = Player(
-            id = player_id?.toIntOrNull() ?: 0, name = player_name, firstname = null, lastname = null,
+            id = (player_id ?: 0).toInt(), name = player_name, firstname = null, lastname = null,
             age = null, birth = null, nationality = null, height = null, weight = null,
             injured = null, photo = player_image, type = null, reason = null
         ),
@@ -255,8 +283,20 @@ fun ApiPrediction.toPrediction(): Prediction {
 }
 
 fun List<ApiPlayer>.toSquadPlayers(): List<SquadPlayer> = map {
-    SquadPlayer(id = it.player_key, name = it.player_name, age = it.player_age?.toIntOrNull(),
+    SquadPlayer(id = it.player_key?.toInt(), name = it.player_name, age = it.player_age?.toIntOrNull(),
         number = it.player_number?.toIntOrNull(), position = it.player_type, photo = it.player_image)
+}
+
+fun ApiMatchPlayerStatistic.toPlayerPerformance(): PlayerPerformance {
+    return PlayerPerformance(
+        id = player_key.toIntOr(0),
+        name = player_name ?: "",
+        photo = null, // Not available in match stats
+        rating = player_rating,
+        position = player_position ?: "",
+        goals = player_goals.toIntOr(0),
+        assists = player_assists.toIntOr(0)
+    )
 }
 
 fun List<ApiCoach>.toCoaches(): List<Coach> = map {

@@ -32,6 +32,8 @@ fun BroadcastMatchCard(
     match: Match,
     modifier: Modifier = Modifier,
     expandedByDefault: Boolean = false,
+    homeForm: String = "",
+    awayForm: String = "",
     onClick: () -> Unit
 ) {
     var expanded by remember(match.id) { mutableStateOf(expandedByDefault) }
@@ -56,7 +58,7 @@ fun BroadcastMatchCard(
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
             MatchHeader(match, isLive)
-            ScoreRow(match, isLive, scoreScale)
+            ScoreRow(match, isLive, scoreScale, homeForm, awayForm)
             BottomActionRow(match)
         }
     }
@@ -113,7 +115,7 @@ private fun MatchHeader(match: Match, isLive: Boolean) {
 }
 
 @Composable
-private fun ScoreRow(match: Match, isLive: Boolean, scale: Float) {
+private fun ScoreRow(match: Match, isLive: Boolean, scale: Float, homeForm: String, awayForm: String) {
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceEvenly,
@@ -123,6 +125,7 @@ private fun ScoreRow(match: Match, isLive: Boolean, scale: Float) {
             TeamScoreBlock(
                 name = match.homeTeam.name,
                 logo = match.homeTeam.logo,
+                form = homeForm,
                 alignStart = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -168,6 +171,7 @@ private fun ScoreRow(match: Match, isLive: Boolean, scale: Float) {
             TeamScoreBlock(
                 name = match.awayTeam.name,
                 logo = match.awayTeam.logo,
+                form = awayForm,
                 alignStart = false,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -179,6 +183,7 @@ private fun ScoreRow(match: Match, isLive: Boolean, scale: Float) {
 private fun TeamScoreBlock(
     name: String,
     logo: String?,
+    form: String,
     alignStart: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -188,31 +193,41 @@ private fun TeamScoreBlock(
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (!alignStart) {
-            Text(
-                name,
-                color = Color.White,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.End,
-                modifier = Modifier.weight(1f)
-            )
+            Column(horizontalAlignment = Alignment.End, modifier = Modifier.weight(1f)) {
+                Text(
+                    name,
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.End
+                )
+                if (form.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    FormDotsRow(form = form, dotSize = 6.dp, gap = 3.dp)
+                }
+            }
             Spacer(Modifier.width(8.dp))
         }
         FootballLogo(logo, name, Modifier.size(40.dp), glow = LiveGreen.copy(alpha = 0.3f))
         if (alignStart) {
             Spacer(Modifier.width(8.dp))
-            Text(
-                name,
-                color = Color.White,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                textAlign = TextAlign.Start,
-                modifier = Modifier.weight(1f)
-            )
+            Column(horizontalAlignment = Alignment.Start, modifier = Modifier.weight(1f)) {
+                Text(
+                    name,
+                    color = Color.White,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Start
+                )
+                if (form.isNotEmpty()) {
+                    Spacer(Modifier.height(4.dp))
+                    FormDotsRow(form = form, dotSize = 6.dp, gap = 3.dp)
+                }
+            }
         }
     }
 }

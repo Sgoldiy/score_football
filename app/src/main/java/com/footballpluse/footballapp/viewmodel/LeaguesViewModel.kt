@@ -181,10 +181,10 @@ class LeaguesViewModel @Inject constructor(
 
     // Compatibility flow for LeaguesScreen loading/error states
     val leaguesState: StateFlow<ApiResult<LeaguesData>> = combine(
-        allLeagues,
+        _rawLeagues,
         _isLoading,
         _errorMessage
-    ) { _, loading, error ->
+    ) { rawLeagues, loading, error ->
         if (error != null) {
             ApiResult.Error(error)
         } else if (loading) {
@@ -192,7 +192,7 @@ class LeaguesViewModel @Inject constructor(
         } else {
             ApiResult.Success(
                 LeaguesData(
-                    leagues = emptyList(),
+                    leagues = rawLeagues,
                     countries = emptyList(),
                     seasons = emptyList()
                 )

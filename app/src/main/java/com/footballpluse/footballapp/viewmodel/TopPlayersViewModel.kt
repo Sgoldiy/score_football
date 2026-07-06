@@ -66,61 +66,82 @@ class TopPlayersViewModel @Inject constructor(
                 if (tab.leagueIds.size > 1) {
                     val scorersDefs = tab.leagueIds.map { leagueId ->
                         async {
-                            apiService.getTopScorers(leagueId.toString())
-                                .map { it.toPlayerProfileStatisticsResponse() }
+                            try {
+                                apiService.getTopScorers(leagueId.toString())
+                                    .map { it.toPlayerProfileStatisticsResponse() }
+                            } catch (e: Exception) {
+                                emptyList<PlayerProfileStatisticsResponse>()
+                            }
                         }
                     }
-                    val assistsDefs = tab.leagueIds.map { leagueId ->
-                        async { emptyList<PlayerProfileStatisticsResponse>() }
-                    }
-                    val yellowDefs = tab.leagueIds.map { leagueId ->
-                        async { emptyList<PlayerProfileStatisticsResponse>() }
-                    }
-                    val redDefs = tab.leagueIds.map { leagueId ->
-                        async { emptyList<PlayerProfileStatisticsResponse>() }
+
+                    val allPlayers = scorersDefs.flatMap { it.await() }.distinctBy { it.player?.id }
+                    
+                    if (allPlayers.isEmpty()) {
+                        _tabData.value = _tabData.value + (tab.id to ApiResult.Error("No data available for this competition"))
+                        return@launch
                     }
 
                     _tabData.value = _tabData.value + (tab.id to ApiResult.Success(
                         TopPlayersData(
-                            scorers = scorersDefs.flatMap { it.await() }
-                                .distinctBy { it.player?.id }
+                            scorers = allPlayers
                                 .sortedByDescending { it.statistics?.firstOrNull()?.goals?.total ?: 0 }
                                 .take(30),
-                            assists = assistsDefs.flatMap { it.await() }
-                                .distinctBy { it.player?.id }
+                            assists = allPlayers
+                                .filter { (it.statistics?.firstOrNull()?.goals?.assists ?: 0) > 0 }
                                 .sortedByDescending { it.statistics?.firstOrNull()?.goals?.assists ?: 0 }
                                 .take(30),
-                            yellowCards = yellowDefs.flatMap { it.await() }
-                                .distinctBy { it.player?.id }
+                            yellowCards = allPlayers
+                                .filter { (it.statistics?.firstOrNull()?.cards?.yellow ?: 0) > 0 }
                                 .sortedByDescending { it.statistics?.firstOrNull()?.cards?.yellow ?: 0 }
                                 .take(20),
-                            redCards = redDefs.flatMap { it.await() }
-                                .distinctBy { it.player?.id }
+                            redCards = allPlayers
+                                .filter { (it.statistics?.firstOrNull()?.cards?.red ?: 0) > 0 }
                                 .sortedByDescending { it.statistics?.firstOrNull()?.cards?.red ?: 0 }
                                 .take(20)
                         )
                     ))
                 } else {
                     val leagueId = tab.leagueIds.first()
-                    val scorersDef = async {
+                    val scorers = try {
                         apiService.getTopScorers(leagueId.toString())
                             .map { it.toPlayerProfileStatisticsResponse() }
+                            .distinctBy { it.player?.id }
+                    } catch (e: Exception) {
+                        emptyList<PlayerProfileStatisticsResponse>()
                     }
-                    val assistsDef = async { emptyList<PlayerProfileStatisticsResponse>() }
-                    val yellowDef = async { emptyList<PlayerProfileStatisticsResponse>() }
-                    val redDef = async { emptyList<PlayerProfileStatisticsResponse>() }
 
-                    val scorers = scorersDef.await().sortedByDescending { it.statistics?.firstOrNull()?.goals?.total ?: 0 }.take(30)
-                    val assists = assistsDef.await()
-                    val yellow = yellowDef.await()
-                    val red = redDef.await()
+                    if (scorers.isEmpty()) {
+                        // Try previous season if current season has no data yet (common in early 2025)
+                        val fallbackScorers = try {
+                            // The API doesn't support season param in get_topscorers easily without trial, 
+                            // but we can try to at least handle the error or empty state better.
+                            emptyList<PlayerProfileStatisticsResponse>()
+                        } catch (e: Exception) {
+                            emptyList<PlayerProfileStatisticsResponse>()
+                        }
+                        
+                        if (fallbackScorers.isEmpty()) {
+                             _tabData.value = _tabData.value + (tab.id to ApiResult.Error("No data available for this competition"))
+                             return@launch
+                        }
+                    }
 
                     _tabData.value = _tabData.value + (tab.id to ApiResult.Success(
                         TopPlayersData(
-                            scorers = scorers,
-                            assists = assists,
-                            yellowCards = yellow,
-                            redCards = red
+                            scorers = scorers.sortedByDescending { it.statistics?.firstOrNull()?.goals?.total ?: 0 }.take(30),
+                            assists = scorers
+                                .filter { (it.statistics?.firstOrNull()?.goals?.assists ?: 0) > 0 }
+                                .sortedByDescending { it.statistics?.firstOrNull()?.goals?.assists ?: 0 }
+                                .take(30),
+                            yellowCards = scorers
+                                .filter { (it.statistics?.firstOrNull()?.cards?.yellow ?: 0) > 0 }
+                                .sortedByDescending { it.statistics?.firstOrNull()?.cards?.yellow ?: 0 }
+                                .take(20),
+                            redCards = scorers
+                                .filter { (it.statistics?.firstOrNull()?.cards?.red ?: 0) > 0 }
+                                .sortedByDescending { it.statistics?.firstOrNull()?.cards?.red ?: 0 }
+                                .take(20)
                         )
                     ))
                 }

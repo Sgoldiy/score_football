@@ -61,8 +61,8 @@ fun ClubsScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
 
-    var selectedTabLeagueId by remember {
-        mutableStateOf(state.selectedLeague?.id ?: leagues.firstOrNull()?.id ?: "39")
+    var selectedTabLeagueId by remember(state.selectedLeague?.id, leagues) {
+        mutableStateOf(state.selectedLeague?.id ?: leagues.firstOrNull()?.id ?: "152")
     }
     var searchQuery by remember { mutableStateOf("") }
 
@@ -231,129 +231,153 @@ fun ClubsScreen(
 
                 Spacer(modifier = Modifier.height(6.dp))
 
-                if (searchQuery.isNotEmpty() && filteredClubs.isEmpty()) {
+                if (filteredClubs.isEmpty()) {
                     Box(
-                        modifier = Modifier.fillMaxWidth().padding(24.dp),
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxWidth()
+                            .padding(24.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "No clubs match \"$searchQuery\"",
-                            color = textSecondary,
-                            fontSize = 14.sp
-                        )
-                    }
-                }
-
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(filteredClubs, key = { it.id }) { club ->
-                        val selected = state.selectedClubs.any { it.id == club.id }
-
-                        val scale by animateFloatAsState(
-                            targetValue = if (selected) 1.02f else 1f,
-                            animationSpec = tween(200), label = "card-scale"
-                        )
-                        val currentCardBg by animateColorAsState(
-                            targetValue = if (selected) selectedCardBg else cardBg,
-                            animationSpec = tween(250), label = "card-bg"
-                        )
-
-                        Card(
-                            modifier = Modifier.fillMaxWidth().height(164.dp).graphicsLayer {
-                                scaleX = scale
-                                scaleY = scale
-                            }.clickable { onClubToggled(club) },
-                            shape = RoundedCornerShape(14.dp),
-                            colors = CardDefaults.cardColors(containerColor = currentCardBg),
-                            elevation = CardDefaults.cardElevation(defaultElevation = if (selected) 8.dp else 2.dp)
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center
                         ) {
-                            Box(modifier = Modifier.fillMaxSize()) {
-                                Column(
-                                    modifier = Modifier.fillMaxSize(),
-                                    horizontalAlignment = Alignment.CenterHorizontally
-                                ) {
-                                    Box(
-                                        modifier = Modifier.fillMaxWidth().fillMaxHeight(0.55f)
-                                            .background(if (isDark) Color(0xFF1A1A1A) else Color(0xFFF5F5F7)),
-                                        contentAlignment = Alignment.Center
+                            Icon(
+                                imageVector = Icons.Rounded.SportsSoccer,
+                                contentDescription = null,
+                                tint = textMuted.copy(alpha = 0.5f),
+                                modifier = Modifier.size(64.dp)
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = if (searchQuery.isNotEmpty()) 
+                                    "No clubs match \"$searchQuery\"" 
+                                else 
+                                    "No clubs found for this league",
+                                color = textSecondary,
+                                fontSize = 16.sp,
+                                textAlign = TextAlign.Center
+                            )
+                            if (searchQuery.isNotEmpty()) {
+                                TextButton(onClick = { searchQuery = "" }) {
+                                    Text("Clear search", color = GreenAccent)
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(2),
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(filteredClubs, key = { it.id }) { club ->
+                            val selected = state.selectedClubs.any { it.id == club.id }
+
+                            val scale by animateFloatAsState(
+                                targetValue = if (selected) 1.02f else 1f,
+                                animationSpec = tween(200), label = "card-scale"
+                            )
+                            val currentCardBg by animateColorAsState(
+                                targetValue = if (selected) selectedCardBg else cardBg,
+                                animationSpec = tween(250), label = "card-bg"
+                            )
+
+                            Card(
+                                modifier = Modifier.fillMaxWidth().height(164.dp).graphicsLayer {
+                                    scaleX = scale
+                                    scaleY = scale
+                                }.clickable { onClubToggled(club) },
+                                shape = RoundedCornerShape(14.dp),
+                                colors = CardDefaults.cardColors(containerColor = currentCardBg),
+                                elevation = CardDefaults.cardElevation(defaultElevation = if (selected) 8.dp else 2.dp)
+                            ) {
+                                Box(modifier = Modifier.fillMaxSize()) {
+                                    Column(
+                                        modifier = Modifier.fillMaxSize(),
+                                        horizontalAlignment = Alignment.CenterHorizontally
                                     ) {
-                                        SubcomposeAsyncImage(
-                                            model = ImageRequest.Builder(context)
-                                                .data(club.logoUrl)
-                                                .crossfade(300).size(128)
-                                                .build(),
-                                            contentDescription = club.name,
-                                            contentScale = ContentScale.Fit,
-                                            modifier = Modifier.size(56.dp)
-                                        )
-                                    }
+                                        Box(
+                                            modifier = Modifier.fillMaxWidth().fillMaxHeight(0.55f)
+                                                .background(if (isDark) Color(0xFF1A1A1A) else Color(0xFFF5F5F7)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            SubcomposeAsyncImage(
+                                                model = ImageRequest.Builder(context)
+                                                    .data(club.logoUrl)
+                                                    .crossfade(300).size(128)
+                                                    .build(),
+                                                contentDescription = club.name,
+                                                contentScale = ContentScale.Fit,
+                                                modifier = Modifier.size(56.dp)
+                                            )
+                                        }
 
-                                    Spacer(modifier = Modifier.height(10.dp))
+                                        Spacer(modifier = Modifier.height(10.dp))
 
-                                    Text(
-                                        text = club.name,
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = textPrimary,
-                                        textAlign = TextAlign.Center,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.padding(horizontal = 8.dp)
-                                    )
-
-                                    Spacer(modifier = Modifier.height(2.dp))
-
-                                    val leagueName = leagues.find { it.id == club.leagueId }?.name ?: ""
-                                    if (leagueName.isNotEmpty()) {
                                         Text(
-                                            text = leagueName,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Normal,
-                                            color = textSecondary,
+                                            text = club.name,
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = textPrimary,
                                             textAlign = TextAlign.Center,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis,
+                                            modifier = Modifier.padding(horizontal = 8.dp)
                                         )
-                                    }
-                                }
 
-                                if (selected) {
-                                    Box(
-                                        modifier = Modifier.padding(8.dp).size(24.dp)
-                                            .clip(CircleShape).background(GreenAccent),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Check,
-                                            contentDescription = null,
-                                            tint = Color.Black,
-                                            modifier = Modifier.size(15.dp)
-                                        )
-                                    }
-                                }
+                                        Spacer(modifier = Modifier.height(2.dp))
 
-                                if (club.rank <= 3) {
-                                    val badgeColor = when (club.rank) {
-                                        1 -> Color(0xFFFFD700)
-                                        2 -> Color(0xFFC0C0C0)
-                                        3 -> Color(0xFFCD7F32)
-                                        else -> badgeBg
+                                        val leagueName = leagues.find { it.id == club.leagueId }?.name ?: ""
+                                        if (leagueName.isNotEmpty()) {
+                                            Text(
+                                                text = leagueName,
+                                                fontSize = 10.sp,
+                                                fontWeight = FontWeight.Normal,
+                                                color = textSecondary,
+                                                textAlign = TextAlign.Center,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
                                     }
-                                    Box(
-                                        modifier = Modifier.padding(8.dp).size(22.dp)
-                                            .clip(CircleShape).background(badgeColor.copy(alpha = 0.9f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "#${club.rank}",
-                                            fontSize = 8.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.Black
-                                        )
+
+                                    if (selected) {
+                                        Box(
+                                            modifier = Modifier.padding(8.dp).size(24.dp)
+                                                .clip(CircleShape).background(GreenAccent),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Rounded.Check,
+                                                contentDescription = null,
+                                                tint = Color.Black,
+                                                modifier = Modifier.size(15.dp)
+                                            )
+                                        }
+                                    }
+
+                                    if (club.rank > 0 && club.rank <= 3) {
+                                        val badgeColor = when (club.rank) {
+                                            1 -> Color(0xFFFFD700)
+                                            2 -> Color(0xFFC0C0C0)
+                                            3 -> Color(0xFFCD7F32)
+                                            else -> badgeBg
+                                        }
+                                        Box(
+                                            modifier = Modifier.padding(8.dp).size(22.dp)
+                                                .clip(CircleShape).background(badgeColor.copy(alpha = 0.9f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Text(
+                                                text = "#${club.rank}",
+                                                fontSize = 8.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.Black
+                                            )
+                                        }
                                     }
                                 }
                             }
