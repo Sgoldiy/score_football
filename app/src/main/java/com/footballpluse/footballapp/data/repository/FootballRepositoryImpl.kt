@@ -22,7 +22,6 @@ class FootballRepositoryImpl @Inject constructor(
     private val leagueDao: LeagueDao,
     private val teamRepository: TeamRepository
 ) : FootballRepository {
-
     override fun getFixturesByDate(date: String): Flow<ApiResult<List<Match>>> = flow {
         // First check cache and emit immediately if present
         val cached = fixtureDao.getFixturesByDate(date).first()
@@ -31,7 +30,6 @@ class FootballRepositoryImpl @Inject constructor(
         } else {
             emit(ApiResult.Loading)
         }
-
         try {
             val events = apiService.getEvents(from = date, to = date)
             val fixtures = events.toFixtureResponseList()
