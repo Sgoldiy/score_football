@@ -372,8 +372,7 @@ fun FormDotsRow(
                     modifier = Modifier
                         .size(dotSize)
                         .clip(CircleShape)
-                        .background(Color.Transparent)
-                        .border(1.dp, Color(0xFF555555), CircleShape)
+                        .background(Color(0xFFFF4444))
                 )
                 else -> Box(
                     modifier = Modifier

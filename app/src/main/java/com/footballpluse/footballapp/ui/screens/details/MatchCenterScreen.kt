@@ -44,7 +44,6 @@ fun MatchCenterScreen(
     viewModel: FixtureDetailViewModel = hiltViewModel()
 ) {
     val detailState by viewModel.detailState.collectAsState()
-
     LaunchedEffect(matchId) {
         matchId.toIntOrNull()?.let { viewModel.loadFixtureDetails(it) }
     }
@@ -176,7 +175,6 @@ fun MatchCenterScreen(
                                             )
                                         }
                                     }
-
                                     // Timeline Events List
                                     if (data.events.isNotEmpty()) {
                                         item {
@@ -187,7 +185,6 @@ fun MatchCenterScreen(
                                             )
                                         }
                                     }
-
                                     // Match Comparative Statistics
                                     if (data.stats.isNotEmpty()) {
                                         item {
@@ -198,7 +195,6 @@ fun MatchCenterScreen(
                                             )
                                         }
                                     }
-
                                     // Match Player Ratings Section
                                     if (data.players.isNotEmpty()) {
                                         item {
@@ -1162,7 +1158,7 @@ private fun MatchAttackMomentumGraph(events: List<MatchEvent>, homeTeamId: Int) 
     val pressurePoints = remember(events) {
         val list = FloatArray(90)
         for (i in 0..89) {
-            list[i] = (kotlin.math.sin(i * 0.2f) * 10f + kotlin.math.cos(i * 0.08f) * 6f).toFloat()
+            list[i] = (kotlin.math.sin(i * 0.2f) * 10f + kotlin.math.cos(i * 0.08f) * 6f)
         }
         events.forEach { e ->
             val min = e.time.coerceIn(0, 89)
@@ -1579,7 +1575,6 @@ private fun MatchInjuryBoard(injuries: List<MatchInjury>, homeTeam: TeamInfo, aw
                         }
                     }
                 }
-                
                 // Vertical divider line
                 Box(
                     modifier = Modifier

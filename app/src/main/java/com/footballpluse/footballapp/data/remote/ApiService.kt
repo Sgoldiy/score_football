@@ -77,9 +77,10 @@ interface ApiService {
     ): ApiH2HResponse
 
     // Livescore
-    @GET("?action=get_livescore")
+    @GET("?action=get_events&match_live=1")
     suspend fun getLivescore(
-        @Query("match_id") matchId: String? = null
+        @Query("match_id") matchId: String? = null,
+        @Query("league_id") leagueId: String? = null
     ): List<ApiEvent>
 
     // Predictions

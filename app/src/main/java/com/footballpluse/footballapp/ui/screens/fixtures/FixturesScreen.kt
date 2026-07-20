@@ -365,6 +365,14 @@ fun FixturesList(
         }
     }
 
+    LaunchedEffect(matches) {
+        matches.forEach { match ->
+            val season = match.league.season ?: 2025
+            onFetchForm(match.homeTeam.id, match.league.id, season)
+            onFetchForm(match.awayTeam.id, match.league.id, season)
+        }
+    }
+
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),

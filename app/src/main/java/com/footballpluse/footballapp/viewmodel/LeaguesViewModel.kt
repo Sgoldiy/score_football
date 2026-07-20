@@ -327,6 +327,8 @@ class LeaguesViewModel @Inject constructor(
             _errorMessage.value = null
             try {
                 val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+                
+                // Launch network calls concurrently
                 val leaguesDeferred = async { repository.getLeagues() }
                 val liveDeferred = async {
                     try {
@@ -344,11 +346,14 @@ class LeaguesViewModel @Inject constructor(
                 }
 
                 val leaguesResult = leaguesDeferred.await()
-                val liveFixtures = liveDeferred.await()
-                val todayFixtures = todayDeferred.await()
-
+                
                 if (leaguesResult is ApiResult.Success) {
                     _rawLeagues.value = leaguesResult.data
+                    _isLoading.value = false // Emit primary data ASAP
+
+                    // Then update counts when they arrive
+                    val liveFixtures = liveDeferred.await()
+                    val todayFixtures = todayDeferred.await()
 
                     val liveCounts = liveFixtures
                         .filter { it.league != null }
@@ -363,7 +368,6 @@ class LeaguesViewModel @Inject constructor(
                     _liveCountMap.value = liveCounts
                     _todayCountMap.value = todayCounts
                     _totalLiveCount.value = liveFixtures.size
-                    _isLoading.value = false
                 } else if (leaguesResult is ApiResult.Error) {
                     _errorMessage.value = leaguesResult.message
                     _isLoading.value = false

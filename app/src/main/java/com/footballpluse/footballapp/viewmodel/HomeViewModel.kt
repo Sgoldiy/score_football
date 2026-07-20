@@ -13,8 +13,11 @@ import com.footballpluse.footballapp.domain.model.LeagueInfo
 import com.footballpluse.footballapp.domain.model.Match
 import com.footballpluse.footballapp.domain.repository.FootballRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -34,7 +37,8 @@ sealed class HomeUiState {
         val topScorers: List<PlayerProfileStatisticsResponse> = emptyList(),
         val favouriteLeagues: List<LeagueResponse> = emptyList(),
         val favouriteLeagueId: Int = 152,
-        val favouriteLeagueName: String = "Premier League"
+        val favouriteLeagueName: String = "Premier League",
+        val allApiLeagues: List<LeagueInfo> = emptyList()
     ) : HomeUiState()
     data class Error(val message: String) : HomeUiState()
 }
@@ -53,6 +57,12 @@ class HomeViewModel @Inject constructor(
 
     private val _formMap = MutableStateFlow<Map<Int, String>>(emptyMap())
     val formMap: StateFlow<Map<Int, String>> = _formMap.asStateFlow()
+
+    private val _scorers = MutableStateFlow<List<PlayerProfileStatisticsResponse>>(emptyList())
+    private val _allLeagues = MutableStateFlow<List<com.footballpluse.footballapp.data.model.ApiLeague>>(emptyList())
+    val allApiLeagues: StateFlow<List<LeagueInfo>> = _allLeagues
+        .map { list -> list.map { it.toLeagueInfo() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val isPremium: StateFlow<Boolean> = billingRepository.isPurchased
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
@@ -92,47 +102,55 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    @OptIn(ExperimentalCoroutinesApi::class)
     fun loadHomeData() {
         refreshJob?.cancel()
         refreshJob = viewModelScope.launch {
             val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-            val season = 2025 // Ensure we fetch 2025/26 scorers
-
-            // Fetch top scorers from all top-5 European leagues concurrently
-            val top5LeagueIds = listOf(152, 302, 175, 207, 168) // EPL, La Liga, Bundesliga, Serie A, Ligue 1
-            val scorersList = try {
-                coroutineScope {
-                    val rawScorers = top5LeagueIds
-                        .map { leagueId -> async { runCatching { apiService.getTopScorers(leagueId.toString()).map { it.toPlayerProfileStatisticsResponse() } }.getOrDefault(emptyList()) } }
-                        .flatMap { it.await() }
-
-                    // Enrich with player images and team badges
-                    val teamsByLeague = top5LeagueIds.map { leagueId ->
-                        leagueId to try { apiService.getTeams(leagueId = leagueId.toString()) } catch (e: Exception) { emptyList() }
+            
+            // Launch background tasks for scorers in parallel
+            launch {
+                try {
+                    val top5LeagueIds = listOf(152, 302, 175, 207, 168)
+                    val scorers = coroutineScope {
+                        top5LeagueIds.map { leagueId ->
+                            async {
+                                try {
+                                    apiService.getTopScorers(leagueId.toString()).map { it.toPlayerProfileStatisticsResponse() }
+                                } catch (_: Exception) {
+                                    emptyList<PlayerProfileStatisticsResponse>()
+                                }
+                            }
+                        }.awaitAll().flatten()
+                            .sortedByDescending { it.statistics?.firstOrNull()?.goals?.total ?: 0 }
+                            .take(10)
                     }
-                    val allTeams = teamsByLeague.flatMap { it.second }
-                    val enriched = enrichWithImages(rawScorers, allTeams)
-
-                    enriched.sortedByDescending { it.statistics?.firstOrNull()?.goals?.total ?: 0 }
-                        .take(10)
-                }
-            } catch (e: Exception) {
-                emptyList()
+                    _scorers.value = scorers
+                } catch (_: Exception) {}
             }
 
-            val allLeagues = try {
-                apiService.getLeagues()
-            } catch (e: Exception) {
-                emptyList()
+            // Launch background task for leagues
+            launch {
+                try {
+                    val leagues = apiService.getLeagues()
+                    _allLeagues.value = leagues
+                } catch (_: Exception) {}
             }
 
             try {
-                combine(
-                    repository.getFixturesByDate(today),
+                val prefFlow = combine(
                     dataStoreManager.followedLeagues,
                     dataStoreManager.favouriteLeagueId,
                     dataStoreManager.favouriteLeagueName
-                ) { result, followed, onboardingFavId, onboardingFavName ->
+                ) { followed, favId, favName -> Triple(followed, favId, favName) }
+
+                combine(
+                    repository.getFixturesByDate(today),
+                    prefFlow,
+                    _scorers,
+                    _allLeagues
+                ) { result, pref, scorersList, allLeagues ->
+                    val (followed, onboardingFavId, onboardingFavName) = pref
                     when (result) {
                         is ApiResult.Loading -> {
                             if (_uiState.value !is HomeUiState.Success) {
@@ -145,7 +163,7 @@ class HomeViewModel @Inject constructor(
                             val upcoming = matches.filter { it.status.short == "NS" || it.status.short == "TBD" }
                             val finished = matches.filter { it.status.short in listOf("FT", "AET", "PEN") }
 
-                            val priorityLeagues = setOf(152, 302, 207, 175, 168, 3, 4, 28)
+                            val priorityLeagues = setOf(152, 302, 207, 175, 168, 88, 94, 203, 144, 187, 3, 4, 848, 28, 1, 5, 6, 15, 9)
                             val featured = matches.sortedWith(
                                 compareByDescending<Match> { it.isLive }
                                     .thenByDescending { it.league.id in priorityLeagues }
@@ -158,14 +176,14 @@ class HomeViewModel @Inject constructor(
                             val favLeagueIds = followed.ifEmpty { 
                                 if (onboardingFavId != 0) setOf(onboardingFavId) else emptySet() 
                             }
+                            
                             val favLeaguesList = allLeagues.filter { it.league_id?.toIntOrNull() in favLeagueIds }.map { it.toLeagueResponse() }
-
-                            // Use allLeagues from API for the Top Leagues section if matches are sparse
                             val apiTopLeagues = allLeagues
                                 .filter { it.league_id?.toIntOrNull() in priorityLeagues }
                                 .map { it.toLeagueInfo() }
 
                             val finalTopLeagues = (topLeagues + apiTopLeagues).distinctBy { it.id }
+                            val allLeaguesInfo = allLeagues.map { it.toLeagueInfo() }
 
                             _uiState.value = HomeUiState.Success(
                                 featuredMatches = featured,
@@ -177,11 +195,38 @@ class HomeViewModel @Inject constructor(
                                 topScorers = scorersList,
                                 favouriteLeagues = favLeaguesList,
                                 favouriteLeagueId = onboardingFavId,
-                                favouriteLeagueName = onboardingFavName
+                                favouriteLeagueName = onboardingFavName,
+                                allApiLeagues = allLeaguesInfo
                             )
                         }
                         is ApiResult.Error -> {
-                            if (_uiState.value !is HomeUiState.Success) {
+                            val priorityLeagues = setOf(152, 302, 207, 175, 168, 88, 94, 203, 144, 187, 3, 4, 848, 28, 1, 5, 6, 15, 9)
+                            
+                            val apiTopLeagues = allLeagues
+                                .filter { it.league_id?.toIntOrNull() in priorityLeagues }
+                                .map { it.toLeagueInfo() }
+
+                            val favLeagueIds = followed.ifEmpty { 
+                                if (onboardingFavId != 0) setOf(onboardingFavId) else emptySet() 
+                            }
+                            val favLeaguesList = allLeagues.filter { it.league_id?.toIntOrNull() in favLeagueIds }.map { it.toLeagueResponse() }
+                            val allLeaguesInfo = allLeagues.map { it.toLeagueInfo() }
+
+                            if (scorersList.isNotEmpty() || apiTopLeagues.isNotEmpty()) {
+                                _uiState.value = HomeUiState.Success(
+                                    featuredMatches = emptyList(),
+                                    liveMatches = emptyList(),
+                                    upcomingMatches = emptyList(),
+                                    finishedMatches = emptyList(),
+                                    topLeagues = apiTopLeagues,
+                                    isLive = false,
+                                    topScorers = scorersList,
+                                    favouriteLeagues = favLeaguesList,
+                                    favouriteLeagueId = onboardingFavId,
+                                    favouriteLeagueName = onboardingFavName,
+                                    allApiLeagues = allLeaguesInfo
+                                )
+                            } else if (_uiState.value !is HomeUiState.Success) {
                                 _uiState.value = HomeUiState.Error(result.message)
                             }
                         }

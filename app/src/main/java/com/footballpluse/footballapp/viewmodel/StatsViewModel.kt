@@ -6,6 +6,7 @@ import com.footballpluse.footballapp.data.mapper.*
 import com.footballpluse.footballapp.data.model.*
 import com.footballpluse.footballapp.data.remote.ApiService
 import com.footballpluse.footballapp.data.util.ApiResult
+import com.squareup.moshi.JsonDataException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
@@ -151,14 +152,16 @@ class StatsViewModel @Inject constructor(
         StatsLeague(168, "Ligue 1", "https://apiv3.apifootball.com/badges/logo_leagues/168_ligue-1.png", 2025),
         StatsLeague(3, "Champions League", "https://apiv3.apifootball.com/badges/logo_leagues/3_uefa-champions-league.png", 2025),
         StatsLeague(4, "Europa League", "https://apiv3.apifootball.com/badges/logo_leagues/4_uefa-europa-league.png", 2025),
+        StatsLeague(848, "Conference League", "https://apiv3.apifootball.com/badges/logo_leagues/848_uefa-conference-league.png", 2025),
         StatsLeague(28, "FIFA World Cup", "https://apiv3.apifootball.com/badges/logo_leagues/28_world-cup.png", 2026),
-        StatsLeague(1, "UEFA Euros", "https://apiv3.apifootball.com/badges/logo_leagues/1_uefa-european-championship.png", 2024)
+        StatsLeague(1, "UEFA Euros", "https://apiv3.apifootball.com/badges/logo_leagues/1_uefa-european-championship.png", 2024),
+        StatsLeague(5, "Nations League", "https://apiv3.apifootball.com/badges/logo_leagues/5_uefa-nations-league.png", 2025),
+        StatsLeague(9, "Copa Libertadores", "https://apiv3.apifootball.com/badges/logo_leagues/9_copa-libertadores.png", 2025)
     )
 
     init {
         // Trigger initial data load
         onTabSelected(StatsTab.PLAYERS)
-        fetchLeagueLogo(_selectedLeague.value.id)
     }
 
     fun onTabSelected(tab: StatsTab) {
@@ -197,7 +200,6 @@ class StatsViewModel @Inject constructor(
         _selectedLeague.value = league
         invalidateAllStates()
         onTabSelected(_selectedTab.value)
-        fetchLeagueLogo(league.id)
     }
 
     private fun fetchLeagueLogo(leagueId: Int) {
@@ -232,8 +234,12 @@ class StatsViewModel @Inject constructor(
 
             try {
                 val scorersDeferred = async {
-                    apiService.getTopScorers(leagueId.toString())
-                        .map { it.toPlayerProfileStatisticsResponse() }
+                    try {
+                        apiService.getTopScorers(leagueId.toString())
+                            .map { it.toPlayerProfileStatisticsResponse() }
+                    } catch (e: Exception) {
+                        emptyList()
+                    }
                 }
                 val teamsDeferred = async {
                     try {
@@ -282,28 +288,7 @@ class StatsViewModel @Inject constructor(
                 }
 
                 // Final fallback: try getPlayers for top 8 scorers still missing photos
-                val stillMissingImages = scorers.take(8).any { it.player?.photo == null }
-                if (stillMissingImages) {
-                    scorers = scorers.mapIndexed { idx, scorer ->
-                        if (scorer.player?.photo != null || idx >= 8) return@mapIndexed scorer
-                        try {
-                            val playerName = scorer.player?.name ?: return@mapIndexed scorer
-                            val players = apiService.getPlayers(playerName = playerName)
-                            val apiPlayer = players.firstOrNull()
-                            if (apiPlayer?.player_image != null) {
-                                scorer.copy(
-                                    player = scorer.player?.copy(photo = apiPlayer.player_image),
-                                    statistics = scorer.statistics?.map { s ->
-                                        s.copy(games = (s.games ?: com.footballpluse.footballapp.data.model.PlayerGames(
-                                            appearances = null, lineups = null, minutes = null,
-                                            number = null, position = null, rating = apiPlayer.player_rating ?: s.games?.rating, captain = null
-                                        )).copy(rating = apiPlayer.player_rating ?: s.games?.rating))
-                                    }
-                                )
-                            } else scorer
-                        } catch (_: Exception) { scorer }
-                    }
-                }
+                // Removed aggressive per-player API calls to avoid 429 Too Many Requests
 
                 if (scorers.isEmpty()) {
                     _playersState.value = PlayersStatsUiState.Error("No player statistics found for this competition.")
@@ -369,7 +354,7 @@ class StatsViewModel @Inject constructor(
                 putCache(cacheKey, successState)
                 _playersState.value = successState
             } catch (e: Exception) {
-                _playersState.value = PlayersStatsUiState.Error(e.message ?: "Failed to load player stats")
+                _playersState.value = PlayersStatsUiState.Error(handleException(e))
             }
         }
     }
@@ -505,7 +490,8 @@ class StatsViewModel @Inject constructor(
 
                 // Scatter attack vs defence
                 val attackDefence = enrichedRecords.map { record ->
-                    val played = record.all?.played ?: 1
+                    val playedRaw = record.all?.played ?: 0
+                    val played = if (playedRaw <= 0) 1 else playedRaw
                     val gf = (record.all?.goals?.goalsFor ?: 0).toFloat() / played
                     val ga = (record.all?.goals?.against ?: 0).toFloat() / played
                     ClubAttackDefence(
@@ -547,7 +533,7 @@ class StatsViewModel @Inject constructor(
                 putCache(cacheKey, successState)
                 _clubsState.value = successState
             } catch (e: Exception) {
-                _clubsState.value = ClubsStatsUiState.Error(e.message ?: "Failed to load club stats")
+                _clubsState.value = ClubsStatsUiState.Error(handleException(e))
             }
         }
     }
@@ -564,8 +550,8 @@ class StatsViewModel @Inject constructor(
         fixtures.filter { it.fixture?.status?.short == "FT" }.forEach { f ->
             val hId = f.teams?.home?.id ?: return@forEach
             val aId = f.teams?.away?.id ?: return@forEach
-            val hName = f.teams.home?.name ?: "Home"
-            val aName = f.teams.away?.name ?: "Away"
+            val hName = f.teams?.home?.name ?: "Home"
+            val aName = f.teams?.away?.name ?: "Away"
             val hG = f.goals?.home ?: 0
             val aG = f.goals?.away ?: 0
 
@@ -706,7 +692,7 @@ class StatsViewModel @Inject constructor(
                 putCache(cacheKey, successState)
                 _xgState.value = successState
             } catch (e: Exception) {
-                _xgState.value = XGStatsUiState.Error(e.message ?: "Failed to load xG stats")
+                _xgState.value = XGStatsUiState.Error(handleException(e))
             }
         }
     }
@@ -755,10 +741,10 @@ class StatsViewModel @Inject constructor(
                     val homeId = fixture.teams?.home?.id ?: return@forEach
                     val awayId = fixture.teams?.away?.id ?: return@forEach
 
-                    val homeName = fixture.teams.home.name ?: "Home"
-                    val awayName = fixture.teams.away.name ?: "Away"
-                    val homeLogo = fixture.teams.home.logo
-                    val awayLogo = fixture.teams.away.logo
+                    val homeName = fixture.teams?.home?.name ?: "Home"
+                    val awayName = fixture.teams?.away?.name ?: "Away"
+                    val homeLogo = fixture.teams?.home?.logo
+                    val awayLogo = fixture.teams?.away?.logo
 
                     if (teamList.none { it.first == homeId }) teamList.add(Triple(homeId, homeName, homeLogo))
                     if (teamList.none { it.first == awayId }) teamList.add(Triple(awayId, awayName, awayLogo))
@@ -839,7 +825,7 @@ class StatsViewModel @Inject constructor(
                 putCache(cacheKey, successState)
                 _timingState.value = successState
             } catch (e: Exception) {
-                _timingState.value = GoalTimingUiState.Error(e.message ?: "Failed to load timing stats")
+                _timingState.value = GoalTimingUiState.Error(handleException(e))
             }
         }
     }
@@ -1088,5 +1074,14 @@ class StatsViewModel @Inject constructor(
 
     private fun putCache(key: String, data: Any) {
         statsCache[key] = Pair(System.currentTimeMillis(), data)
+    }
+
+    private fun handleException(e: Exception): String {
+        return when {
+            e is JsonDataException -> "API rate limit reached (BASIC plan). Please try again in a minute."
+            e.message?.contains("429") == true -> "Too many requests. RapidAPI limit exceeded."
+            e.message?.contains("404") == true -> "Data not found for this competition."
+            else -> e.message ?: "An unexpected error occurred."
+        }
     }
 }

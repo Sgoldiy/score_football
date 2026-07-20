@@ -8,6 +8,7 @@ import com.footballpluse.footballapp.domain.repository.FootballRepository
 import com.footballpluse.footballapp.data.repository.TeamRepository
 import com.footballpluse.footballapp.data.repository.FavouriteRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
@@ -70,15 +71,17 @@ class FixturesViewModel @Inject constructor(
             }
             _dateMatchCounts.value = initialCounts
 
-            // Pre-fetch from network
+            // Pre-fetch from network if cache is empty, with a delay to avoid rate limits
             datesToFetch.forEach { dateStr ->
-                launch {
+                val cachedCount = repository.getFixtureCountByDate(dateStr)
+                if (cachedCount == 0) {
                     repository.getFixturesByDate(dateStr).collect { result ->
                         if (result is ApiResult.Success) {
                             val count = result.data.size
                             _dateMatchCounts.update { it + (dateStr to count) }
                         }
                     }
+                    delay(500) // Small delay to avoid hammering the API
                 }
             }
         }

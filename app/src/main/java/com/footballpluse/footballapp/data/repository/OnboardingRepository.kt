@@ -187,7 +187,7 @@ class OnboardingRepository @Inject constructor(
         localRepository.saveFavoriteClubs(clubs)
         localRepository.updateFavoriteLeague(leagueId)
         localRepository.saveFavoriteClubsPref(clubs.map { it.clubId })
-        dataStoreManager.saveFavouriteLeague(leagueId.toIntOrNull() ?: 39, leagueName)
+        dataStoreManager.saveFavouriteLeague(leagueId.toIntOrNull() ?: 152, leagueName)
         favouriteClubDao.clear()
         favouriteClubDao.insertAll(clubs.toFavouriteClubEntities(leagueName))
         try {

@@ -3,9 +3,7 @@ package com.footballpluse.footballapp.di
 import android.content.Context
 import android.content.SharedPreferences
 import androidx.room.Room
-import com.footballpluse.footballapp.data.local.db.FavoriteClubDao
 import com.footballpluse.footballapp.data.local.db.FootballPlusDatabase
-import com.footballpluse.footballapp.data.local.db.UserProfileDao
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import dagger.Module
@@ -47,13 +45,5 @@ object AppModule {
         ).build()
     }
 
-    @Provides
-    fun provideUserProfileDao(db: FootballPlusDatabase): UserProfileDao {
-        return db.userProfileDao()
-    }
 
-    @Provides
-    fun provideFavoriteClubDao(db: FootballPlusDatabase): FavoriteClubDao {
-        return db.favoriteClubDao()
-    }
 }

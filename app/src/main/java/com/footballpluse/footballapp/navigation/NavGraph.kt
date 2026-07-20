@@ -10,6 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
@@ -117,8 +118,10 @@ fun SetupNavGraph(
                 popExitTransition = {
                     slideOutHorizontally(tween(280)) { it / 3 } + fadeOut(tween(280))
                 }
-            ) {
-                val parentEntry = navController.getBackStackEntry(Screen.Onboarding.route)
+            ) { backStackEntry ->
+                val parentEntry = remember(backStackEntry) {
+                    navController.getBackStackEntry(Screen.Onboarding.route)
+                }
                 val viewModel: OnboardingViewModel = hiltViewModel(parentEntry)
                 val state by viewModel.state.collectAsState()
                 val events = viewModel.events
@@ -160,8 +163,10 @@ fun SetupNavGraph(
                 popExitTransition = {
                     slideOutHorizontally(tween(280)) { it / 3 } + fadeOut(tween(280))
                 }
-            ) {
-                val parentEntry = navController.getBackStackEntry(Screen.Onboarding.route)
+            ) { backStackEntry ->
+                val parentEntry = remember(backStackEntry) {
+                    navController.getBackStackEntry(Screen.Onboarding.route)
+                }
                 val viewModel: OnboardingViewModel = hiltViewModel(parentEntry)
                 val state by viewModel.state.collectAsState()
                 val events = viewModel.events
@@ -206,7 +211,9 @@ fun SetupNavGraph(
                     slideOutHorizontally(tween(280)) { it / 3 } + fadeOut(tween(280))
                 }
             ) { backStackEntry ->
-                val parentEntry = navController.getBackStackEntry(Screen.Onboarding.route)
+                val parentEntry = remember(backStackEntry) {
+                    navController.getBackStackEntry(Screen.Onboarding.route)
+                }
                 val viewModel: OnboardingViewModel = hiltViewModel(parentEntry)
                 val state by viewModel.state.collectAsState()
                 val events = viewModel.events
@@ -279,9 +286,10 @@ fun SetupNavGraph(
             LeaguesScreen(
                 onNavigateToLeagueDetail = { leagueId ->
                     val season = when (leagueId) {
-                        1 -> 2026
-                        253 -> 2026
-                        4 -> 2024
+                        28 -> 2026
+                        15 -> 2025
+                        1 -> 2024
+                        4 -> 2025
                         else -> 2025
                     }
                     navController.navigate(Screen.LeagueDetail.createRoute(leagueId, season))
@@ -316,9 +324,10 @@ fun SetupNavGraph(
                 onBack = { navController.popBackStack() },
                 onLeagueClick = { leagueId ->
                     val season = when (leagueId) {
-                        1 -> 2026
-                        253 -> 2026
-                        4 -> 2024
+                        28 -> 2026
+                        15 -> 2025
+                        1 -> 2024
+                        4 -> 2025
                         else -> 2025
                     }
                     navController.navigate(Screen.LeagueDetail.createRoute(leagueId, season))

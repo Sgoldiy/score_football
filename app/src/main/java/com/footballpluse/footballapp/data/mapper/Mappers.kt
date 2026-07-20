@@ -182,16 +182,36 @@ fun ApiLeague.toLeagueInfo(): LeagueInfo {
         logo = league_logo,
         country = country_name,
         flag = country_logo,
-        season = league_season?.toIntOrNull()
+        season = league_season?.takeWhile { it.isDigit() }?.toIntOrNull()
     )
 }
 
 fun ApiLeague.toLeagueResponse(): LeagueResponse {
+    val seasonInt = league_season?.takeWhile { it.isDigit() }?.toIntOrNull() ?: 2025
+    val isCup = league_name?.contains("cup", ignoreCase = true) == true ||
+            league_name?.contains("copa", ignoreCase = true) == true ||
+            league_name?.contains("trophy", ignoreCase = true) == true ||
+            league_name?.contains("champions league", ignoreCase = true) == true ||
+            league_name?.contains("europa league", ignoreCase = true) == true ||
+            league_name?.contains("conference league", ignoreCase = true) == true ||
+            league_name?.contains("pokal", ignoreCase = true) == true ||
+            league_name?.contains("copetta", ignoreCase = true) == true ||
+            league_name?.contains("fa ", ignoreCase = true) == true
+    val isInt = country_name == "World" || country_name == "Europe" || country_name.isNullOrBlank()
     return LeagueResponse(
-        league = League(id = league_id.toIntOr(0), name = league_name, type = null, country = country_name,
-            logo = league_logo, flag = country_logo, season = league_season?.toIntOrNull(), round = null, standings = null),
-        country = Country(name = country_name ?: "", code = null, flag = country_logo),
-        seasons = league_season?.let { listOf(Season(year = it.toIntOr(0), start = null, end = null, current = true, coverage = null)) }
+        league = League(
+            id = league_id.toIntOr(0),
+            name = league_name,
+            type = if (isCup) "Cup" else "League",
+            country = country_name,
+            logo = league_logo,
+            flag = country_logo,
+            season = seasonInt,
+            round = null,
+            standings = null
+        ),
+        country = Country(name = country_name ?: "", code = if (isInt) null else "country", flag = country_logo),
+        seasons = listOf(Season(year = seasonInt, start = null, end = null, current = true, coverage = null))
     )
 }
 
@@ -299,9 +319,67 @@ fun ApiMatchPlayerStatistic.toPlayerPerformance(): PlayerPerformance {
     )
 }
 
+fun ApiTeam.toTeamDetail(standing: ApiStanding? = null): TeamDetail {
+    val wins = standing?.standing_W?.toIntOrNull() ?: 0
+    val draws = standing?.standing_D?.toIntOrNull() ?: 0
+    val loses = standing?.standing_L?.toIntOrNull() ?: 0
+    val stats = TeamStats(
+        form = standing?.overall_form,
+        played = standing?.standing_total?.toIntOrNull() ?: (wins + draws + loses),
+        wins = wins,
+        draws = draws,
+        loses = loses,
+        goalsFor = standing?.overall_GF?.toIntOrNull() ?: 0,
+        goalsAgainst = standing?.overall_GA?.toIntOrNull() ?: 0
+    )
+
+    return TeamDetail(
+        info = TeamInfo(
+            id = team_key.toIntOr(0),
+            name = team_name ?: "",
+            logo = team_badge,
+            country = team_country
+        ),
+        venue = venue?.let { 
+            VenueInfo(
+                id = null,
+                name = it.venue_name,
+                city = it.venue_city,
+                capacity = it.venue_capacity?.toIntOrNull(),
+                image = null
+            )
+        },
+        stats = stats,
+        squad = players?.toSquadPlayers()?.map { it.toSquadMember() } ?: emptyList(),
+        coaches = coaches?.toCoaches()?.map { CoachInfo(it.id ?: 0, it.name ?: "", it.photo) } ?: emptyList(),
+        transfers = emptyList()
+    )
+}
+
+fun PlayerProfileStatisticsResponse.toPlayerDetail(): PlayerDetail {
+    return PlayerDetail(
+        info = this.toPlayerInfo(),
+        stats = this.statistics?.map { it.toPlayerStatDetail() } ?: emptyList(),
+        trophies = emptyList(),
+        sidelined = emptyList()
+    )
+}
+
 fun List<ApiCoach>.toCoaches(): List<Coach> = map {
-    Coach(id = null, name = it.coach_name, firstname = null, lastname = null, age = it.coach_age?.toIntOrNull(),
-        birth = null, nationality = it.coach_country, height = null, weight = null, photo = null, team = null, career = null)
+    Coach(
+        id = it.coach_name?.hashCode(), 
+        name = it.coach_name, 
+        firstname = null, 
+        lastname = null, 
+        age = it.coach_age?.toIntOrNull(),
+        birth = null, 
+        nationality = it.coach_country, 
+        height = null, 
+        weight = null, 
+        photo = null, 
+        team = null, 
+        career = null
+    )
 }
 
 // ─── Existing mappers (old model → domain) ───

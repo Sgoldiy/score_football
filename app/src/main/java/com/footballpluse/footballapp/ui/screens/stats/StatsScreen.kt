@@ -35,7 +35,6 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.rounded.EmojiEvents
 import androidx.compose.material.icons.rounded.QueryStats
 import androidx.compose.material.icons.rounded.Scoreboard
-import androidx.compose.material.icons.rounded.TrendingUp
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
@@ -349,6 +348,47 @@ fun StatsScreen(
 }
 
 // ==========================================
+// COMMON — Error UI
+// ==========================================
+@Composable
+fun StatsErrorContent(
+    message: String,
+    onRetry: () -> Unit
+) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.padding(32.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.QueryStats,
+                contentDescription = null,
+                tint = Color(0xFF555555),
+                modifier = Modifier.size(48.dp)
+            )
+            Spacer(Modifier.height(16.dp))
+            Text(
+                text = message,
+                color = Color.White.copy(alpha = 0.7f),
+                fontSize = 14.sp,
+                textAlign = TextAlign.Center,
+                lineHeight = 20.sp
+            )
+            Spacer(Modifier.height(24.dp))
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFF00E676))
+                    .clickable { onRetry() }
+                    .padding(horizontal = 24.dp, vertical = 10.dp)
+            ) {
+                Text("Retry", color = Color(0xFF0D0F14), fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+// ==========================================
 // TAB 1 — PLAYERS
 // ==========================================
 @Composable
@@ -443,9 +483,10 @@ fun PlayersTabContent(
         }
 
         is PlayersStatsUiState.Error -> {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(state.message, color = Color.Red, fontSize = 13.sp)
-            }
+            StatsErrorContent(
+                message = state.message,
+                onRetry = { viewModel.onTabSelected(StatsTab.PLAYERS) }
+            )
         }
     }
 }
@@ -1056,6 +1097,22 @@ fun ClubsTabContent(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp)
             ) {
+                // Section 0 — Standings Table (clickable rows)
+                Text(
+                    text = "Standings",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF555555),
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                StandingsTable(
+                    standings = state.standings,
+                    onClubClick = onClubClick,
+                    viewModel = viewModel
+                )
+
+                Spacer(Modifier.height(20.dp))
+
                 // Section A — Top Scoring Teams
                 Text(
                     text = "Top Goal-Scoring Teams",
@@ -1131,9 +1188,10 @@ fun ClubsTabContent(
         }
 
         is ClubsStatsUiState.Error -> {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(state.message, color = Color.Red, fontSize = 13.sp)
-            }
+            StatsErrorContent(
+                message = state.message,
+                onRetry = { viewModel.onTabSelected(StatsTab.CLUBS) }
+            )
         }
     }
 }
@@ -1972,9 +2030,10 @@ fun XGAdvancedTabContent(
         }
 
         is XGStatsUiState.Error -> {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(state.message, color = Color.Red, fontSize = 13.sp)
-            }
+            StatsErrorContent(
+                message = state.message,
+                onRetry = { viewModel.onTabSelected(StatsTab.XG_ADVANCED) }
+            )
         }
     }
 }
@@ -2330,9 +2389,10 @@ fun GoalTimingTabContent(
         }
 
         is GoalTimingUiState.Error -> {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(state.message, color = Color.Red, fontSize = 13.sp)
-            }
+            StatsErrorContent(
+                message = state.message,
+                onRetry = { viewModel.onTabSelected(StatsTab.GOAL_TIMING) }
+            )
         }
     }
 }
@@ -2834,9 +2894,10 @@ fun DisciplineTabContent(
         }
 
         is DisciplineUiState.Error -> {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(state.message, color = Color.Red, fontSize = 13.sp)
-            }
+            StatsErrorContent(
+                message = state.message,
+                onRetry = { viewModel.onTabSelected(StatsTab.DISCIPLINE) }
+            )
         }
     }
 }

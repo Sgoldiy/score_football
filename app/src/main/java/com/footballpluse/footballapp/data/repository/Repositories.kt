@@ -134,6 +134,8 @@ class FixturesRepository @Inject constructor(
 
 @Singleton
 class TeamRepository @Inject constructor(private val apiService: ApiService) {
+    private val standingsCache = java.util.concurrent.ConcurrentHashMap<String, List<ApiStanding>>()
+
     suspend fun getTeamInfo(teamId: Int): ApiResult<TeamInfoResponse> {
         return try {
             val teams = apiService.getTeams(teamId = teamId.toString())
@@ -147,7 +149,9 @@ class TeamRepository @Inject constructor(private val apiService: ApiService) {
 
     suspend fun getTeamStatistics(teamId: Int, leagueId: Int, season: Int): ApiResult<TeamStatistics> {
         return try {
-            val standings = apiService.getStandings(leagueId = leagueId.toString())
+            val standings = standingsCache.getOrPut(leagueId.toString()) {
+                apiService.getStandings(leagueId = leagueId.toString())
+            }
             val teamStanding = standings.find { it.team_id == teamId.toString() }
             if (teamStanding != null) {
                 val wins = teamStanding.standing_W?.toIntOrNull() ?: 0

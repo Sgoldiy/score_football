@@ -3,7 +3,20 @@ package com.footballpluse.footballapp.ui.screens.players
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -11,9 +24,32 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.TrendingUp
-import androidx.compose.material.icons.rounded.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.rounded.Analytics
+import androidx.compose.material.icons.rounded.BarChart
+import androidx.compose.material.icons.rounded.Cake
+import androidx.compose.material.icons.rounded.CalendarToday
+import androidx.compose.material.icons.rounded.EmojiEvents
+import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.FitnessCenter
+import androidx.compose.material.icons.rounded.Healing
+import androidx.compose.material.icons.rounded.Height
+import androidx.compose.material.icons.rounded.Public
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -54,12 +90,17 @@ fun PlayerProfileScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    val name = if (state is ApiResult.Success) (state as ApiResult.Success).data.info.name else "Player Profile"
+                    val name =
+                        if (state is ApiResult.Success) (state as ApiResult.Success).data.info.name else "Player Profile"
                     Text(name, fontWeight = FontWeight.Bold, color = Color.White)
                 },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color.White)
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color.White
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = PitchBlack)
@@ -79,15 +120,31 @@ fun PlayerProfileScreen(
                         CircularProgressIndicator(color = GlassGlowGreen)
                     }
                 }
+
                 is ApiResult.Error -> {
-                    Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .padding(32.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Rounded.ErrorOutline, contentDescription = null, tint = Color.White.copy(alpha = 0.50f), modifier = Modifier.size(48.dp))
+                            Icon(
+                                Icons.Rounded.ErrorOutline,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.50f),
+                                modifier = Modifier.size(48.dp)
+                            )
                             Spacer(Modifier.height(12.dp))
-                            Text(result.message, color = Color.White.copy(alpha = 0.65f), textAlign = TextAlign.Center)
+                            Text(
+                                result.message,
+                                color = Color.White.copy(alpha = 0.65f),
+                                textAlign = TextAlign.Center
+                            )
                         }
                     }
                 }
+
                 is ApiResult.Success -> {
                     val detail = result.data
                     PlayerContent(detail = detail)
@@ -145,7 +202,7 @@ private fun PlayerContent(detail: com.footballpluse.footballapp.domain.model.Pla
                         fontSize = 24.sp
                     )
                     Spacer(Modifier.height(12.dp))
-                    
+
                     // Info Chips Grid
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -154,12 +211,20 @@ private fun PlayerContent(detail: com.footballpluse.footballapp.domain.model.Pla
                     ) {
                         info.nationality?.let {
                             Box(modifier = Modifier.weight(1f)) {
-                                PremiumBioChip(label = "Nationality", value = it, icon = Icons.Rounded.Public)
+                                PremiumBioChip(
+                                    label = "Nationality",
+                                    value = it,
+                                    icon = Icons.Rounded.Public
+                                )
                             }
                         }
                         info.age?.let {
                             Box(modifier = Modifier.weight(1f)) {
-                                PremiumBioChip(label = "Age", value = "$it yrs", icon = Icons.Rounded.Cake)
+                                PremiumBioChip(
+                                    label = "Age",
+                                    value = "$it yrs",
+                                    icon = Icons.Rounded.Cake
+                                )
                             }
                         }
                     }
@@ -171,12 +236,20 @@ private fun PlayerContent(detail: com.footballpluse.footballapp.domain.model.Pla
                     ) {
                         info.height?.let {
                             Box(modifier = Modifier.weight(1f)) {
-                                PremiumBioChip(label = "Height", value = it, icon = Icons.Rounded.Height)
+                                PremiumBioChip(
+                                    label = "Height",
+                                    value = it,
+                                    icon = Icons.Rounded.Height
+                                )
                             }
                         }
                         info.weight?.let {
                             Box(modifier = Modifier.weight(1f)) {
-                                PremiumBioChip(label = "Weight", value = it, icon = Icons.Rounded.FitnessCenter)
+                                PremiumBioChip(
+                                    label = "Weight",
+                                    value = it,
+                                    icon = Icons.Rounded.FitnessCenter
+                                )
                             }
                         }
                     }
@@ -191,9 +264,19 @@ private fun PlayerContent(detail: com.footballpluse.footballapp.domain.model.Pla
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
                     ) {
-                        Icon(Icons.Rounded.BarChart, contentDescription = null, tint = GlassGlowGreen, modifier = Modifier.size(22.dp))
+                        Icon(
+                            Icons.Rounded.BarChart,
+                            contentDescription = null,
+                            tint = GlassGlowGreen,
+                            modifier = Modifier.size(22.dp)
+                        )
                         Spacer(Modifier.width(8.dp))
-                        Text("Season Statistics", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(
+                            "Season Statistics",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
                     }
                     Spacer(Modifier.height(10.dp))
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -203,7 +286,7 @@ private fun PlayerContent(detail: com.footballpluse.footballapp.domain.model.Pla
                     }
                 }
             }
-            
+
             item {
                 PlayerVisualAnalyticsSection(detail = detail)
             }
@@ -217,9 +300,19 @@ private fun PlayerContent(detail: com.footballpluse.footballapp.domain.model.Pla
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
                     ) {
-                        Icon(Icons.Rounded.EmojiEvents, contentDescription = null, tint = Color(0xFFFFC107), modifier = Modifier.size(22.dp))
+                        Icon(
+                            Icons.Rounded.EmojiEvents,
+                            contentDescription = null,
+                            tint = Color(0xFFFFC107),
+                            modifier = Modifier.size(22.dp)
+                        )
                         Spacer(Modifier.width(8.dp))
-                        Text("Trophies Showcase", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(
+                            "Trophies Showcase",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
                     }
                     Spacer(Modifier.height(10.dp))
                     androidx.compose.foundation.lazy.LazyRow(
@@ -242,9 +335,19 @@ private fun PlayerContent(detail: com.footballpluse.footballapp.domain.model.Pla
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
                     ) {
-                        Icon(Icons.Rounded.Healing, contentDescription = null, tint = Color(0xFFF44336), modifier = Modifier.size(22.dp))
+                        Icon(
+                            Icons.Rounded.Healing,
+                            contentDescription = null,
+                            tint = Color(0xFFF44336),
+                            modifier = Modifier.size(22.dp)
+                        )
                         Spacer(Modifier.width(8.dp))
-                        Text("Injuries & Sidelined", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                        Text(
+                            "Injuries & Sidelined",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp
+                        )
                     }
                     Spacer(Modifier.height(14.dp))
                     Card(
@@ -252,11 +355,18 @@ private fun PlayerContent(detail: com.footballpluse.footballapp.domain.model.Pla
                         shape = RoundedCornerShape(20.dp),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .border(0.5.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(20.dp))
+                            .border(
+                                0.5.dp,
+                                Color.White.copy(alpha = 0.06f),
+                                RoundedCornerShape(20.dp)
+                            )
                     ) {
                         Column(modifier = Modifier.padding(20.dp)) {
                             detail.sidelined.forEachIndexed { index, injury ->
-                                InjuryTimelineItem(injury = injury, isLast = index == detail.sidelined.lastIndex)
+                                InjuryTimelineItem(
+                                    injury = injury,
+                                    isLast = index == detail.sidelined.lastIndex
+                                )
                             }
                         }
                     }
@@ -267,7 +377,11 @@ private fun PlayerContent(detail: com.footballpluse.footballapp.domain.model.Pla
 }
 
 @Composable
-private fun PremiumBioChip(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+private fun PremiumBioChip(
+    label: String,
+    value: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -286,7 +400,13 @@ private fun PremiumBioChip(label: String, value: String, icon: androidx.compose.
         Spacer(Modifier.width(8.dp))
         Column {
             Text(label, color = TextSecondary, fontSize = 8.sp, fontWeight = FontWeight.Medium)
-            Text(value, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text(
+                value,
+                color = Color.White,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
         }
     }
 }
@@ -306,7 +426,10 @@ private fun PlayerStatsCard(ps: com.footballpluse.footballapp.domain.model.Playe
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
                     AsyncImage(
                         model = ps.team.logo,
                         contentDescription = ps.team.name,
@@ -314,7 +437,13 @@ private fun PlayerStatsCard(ps: com.footballpluse.footballapp.domain.model.Playe
                     )
                     Spacer(Modifier.width(12.dp))
                     Column {
-                        Text(ps.team.name, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
+                        Text(
+                            ps.team.name,
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            maxLines = 1
+                        )
                         Text(ps.league.name, color = TextSecondary, fontSize = 11.sp, maxLines = 1)
                     }
                 }
@@ -348,16 +477,36 @@ private fun PlayerStatsCard(ps: com.footballpluse.footballapp.domain.model.Playe
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                StatPill(label = "Matches Played", value = "${ps.appearances}", icon = Icons.Rounded.Star, color = GlassGlowGreen)
-                StatPill(label = "Goals Scored", value = "${ps.goals}", icon = Icons.Rounded.EmojiEvents, color = Color(0xFFFFC107))
-                StatPill(label = "Assists Offered", value = "${ps.assists}", icon = Icons.AutoMirrored.Rounded.TrendingUp, color = Color(0xFF03A9F4))
+                StatPill(
+                    label = "Matches Played",
+                    value = "${ps.appearances}",
+                    icon = Icons.Rounded.Star,
+                    color = GlassGlowGreen
+                )
+                StatPill(
+                    label = "Goals Scored",
+                    value = "${ps.goals}",
+                    icon = Icons.Rounded.EmojiEvents,
+                    color = Color(0xFFFFC107)
+                )
+                StatPill(
+                    label = "Assists Offered",
+                    value = "${ps.assists}",
+                    icon = Icons.AutoMirrored.Rounded.TrendingUp,
+                    color = Color(0xFF03A9F4)
+                )
             }
         }
     }
 }
 
 @Composable
-private fun RowScope.StatPill(label: String, value: String, icon: androidx.compose.ui.graphics.vector.ImageVector, color: Color) {
+private fun RowScope.StatPill(
+    label: String,
+    value: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    color: Color
+) {
     Column(
         modifier = Modifier
             .weight(1f)
@@ -455,7 +604,10 @@ private fun TrophyCard(trophy: com.footballpluse.footballapp.domain.model.Player
 }
 
 @Composable
-private fun InjuryTimelineItem(injury: com.footballpluse.footballapp.domain.model.PlayerInjuryInfo, isLast: Boolean) {
+private fun InjuryTimelineItem(
+    injury: com.footballpluse.footballapp.domain.model.PlayerInjuryInfo,
+    isLast: Boolean
+) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.Top
@@ -522,10 +674,28 @@ private fun PlayerVisualAnalyticsSection(detail: com.footballpluse.footballapp.d
     val name = detail.info.name.lowercase()
     val position = remember(name) {
         when {
-            name.contains("haaland") || name.contains("saka") || name.contains("mbappe") || name.contains("vinicius") || name.contains("martinell") || name.contains("havertz") || name.contains("striker") || name.contains("winger") -> "Attacker"
-            name.contains("odegaard") || name.contains("de bruyne") || name.contains("foden") || name.contains("silva") || name.contains("rodri") || name.contains("rice") || name.contains("bellingham") || name.contains("valverde") || name.contains("playmaker") || name.contains("midfield") -> "Midfielder"
-            name.contains("dias") || name.contains("walker") || name.contains("saliba") || name.contains("magalhaes") || name.contains("rüdiger") || name.contains("carvajal") || name.contains("defender") || name.contains("calafiori") -> "Defender"
-            name.contains("ederson") || name.contains("raya") || name.contains("courtois") || name.contains("keeper") || name.contains("hands") -> "Goalkeeper"
+            name.contains("haaland") || name.contains("saka") || name.contains("mbappe") || name.contains(
+                "vinicius"
+            ) || name.contains("martinell") || name.contains("havertz") || name.contains("striker") || name.contains(
+                "winger"
+            ) -> "Attacker"
+
+            name.contains("odegaard") || name.contains("de bruyne") || name.contains("foden") || name.contains(
+                "silva"
+            ) || name.contains("rodri") || name.contains("rice") || name.contains("bellingham") || name.contains(
+                "valverde"
+            ) || name.contains("playmaker") || name.contains("midfield") -> "Midfielder"
+
+            name.contains("dias") || name.contains("walker") || name.contains("saliba") || name.contains(
+                "magalhaes"
+            ) || name.contains("rüdiger") || name.contains("carvajal") || name.contains("defender") || name.contains(
+                "calafiori"
+            ) -> "Defender"
+
+            name.contains("ederson") || name.contains("raya") || name.contains("courtois") || name.contains(
+                "keeper"
+            ) || name.contains("hands") -> "Goalkeeper"
+
             else -> "Attacker"
         }
     }
@@ -543,14 +713,24 @@ private fun PlayerVisualAnalyticsSection(detail: com.footballpluse.footballapp.d
                 "Defender" -> 62f
                 else -> 50f
             }
-            val speedScore = (baseSpeed + (ratingFactor * 12f) + (stat.dribblesAttempts * 1.2f)).coerceIn(40f, 99f)
+            val speedScore =
+                (baseSpeed + (ratingFactor * 12f) + (stat.dribblesAttempts * 1.2f)).coerceIn(
+                    40f,
+                    99f
+                )
 
             // Passing Calculation
-            val passingScore = (stat.passesAccuracy.coerceIn(40, 95).toFloat() + (stat.passesKey * 2.2f) + (stat.assists * 8f)).coerceIn(30f, 99f)
+            val passingScore = (stat.passesAccuracy.coerceIn(40, 95)
+                .toFloat() + (stat.passesKey * 2.2f) + (stat.assists * 8f)).coerceIn(30f, 99f)
 
             // Physical Calculation
-            val duelRatio = if (stat.duelsTotal > 0) (stat.duelsWon.toFloat() / stat.duelsTotal) else 0.5f
-            val physicalScore = ((duelRatio * 65f) + (ratingFactor * 15f) + (stat.foulsDrawn * 1.5f)).coerceIn(35f, 99f)
+            val duelRatio =
+                if (stat.duelsTotal > 0) (stat.duelsWon.toFloat() / stat.duelsTotal) else 0.5f
+            val physicalScore =
+                ((duelRatio * 65f) + (ratingFactor * 15f) + (stat.foulsDrawn * 1.5f)).coerceIn(
+                    35f,
+                    99f
+                )
 
             // Defense Calculation
             val defensiveActions = stat.tacklesTotal + stat.interceptions + stat.blocks
@@ -559,16 +739,19 @@ private fun PlayerVisualAnalyticsSection(detail: com.footballpluse.footballapp.d
                 "Midfielder" -> 45f
                 else -> 20f
             }
-            val defenseScore = (baseDefense + (defensiveActions * 3f) + (ratingFactor * 10f)).coerceIn(15f, 99f)
+            val defenseScore =
+                (baseDefense + (defensiveActions * 3f) + (ratingFactor * 10f)).coerceIn(15f, 99f)
 
             // Shooting Calculation
-            val shotsRatio = if (stat.shotsTotal > 0) (stat.shotsOnTarget.toFloat() / stat.shotsTotal) else 0.4f
+            val shotsRatio =
+                if (stat.shotsTotal > 0) (stat.shotsOnTarget.toFloat() / stat.shotsTotal) else 0.4f
             val baseShooting = when (position) {
                 "Attacker" -> 60f
                 "Midfielder" -> 45f
                 else -> 15f
             }
-            val shootingScore = (baseShooting + (shotsRatio * 30f) + (stat.goals * 7f)).coerceIn(25f, 99f)
+            val shootingScore =
+                (baseShooting + (shotsRatio * 30f) + (stat.goals * 7f)).coerceIn(25f, 99f)
 
             listOf(speedScore, passingScore, physicalScore, defenseScore, shootingScore)
         } else {
@@ -587,9 +770,19 @@ private fun PlayerVisualAnalyticsSection(detail: com.footballpluse.footballapp.d
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
         ) {
-            Icon(Icons.Rounded.Analytics, contentDescription = null, tint = GlassGlowGreen, modifier = Modifier.size(22.dp))
+            Icon(
+                Icons.Rounded.Analytics,
+                contentDescription = null,
+                tint = GlassGlowGreen,
+                modifier = Modifier.size(22.dp)
+            )
             Spacer(Modifier.width(8.dp))
-            Text("Advanced Visual Analytics", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Text(
+                "Advanced Visual Analytics",
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 16.sp
+            )
         }
 
         Card(
@@ -599,12 +792,20 @@ private fun PlayerVisualAnalyticsSection(detail: com.footballpluse.footballapp.d
                 .fillMaxWidth()
                 .border(0.5.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(24.dp))
         ) {
-            Column(modifier = Modifier.padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Performance Radar Chart", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Column(
+                modifier = Modifier.padding(18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "Performance Radar Chart",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
                 Text("Rating: $rating • Role: $position", color = TextSecondary, fontSize = 11.sp)
-                
+
                 Spacer(Modifier.height(24.dp))
-                
+
                 Box(
                     modifier = Modifier.size(200.dp),
                     contentAlignment = Alignment.Center
@@ -612,9 +813,10 @@ private fun PlayerVisualAnalyticsSection(detail: com.footballpluse.footballapp.d
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         val canvasWidth = size.width
                         val canvasHeight = size.height
-                        val center = androidx.compose.ui.geometry.Offset(canvasWidth / 2f, canvasHeight / 2f)
+                        val center =
+                            androidx.compose.ui.geometry.Offset(canvasWidth / 2f, canvasHeight / 2f)
                         val radius = minOf(canvasWidth, canvasHeight) * 0.4f
-                        
+
                         val skeletonSteps = listOf(0.25f, 0.50f, 0.75f, 1.0f)
                         skeletonSteps.forEach { step ->
                             val path = Path()
@@ -632,7 +834,7 @@ private fun PlayerVisualAnalyticsSection(detail: com.footballpluse.footballapp.d
                                 style = Stroke(width = 1.dp.toPx())
                             )
                         }
-                        
+
                         for (i in 0..4) {
                             val angle = i * 2 * kotlin.math.PI / 5 - kotlin.math.PI / 2
                             val px = (center.x + radius * kotlin.math.cos(angle)).toFloat()
@@ -644,7 +846,7 @@ private fun PlayerVisualAnalyticsSection(detail: com.footballpluse.footballapp.d
                                 strokeWidth = 1.dp.toPx()
                             )
                         }
-                        
+
                         val attrPath = Path()
                         for (i in 0..4) {
                             val angle = i * 2 * kotlin.math.PI / 5 - kotlin.math.PI / 2
@@ -655,7 +857,7 @@ private fun PlayerVisualAnalyticsSection(detail: com.footballpluse.footballapp.d
                             if (i == 0) attrPath.moveTo(px, py) else attrPath.lineTo(px, py)
                         }
                         attrPath.close()
-                        
+
                         drawPath(
                             path = attrPath,
                             color = GlassGlowGreen.copy(alpha = 0.20f)
@@ -665,7 +867,7 @@ private fun PlayerVisualAnalyticsSection(detail: com.footballpluse.footballapp.d
                             color = GlassGlowGreen,
                             style = Stroke(width = 2.dp.toPx())
                         )
-                        
+
                         for (i in 0..4) {
                             val angle = i * 2 * kotlin.math.PI / 5 - kotlin.math.PI / 2
                             val attrVal = attributes[i] / 100f
@@ -679,18 +881,63 @@ private fun PlayerVisualAnalyticsSection(detail: com.footballpluse.footballapp.d
                             )
                         }
                     }
-                    
+
                     Box(Modifier.fillMaxSize()) {
-                        Text("SPD\n(${attributes[0].toInt()})", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.align(Alignment.TopCenter).offset(y = (-14).dp), textAlign = TextAlign.Center)
-                        Text("PAS\n(${attributes[1].toInt()})", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.align(Alignment.TopEnd).offset(x = 10.dp, y = 40.dp), textAlign = TextAlign.Center)
-                        Text("PHY\n(${attributes[2].toInt()})", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.align(Alignment.BottomEnd).offset(x = 6.dp, y = 12.dp), textAlign = TextAlign.Center)
-                        Text("DEF\n(${attributes[3].toInt()})", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.align(Alignment.BottomStart).offset(x = (-6).dp, y = 12.dp), textAlign = TextAlign.Center)
-                        Text("SHO\n(${attributes[4].toInt()})", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 9.sp, modifier = Modifier.align(Alignment.TopStart).offset(x = (-10).dp, y = 40.dp), textAlign = TextAlign.Center)
+                        Text(
+                            "SPD\n(${attributes[0].toInt()})",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 9.sp,
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .offset(y = (-14).dp),
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            "PAS\n(${attributes[1].toInt()})",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 9.sp,
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .offset(x = 10.dp, y = 40.dp),
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            "PHY\n(${attributes[2].toInt()})",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 9.sp,
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .offset(x = 6.dp, y = 12.dp),
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            "DEF\n(${attributes[3].toInt()})",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 9.sp,
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .offset(x = (-6).dp, y = 12.dp),
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            "SHO\n(${attributes[4].toInt()})",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 9.sp,
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .offset(x = (-10).dp, y = 40.dp),
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
             }
         }
-        
+
         Card(
             colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
             shape = RoundedCornerShape(24.dp),
@@ -698,12 +945,20 @@ private fun PlayerVisualAnalyticsSection(detail: com.footballpluse.footballapp.d
                 .fillMaxWidth()
                 .border(0.5.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(24.dp))
         ) {
-            Column(modifier = Modifier.padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("Tactical Activity Heatmap", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            Column(
+                modifier = Modifier.padding(18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    "Tactical Activity Heatmap",
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp
+                )
                 Text("Live game heatmap density coverage", color = TextSecondary, fontSize = 11.sp)
-                
+
                 Spacer(Modifier.height(20.dp))
-                
+
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -715,7 +970,7 @@ private fun PlayerVisualAnalyticsSection(detail: com.footballpluse.footballapp.d
                     Canvas(modifier = Modifier.fillMaxSize()) {
                         val width = size.width
                         val height = size.height
-                        
+
                         drawRect(
                             color = Color.White.copy(alpha = 0.2f),
                             style = Stroke(width = 1.dp.toPx())
@@ -732,7 +987,7 @@ private fun PlayerVisualAnalyticsSection(detail: com.footballpluse.footballapp.d
                             center = androidx.compose.ui.geometry.Offset(width / 2f, height / 2f),
                             style = Stroke(width = 1.dp.toPx())
                         )
-                        
+
                         drawRect(
                             color = Color.White.copy(alpha = 0.2f),
                             topLeft = androidx.compose.ui.geometry.Offset(0f, height * 0.25f),
@@ -741,33 +996,72 @@ private fun PlayerVisualAnalyticsSection(detail: com.footballpluse.footballapp.d
                         )
                         drawRect(
                             color = Color.White.copy(alpha = 0.2f),
-                            topLeft = androidx.compose.ui.geometry.Offset(width * 0.88f, height * 0.25f),
+                            topLeft = androidx.compose.ui.geometry.Offset(
+                                width * 0.88f,
+                                height * 0.25f
+                            ),
                             size = androidx.compose.ui.geometry.Size(width * 0.12f, height * 0.5f),
                             style = Stroke(width = 1.dp.toPx())
                         )
-                        
+
                         val spots = when (position) {
                             "Attacker" -> listOf(
-                                androidx.compose.ui.geometry.Offset(width * 0.75f, height * 0.4f) to 48.dp.toPx(),
-                                androidx.compose.ui.geometry.Offset(width * 0.85f, height * 0.55f) to 36.dp.toPx(),
-                                androidx.compose.ui.geometry.Offset(width * 0.65f, height * 0.3f) to 32.dp.toPx()
+                                androidx.compose.ui.geometry.Offset(
+                                    width * 0.75f,
+                                    height * 0.4f
+                                ) to 48.dp.toPx(),
+                                androidx.compose.ui.geometry.Offset(
+                                    width * 0.85f,
+                                    height * 0.55f
+                                ) to 36.dp.toPx(),
+                                androidx.compose.ui.geometry.Offset(
+                                    width * 0.65f,
+                                    height * 0.3f
+                                ) to 32.dp.toPx()
                             )
+
                             "Midfielder" -> listOf(
-                                androidx.compose.ui.geometry.Offset(width * 0.5f, height * 0.5f) to 54.dp.toPx(),
-                                androidx.compose.ui.geometry.Offset(width * 0.4f, height * 0.35f) to 40.dp.toPx(),
-                                androidx.compose.ui.geometry.Offset(width * 0.6f, height * 0.65f) to 42.dp.toPx()
+                                androidx.compose.ui.geometry.Offset(
+                                    width * 0.5f,
+                                    height * 0.5f
+                                ) to 54.dp.toPx(),
+                                androidx.compose.ui.geometry.Offset(
+                                    width * 0.4f,
+                                    height * 0.35f
+                                ) to 40.dp.toPx(),
+                                androidx.compose.ui.geometry.Offset(
+                                    width * 0.6f,
+                                    height * 0.65f
+                                ) to 42.dp.toPx()
                             )
+
                             "Defender" -> listOf(
-                                androidx.compose.ui.geometry.Offset(width * 0.25f, height * 0.5f) to 50.dp.toPx(),
-                                androidx.compose.ui.geometry.Offset(width * 0.15f, height * 0.3f) to 36.dp.toPx(),
-                                androidx.compose.ui.geometry.Offset(width * 0.35f, height * 0.6f) to 32.dp.toPx()
+                                androidx.compose.ui.geometry.Offset(
+                                    width * 0.25f,
+                                    height * 0.5f
+                                ) to 50.dp.toPx(),
+                                androidx.compose.ui.geometry.Offset(
+                                    width * 0.15f,
+                                    height * 0.3f
+                                ) to 36.dp.toPx(),
+                                androidx.compose.ui.geometry.Offset(
+                                    width * 0.35f,
+                                    height * 0.6f
+                                ) to 32.dp.toPx()
                             )
+
                             else -> listOf(
-                                androidx.compose.ui.geometry.Offset(width * 0.06f, height * 0.5f) to 40.dp.toPx(),
-                                androidx.compose.ui.geometry.Offset(width * 0.08f, height * 0.45f) to 28.dp.toPx()
+                                androidx.compose.ui.geometry.Offset(
+                                    width * 0.06f,
+                                    height * 0.5f
+                                ) to 40.dp.toPx(),
+                                androidx.compose.ui.geometry.Offset(
+                                    width * 0.08f,
+                                    height * 0.45f
+                                ) to 28.dp.toPx()
                             )
                         }
-                        
+
                         spots.forEach { (center, radiusValue) ->
                             drawCircle(
                                 brush = Brush.radialGradient(

@@ -24,11 +24,14 @@ class FootballRepositoryImpl @Inject constructor(
 ) : FootballRepository {
 
     override fun getFixturesByDate(date: String): Flow<ApiResult<List<Match>>> = flow {
-        emit(ApiResult.Loading)
+        // First check cache and emit immediately if present
         val cached = fixtureDao.getFixturesByDate(date).first()
         if (cached.isNotEmpty()) {
             emit(ApiResult.Success(cached.map { it.toMatch() }))
+        } else {
+            emit(ApiResult.Loading)
         }
+
         try {
             val events = apiService.getEvents(from = date, to = date)
             val fixtures = events.toFixtureResponseList()
@@ -37,12 +40,25 @@ class FootballRepositoryImpl @Inject constructor(
                 fixtureDao.deleteFixturesByDate(date)
                 fixtureDao.insertFixtures(entities)
                 emit(ApiResult.Success(entities.map { it.toMatch() }))
-            } else if (cached.isEmpty()) {
+            } else {
                 emit(ApiResult.Success(emptyList()))
             }
         } catch (e: Exception) {
-            if (cached.isEmpty()) {
-                emit(ApiResult.Error(e.message ?: "Network error"))
+            val isNoDataError = e.message?.contains("404") == true || 
+                               e.message?.contains("No event found") == true ||
+                               e is com.squareup.moshi.JsonDataException
+
+            if (isNoDataError) {
+                emit(ApiResult.Success(emptyList()))
+            } else {
+                val errorMessage = when {
+                    e.message?.contains("429") == true -> "Rate limit exceeded. Please try again later."
+                    e.message?.contains("500") == true -> "Server error. We're working on it!"
+                    else -> e.message ?: "Network error"
+                }
+                if (cached.isEmpty()) {
+                    emit(ApiResult.Error(errorMessage))
+                }
             }
         }
     }
@@ -59,9 +75,17 @@ class FootballRepositoryImpl @Inject constructor(
                 val liveMatches = liveFixtures.map { it.toMatch() }.filter { it.isLive }
                 emit(ApiResult.Success(liveMatches))
             } catch (e: Exception) {
-                emit(ApiResult.Error(e.message ?: "Failed to refresh live matches"))
+                val isNoDataError = e.message?.contains("404") == true || 
+                                   e.message?.contains("No event found") == true ||
+                                   e is com.squareup.moshi.JsonDataException
+                
+                if (isNoDataError) {
+                    emit(ApiResult.Success(emptyList()))
+                } else {
+                    emit(ApiResult.Error(e.message ?: "Failed to refresh live matches"))
+                }
             }
-            delay(15000)
+            delay(60000)
         }
     }
 
@@ -180,58 +204,17 @@ class FootballRepositoryImpl @Inject constructor(
 
     override suspend fun getTeamDetail(teamId: Int, leagueId: Int, season: Int): ApiResult<TeamDetail> {
         return try {
-            val teams = try {
-                apiService.getTeams(teamId = teamId.toString())
-            } catch (e: Exception) {
-                emptyList()
-            }
-            val apiTeam = teams.firstOrNull()
-                ?: return ApiResult.Error("Team not found or network failure")
+            val teams = apiService.getTeams(teamId = teamId.toString())
+            val apiTeam = teams.firstOrNull() ?: return ApiResult.Error("Team not found")
 
-            val info = apiTeam.toTeamInfoResponse()
-            val players = apiTeam.players ?: emptyList()
-            val coaches = apiTeam.coaches ?: emptyList()
-            val squadMembers = players.toSquadPlayers().map { it.toSquadMember() }
-            val coachInfos = coaches.toCoaches().map { CoachInfo(it.id ?: 0, it.name ?: "", it.photo) }
-
-            // Extract team statistics from standings if available
             val standings = try {
                 apiService.getStandings(leagueId = leagueId.toString())
             } catch (_: Exception) {
                 emptyList()
             }
             val teamStanding = standings.find { it.team_id == teamId.toString() }
-            
-            val stats = if (teamStanding != null) {
-                val wins = teamStanding.standing_W?.toIntOrNull() ?: 0
-                val draws = teamStanding.standing_D?.toIntOrNull() ?: 0
-                val loses = teamStanding.standing_L?.toIntOrNull() ?: 0
-                TeamStats(
-                    form = teamStanding.overall_form,
-                    played = teamStanding.standing_total?.toIntOrNull() ?: (wins + draws + loses),
-                    wins = wins,
-                    draws = draws,
-                    loses = loses,
-                    goalsFor = teamStanding.overall_GF?.toIntOrNull() ?: 0,
-                    goalsAgainst = teamStanding.overall_GA?.toIntOrNull() ?: 0
-                )
-            } else {
-                TeamStats(
-                    form = null, played = 0, wins = 0, draws = 0, loses = 0,
-                    goalsFor = 0, goalsAgainst = 0
-                )
-            }
 
-            ApiResult.Success(
-                TeamDetail(
-                    info = TeamInfo(info.team?.id ?: 0, info.team?.name ?: "", info.team?.logo),
-                    venue = info.venue?.toVenueInfo(),
-                    stats = stats,
-                    squad = squadMembers,
-                    coaches = coachInfos,
-                    transfers = emptyList()
-                )
-            )
+            ApiResult.Success(apiTeam.toTeamDetail(teamStanding))
         } catch (e: Exception) {
             ApiResult.Error(e.message ?: "Failed to load team details")
         }
@@ -291,19 +274,10 @@ class FootballRepositoryImpl @Inject constructor(
     override suspend fun getPlayerDetail(playerId: Int, season: Int): ApiResult<PlayerDetail> {
         return try {
             val players = apiService.getPlayers(playerId = playerId.toString())
-            val firstPlayer = players.firstOrNull()
-                ?: return ApiResult.Error("Player not found")
+            val firstPlayer = players.firstOrNull() ?: return ApiResult.Error("Player not found")
 
             val statsResponse = firstPlayer.toPlayerProfileStatisticsResponse()
-
-            ApiResult.Success(
-                PlayerDetail(
-                    info = statsResponse.toPlayerInfo(),
-                    stats = statsResponse.statistics?.map { it.toPlayerStatDetail() } ?: emptyList(),
-                    trophies = emptyList(),
-                    sidelined = emptyList()
-                )
-            )
+            ApiResult.Success(statsResponse.toPlayerDetail())
         } catch (e: Exception) {
             ApiResult.Error(e.message ?: "Failed to load player details")
         }
