@@ -347,7 +347,7 @@ data class ApiPrediction(
     @Json(name = "prob_D") val draw: String?,
     @Json(name = "prob_AW") val awayWin: String?,
     // Full dc_v2 probability set surfaced from the FootballCharts match detail
-    // (all derived from the real model output — see FcApiAdapter.getPredictions).
+    // (legacy fields kept for ViewModel compatibility).
     val advice: String? = null,
     val btts_yes: String? = null,
     val over_25: String? = null,

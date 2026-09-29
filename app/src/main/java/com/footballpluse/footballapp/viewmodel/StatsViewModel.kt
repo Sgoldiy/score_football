@@ -16,36 +16,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class StatsTab { PLAYERS, CLUBS, XG_ADVANCED, GOAL_TIMING, DISCIPLINE, MODEL }
+enum class StatsTab { PLAYERS, CLUBS, XG_ADVANCED, GOAL_TIMING, DISCIPLINE }
 
-// MODEL (track-record) UI STATE — the FC model's published betting track record.
-sealed class ModelStatsUiState {
-    object Idle : ModelStatsUiState()
-    object Loading : ModelStatsUiState()
-    data class Success(
-        val signalsOnly: Boolean,
-        val pending: Int?,
-        val summary: TrackSummaryUi,
-        val markets: List<TrackMarketUi>,
-        val marketsAll: List<TrackMarketUi>,
-        val recentPicks: List<TrackPickUi>,
-        val calibration: List<TrackCalibrationBucketUi>,
-        val brierScore: Double?,
-        val calibrationN: Int?,
-        val cumulativePl: List<Pair<String, Double>>,
-        val policyMarkers: List<Pair<String, String>>
-    ) : ModelStatsUiState()
-    data class Error(val message: String) : ModelStatsUiState()
-}
-
-data class TrackSummaryUi(val n: Int, val won: Int, val lost: Int, val void: Int, val pl: Double, val hitRate: Double)
-data class TrackMarketUi(val key: String, val label: String, val n: Int, val hitRate: Double, val pl: Double)
-data class TrackPickUi(
-    val homeTeam: String, val awayTeam: String, val league: String, val date: String,
-    val market: String, val side: String, val line: Double?, val modelProb: Double?,
-    val outcome: String?, val pl: Double?, val score: String?
-)
-data class TrackCalibrationBucketUi(val lo: Double, val hi: Double, val n: Int, val avgProb: Double, val hitRate: Double)
 
 data class StatsLeague(
     val id: Int,
@@ -150,8 +122,7 @@ data class PlayerFoulsStat(val name: String, val playerPhoto: String?, val teamL
 @HiltViewModel
 class StatsViewModel @Inject constructor(
     private val apiService: ApiService,
-    private val repository: com.footballpluse.footballapp.data.repository.FootballRepositoryImpl,
-    private val fcApi: com.footballpluse.footballapp.data.remote.FcApiService
+    private val repository: com.footballpluse.footballapp.data.repository.FootballRepositoryImpl
 ) : ViewModel() {
 
     companion object {
@@ -182,9 +153,6 @@ class StatsViewModel @Inject constructor(
 
     private val _disciplineState = MutableStateFlow<DisciplineUiState>(DisciplineUiState.Idle)
     val disciplineState: StateFlow<DisciplineUiState> = _disciplineState.asStateFlow()
-
-    private val _modelState = MutableStateFlow<ModelStatsUiState>(ModelStatsUiState.Idle)
-    val modelState: StateFlow<ModelStatsUiState> = _modelState.asStateFlow()
 
     // Default supported leagues for the selector sheet - FootballCharts covers
     // domestic leagues only, so the old UCL/World Cup/etc. entries (whose ids now
@@ -234,12 +202,6 @@ class StatsViewModel @Inject constructor(
                     fetchDiscipline(league.id, league.season)
                 }
             }
-            StatsTab.MODEL -> {
-                // Track record is global (not per league) — fetch once.
-                if (_modelState.value is ModelStatsUiState.Idle) {
-                    fetchTrackRecord()
-                }
-            }
         }
     }
 
@@ -283,76 +245,6 @@ class StatsViewModel @Inject constructor(
         _xgState.value = XGStatsUiState.Idle
         _timingState.value = GoalTimingUiState.Idle
         _disciplineState.value = DisciplineUiState.Idle
-        // Track record is global, not per league — keep it cached across league switches.
-    }
-
-    // --- TAB 6: MODEL (track-record) ---
-    private fun fetchTrackRecord() {
-        viewModelScope.launch {
-            _modelState.value = ModelStatsUiState.Loading
-            try {
-                val t = fcApi.getTrackRecord().trackRecord
-                    ?: run { _modelState.value = ModelStatsUiState.Error("Track record unavailable"); return@launch }
-                val s = t.summary
-                fun marketLabel(key: String) = when (key) {
-                    "1x2" -> "Match Winner (1X2)"
-                    "bts" -> "Both Teams To Score"
-                    "ft_ou_25" -> "Over/Under 2.5"
-                    "ft_ou_35" -> "Over/Under 3.5"
-                    "ht_ou_15" -> "HT Over/Under 1.5"
-                    else -> key
-                }
-                val markets = t.byMarket.map { (k, v) ->
-                    TrackMarketUi(k, marketLabel(k), v.n ?: 0, v.hitRate ?: 0.0, v.pl ?: 0.0)
-                }.sortedByDescending { it.n }
-                val marketsAll = t.byMarketAll.map { (k, v) ->
-                    TrackMarketUi(k, marketLabel(k), v.n ?: 0, v.hitRate ?: 0.0, v.pl ?: 0.0)
-                }.sortedByDescending { it.n }
-                val picks = t.recent.map { p ->
-                    TrackPickUi(
-                        homeTeam = p.homeTeam ?: "",
-                        awayTeam = p.awayTeam ?: "",
-                        league = p.realLeagueName ?: "",
-                        date = p.matchDate ?: "",
-                        market = marketLabel(p.market ?: ""),
-                        side = p.side ?: "",
-                        line = p.line,
-                        modelProb = p.modelProb,
-                        outcome = p.outcome,
-                        pl = p.pl,
-                        score = p.resultScore
-                    )
-                }
-                _modelState.value = ModelStatsUiState.Success(
-                    signalsOnly = t.signalsOnly == true,
-                    pending = t.pending,
-                    summary = TrackSummaryUi(
-                        n = s?.n ?: 0,
-                        won = s?.won ?: 0,
-                        lost = s?.lost ?: 0,
-                        void = s?.void ?: 0,
-                        pl = s?.pl ?: 0.0,
-                        hitRate = s?.hitRate ?: 0.0
-                    ),
-                    markets = markets,
-                    marketsAll = marketsAll,
-                    recentPicks = picks.take(20),
-                    calibration = (t.accuracy?.buckets ?: emptyList()).map {
-                        TrackCalibrationBucketUi(it.lo ?: 0.0, it.hi ?: 0.0, it.n ?: 0, it.avgProb ?: 0.0, it.hitRate ?: 0.0)
-                    },
-                    brierScore = t.accuracy?.brier,
-                    calibrationN = t.accuracy?.n,
-                    cumulativePl = t.daily.mapNotNull { d ->
-                        d.date?.let { date -> d.cumPl?.let { pl -> date to pl } }
-                    },
-                    policyMarkers = t.policyMarkers.mapNotNull { m ->
-                        m.date?.let { date -> m.label?.let { l -> date to l } }
-                    }
-                )
-            } catch (e: Exception) {
-                _modelState.value = ModelStatsUiState.Error(e.message ?: "Failed to load track record")
-            }
-        }
     }
 
     // --- TAB 1: PLAYERS ---

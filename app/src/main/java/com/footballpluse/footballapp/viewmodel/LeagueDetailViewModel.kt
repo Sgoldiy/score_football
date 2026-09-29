@@ -6,16 +6,9 @@ import com.footballpluse.footballapp.data.mapper.*
 import com.footballpluse.footballapp.data.model.FixtureResponse
 import com.footballpluse.footballapp.data.model.PlayerProfileStatisticsResponse
 import com.footballpluse.footballapp.data.model.StandingRecord
-import com.footballpluse.footballapp.data.remote.ApiConfig
 import com.footballpluse.footballapp.data.remote.ApiService
-import com.footballpluse.footballapp.data.remote.FcApiService
-import com.footballpluse.footballapp.data.remote.FcLeagueCatalog
-import com.footballpluse.footballapp.data.remote.FcLogoIndex
-import com.footballpluse.footballapp.data.remote.FcTeamIds
-import com.footballpluse.footballapp.data.remote.FcTeamLeagueIndex
 import com.footballpluse.footballapp.data.util.ApiResult
 import com.footballpluse.footballapp.domain.model.LeagueInfo
-import com.footballpluse.footballapp.domain.model.OnboardingDefaults
 import com.footballpluse.footballapp.domain.model.StandingItem
 import com.footballpluse.footballapp.domain.repository.FootballRepository
 import com.footballpluse.footballapp.ui.screens.leagues.*
@@ -27,8 +20,6 @@ import javax.inject.Inject
 data class LeagueDetailUiState(
     val leagueInfo: LeagueInfo? = null,
     val standings: ApiResult<List<StandingRowUiModel>> = ApiResult.Loading,
-    val projection: ApiResult<ProjectionUiModel> = ApiResult.Loading,
-    val luck: ApiResult<LuckUiModel> = ApiResult.Loading,
     val fixtures: ApiResult<List<FixtureUiModel>> = ApiResult.Loading,
     val topScorers: ApiResult<List<PlayerStatUiModel>> = ApiResult.Loading,
     val topAssists: ApiResult<List<PlayerStatUiModel>> = ApiResult.Loading,
@@ -44,8 +35,7 @@ data class LeagueDetailUiState(
 @HiltViewModel
 class LeagueDetailViewModel @Inject constructor(
     private val repository: FootballRepository,
-    private val apiService: ApiService,
-    private val fcApi: FcApiService
+    private val apiService: ApiService
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LeagueDetailUiState())
@@ -54,13 +44,10 @@ class LeagueDetailViewModel @Inject constructor(
     private var leagueId: Int = 0
     private var season: Int = 2025
 
-    /** Real per-period goal totals from the FC /goal-timing/ endpoint. */
-    private var goalTimingBands: List<GoalBand>? = null
 
     fun load(leagueId: Int, season: Int) {
         this.leagueId = leagueId
         this.season = season
-        goalTimingBands = null
         _state.update { LeagueDetailUiState() }
 
         viewModelScope.launch {
@@ -72,9 +59,6 @@ class LeagueDetailViewModel @Inject constructor(
             _state.update { it.copy(leagueInfo = league) }
 
             launch { loadStandings(leagueId, season) }
-            launch { loadProjection(leagueId) }
-            launch { loadLuck(leagueId) }
-            launch { loadGoalTiming(leagueId) }
             launch { loadFixtures(leagueId, season) }
             launch {                loadTopScorers(leagueId, season) }
             launch { loadTopAssists(leagueId, season) }
@@ -97,161 +81,6 @@ class LeagueDetailViewModel @Inject constructor(
         val a = _state.value.selectedTeamA ?: return
         loadH2H(a.id, b.id)
     }
-
-    /**
-     * Monte Carlo season projection (10k sims, run daily). Percentages are mapped
-     * from FC fractions; the relegation zone size is detected from the data (the
-     * API models bottom1/2/3 because relegation rules differ per league).
-     */
-    private fun loadProjection(leagueId: Int) {
-        val lg = FcLeagueCatalog.byId(leagueId)
-        if (lg == null) {
-            _state.update { it.copy(projection = ApiResult.Error("Projection is not available for this league")) }
-            return
-        }
-        viewModelScope.launch {
-            _state.update { it.copy(projection = ApiResult.Loading) }
-            try {
-                val payload = fcApi.getProjection(
-                    lg.slug,
-                    season = FcLeagueCatalog.seasonLabel(lg, com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear())
-                ).projection
-                if (payload == null || payload.teams.isEmpty()) {
-                    _state.update { it.copy(projection = ApiResult.Error("No projection data available yet")) }
-                    return@launch
-                }
-                val entries = payload.teams.entries
-                    .sortedByDescending { it.value.meanPts ?: it.value.ptsNow.toDouble() }
-                // Relegation % shown = P(finish in the bottom N); N from the strongest signal.
-                val strongestBottom = entries.maxOf { it.value.bottom1 ?: 0.0 }
-                val relegationPlaces = if (strongestBottom > 0.02) strongestBottom.times(100).toInt().coerceIn(1, 3) else 0
-                val rows = entries.mapIndexed { idx, (name, t) ->
-                    val relegationFraction = when (relegationPlaces) {
-                        0 -> null
-                        1 -> t.bottom1
-                        2 -> (t.bottom1 ?: 0.0) + (t.bottom2 ?: 0.0)
-                        else -> (t.bottom1 ?: 0.0) + (t.bottom2 ?: 0.0) + (t.bottom3 ?: 0.0)
-                    }
-                    ProjectionRowUiModel(
-                        rank = idx + 1,
-                        team = TeamUiModel(
-                            id = FcTeamIds.id(name),
-                            name = name,
-                            logo = logoFor(name)
-                        ),
-                        pointsNow = t.ptsNow,
-                        played = t.played,
-                        meanPoints = t.meanPts?.toFloat(),
-                        p10Points = t.p10Pts,
-                        p90Points = t.p90Pts,
-                        titlePct = t.title?.times(100)?.toFloat(),
-                        top4Pct = t.top4?.times(100)?.toFloat(),
-                        relegationPct = relegationFraction?.times(100)?.toFloat()
-                    )
-                }
-                _state.update {
-                    it.copy(
-                        projection = ApiResult.Success(
-                            ProjectionUiModel(
-                                rows = rows,
-                                nSims = payload.nSims,
-                                seasonLabel = payload.season,
-                                expectedRemaining = payload.expectedRemaining,
-                                partialSchedule = payload.partialSchedule == true
-                            )
-                        )
-                    )
-                }
-            } catch (e: Exception) {
-                _state.update { it.copy(projection = ApiResult.Error(e.message ?: "Failed to load projection")) }
-            }
-        }
-    }
-
-    /** Luck table (view=luck): expected vs actual performance per team. */
-    private fun loadLuck(leagueId: Int) {
-        val lg = FcLeagueCatalog.byId(leagueId)
-        if (lg == null) {
-            _state.update { it.copy(luck = ApiResult.Error("Luck data is not available for this league")) }
-            return
-        }
-        viewModelScope.launch {
-            _state.update { it.copy(luck = ApiResult.Loading) }
-            try {
-                val season = FcLeagueCatalog.seasonLabel(lg, com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear())
-                val resp = fcApi.getLeagueTable(lg.slug, season, view = "luck")
-                val rows = resp.table.map { r ->
-                    FcTeamIds.id(r.team)
-                    FcTeamLeagueIndex.register(r.team, lg.slug)
-                    LuckRowUiModel(
-                        position = r.position,
-                        team = TeamUiModel(
-                            id = FcTeamIds.id(r.team),
-                            name = r.team,
-                            logo = FcLogoIndex.forName(r.team)
-                                ?: ApiConfig.teamSlug(r.team)?.let { ApiConfig.teamLogoUrl(lg.country, lg.slug, it) }
-                        ),
-                        points = r.points,
-                        played = r.played,
-                        expectedPoints = r.expectedPoints?.toFloat(),
-                        expectedPosition = r.expectedPosition,
-                        luckDifference = r.luckDifference?.toFloat(),
-                        luckCategory = r.luckCategory,
-                        luckiestResult = r.luckiestResult,
-                        unluckiestResult = r.unluckiestResult
-                    )
-                }
-                _state.update {
-                    it.copy(luck = ApiResult.Success(LuckUiModel(rows = rows, seasonState = resp.seasonState, updatedAt = resp.table.firstOrNull()?.updatedAt)))
-                }
-            } catch (e: Exception) {
-                _state.update { it.copy(luck = ApiResult.Error(e.message ?: "Failed to load luck data")) }
-            }
-        }
-    }
-
-    /**
-     * Real goal-timing distribution from the FC /goal-timing/ endpoint. Match
-     * events (goalscorer lists) are not part of this API, so this is the only
-     * true source for the Stats tab "When are goals scored?" bands.
-     */
-    private fun loadGoalTiming(leagueId: Int) {
-        val lg = FcLeagueCatalog.byId(leagueId)
-        if (lg == null) {
-            goalTimingBands = null
-            return
-        }
-        viewModelScope.launch {
-            try {
-                val season = FcLeagueCatalog.seasonLabel(lg, com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear())
-                val resp = fcApi.getGoalTiming(lg.slug, season)
-                val bins = resp.timeBins.ifEmpty { listOf("0-15", "15-30", "30-45", "45+", "46-60", "60-75", "75-90", "90+") }
-                val totals = resp.data.map { it.goals }
-                    .filter { it.isNotEmpty() }
-                    .fold(List(bins.size) { 0 }) { acc, goals -> acc.zip(goals) { a, b -> a + b } }
-                goalTimingBands = if (totals.isEmpty() || totals.all { it == 0 }) {
-                    null
-                } else {
-                    bins.zip(totals) { label, count -> GoalBand(label.replace("-", "\u2013"), count) }
-                }
-                // If the Stats model was already built, refresh its bands now.
-                _state.value.seasonStats?.let { current ->
-                    _state.update {
-                        it.copy(seasonStats = current.copy(goalsByMinuteBand = goalTimingBands ?: current.goalsByMinuteBand))
-                    }
-                }
-            } catch (_: Exception) {
-                goalTimingBands = null
-            }
-        }
-    }
-
-    private fun logoFor(name: String): String? {
-        val id = FcTeamIds.id(name)
-        return FcLogoIndex.forName(name)
-            ?: if (FcTeamIds.name(id) == name) OnboardingDefaults.clubLogoUrl(id, name) else null
-    }
-
     private fun loadH2H(teamAId: Int, teamBId: Int) {
         _state.update { it.copy(h2hData = ApiResult.Loading) }
         viewModelScope.launch {
@@ -549,8 +378,8 @@ class LeagueDetailViewModel @Inject constructor(
 
         // Total goals: finished fixtures are ground truth; standings GF sum is the fallback.
         val fixtureGoals = finished.sumOf { (it.homeScore ?: 0) + (it.awayScore ?: 0) }
-        // Real per-period goal totals from /goal-timing/ — also the honest total.
-        val goalTimingTotal = goalTimingBands?.sumOf { it.count } ?: 0
+        // FC goal-timing removed with the FC layer; fixture scores are the total.
+        val goalTimingTotal = 0
         val totalGoals = when {
             finished.isNotEmpty() -> fixtureGoals
             goalTimingTotal > 0 -> goalTimingTotal
@@ -577,9 +406,9 @@ class LeagueDetailViewModel @Inject constructor(
             .maxByOrNull { kotlin.math.abs((it.homeScore ?: 0) - (it.awayScore ?: 0)) }
         val biggestWin = biggest?.let { "${it.homeTeam.name} ${it.homeScore}\u2013${it.awayScore} ${it.awayTeam.name}" }
 
-        // Goal timing bands: REAL per-period totals from the FC /goal-timing/
-        // endpoint when loaded; otherwise zeros (no event data exists in this API).
-        val goalBands = goalTimingBands ?: listOf(
+        // Goal timing bands: the FC /goal-timing/ source is gone; upstream has
+        // no equivalent, so the Stats tab bands are zeros.
+        val goalBands = listOf(
             GoalBand("1\u201315", 0), GoalBand("16\u201330", 0),
             GoalBand("31\u201345", 0), GoalBand("46\u201360", 0),
             GoalBand("61\u201375", 0), GoalBand("76\u201390+", 0)

@@ -11,27 +11,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 
-/** FC team-page deep stats: shooting, possession, xG and goal-timing per period. */
-data class TeamAdvancedStatsUi(
-    val teamName: String,
-    val matchesWithStats: Int?,
-    val shotsAvg: Double?,
-    val shotsOnTargetAvg: Double?,
-    val shotsAgainstAvg: Double?,
-    val possessionAvg: Double?,
-    val cornersAvg: Double?,
-    val xgAvg: Double?,
-    val xgAgainstAvg: Double?,
-    val timeBins: List<String>,
-    val goalBins: List<Int>,
-    val firstGoalBins: List<Pair<String, Int>>,
-    val seasonLabel: String?
-)
 
 @HiltViewModel
 class ClubInfoViewModel @Inject constructor(
-    private val repository: FootballRepository,
-    private val fcApi: com.footballpluse.footballapp.data.remote.FcApiService
+    private val repository: FootballRepository
 ) : ViewModel() {
 
     private val _teamInfo = MutableStateFlow<UiState<TeamInfoResponse>>(UiState.Loading)
@@ -52,8 +35,6 @@ class ClubInfoViewModel @Inject constructor(
     private val _topScorers = MutableStateFlow<UiState<List<PlayerProfileStatisticsResponse>>>(UiState.Loading)
     val topScorers: StateFlow<UiState<List<PlayerProfileStatisticsResponse>>> = _topScorers
 
-    private val _advancedStats = MutableStateFlow<UiState<TeamAdvancedStatsUi>>(UiState.Loading)
-    val advancedStats: StateFlow<UiState<TeamAdvancedStatsUi>> = _advancedStats
 
     fun loadClubData(teamId: Int, leagueId: Int) {
         viewModelScope.launch {
@@ -63,60 +44,9 @@ class ClubInfoViewModel @Inject constructor(
             launch { fetchCoach(teamId) }
             launch { fetchRecentFixtures(teamId, leagueId) }
             launch { fetchTopScorers(leagueId) }
-            launch { fetchAdvancedStats(teamId, leagueId) }
         }
     }
 
-    /**
-     * Real FC team-page stats (xG, possession, shots, goal timing). The team name
-     * comes from the id bridge and the league from the team-league index that the
-     * standings/fixtures flows keep warm; both are seeded for the popular clubs.
-     */
-    private suspend fun fetchAdvancedStats(teamId: Int, leagueId: Int) {
-        try {
-            val name = com.footballpluse.footballapp.data.remote.FcTeamIds.name(teamId)
-            if (name.isNullOrBlank()) {
-                _advancedStats.value = UiState.Error("Club not covered by the data provider")
-                return
-            }
-            var slugs = com.footballpluse.footballapp.data.remote.FcTeamLeagueIndex.leaguesOf(name)
-            if (slugs.isEmpty() && leagueId != 0) {
-                com.footballpluse.footballapp.data.remote.FcLeagueCatalog.byId(leagueId)?.slug?.let { slugs = listOf(it) }
-            }
-            if (slugs.isEmpty()) {
-                _advancedStats.value = UiState.Error("No league data for this club yet")
-                return
-            }
-            val lg = com.footballpluse.footballapp.data.remote.FcLeagueCatalog.bySlug(slugs.first())!!
-            val season = com.footballpluse.footballapp.data.remote.FcLeagueCatalog.seasonLabel(
-                lg, com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()
-            )
-            val page = fcApi.getTeamPage(
-                lg.slug,
-                com.footballpluse.footballapp.data.remote.ApiConfig.teamSlug(name) ?: name.lowercase(),
-                season
-            )
-            _advancedStats.value = UiState.Success(
-                TeamAdvancedStatsUi(
-                    teamName = page.team,
-                    matchesWithStats = page.stats?.matchesWithStats,
-                    shotsAvg = page.stats?.shotsAvg,
-                    shotsOnTargetAvg = page.stats?.shotsOnTargetAvg,
-                    shotsAgainstAvg = page.stats?.shotsAgainstAvg,
-                    possessionAvg = page.stats?.possessionAvg,
-                    cornersAvg = page.stats?.cornersAvg,
-                    xgAvg = page.stats?.xgAvg,
-                    xgAgainstAvg = page.stats?.xgAgainstAvg,
-                    timeBins = page.timeBins,
-                    goalBins = page.goalBins,
-                    firstGoalBins = page.firstGoalBins.map { it.time to it.count },
-                    seasonLabel = page.season
-                )
-            )
-        } catch (e: Exception) {
-            _advancedStats.value = UiState.Error(e.message ?: "Advanced stats unavailable")
-        }
-    }
 
     private suspend fun fetchTeamInfo(teamId: Int) {
         try {

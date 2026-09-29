@@ -2,8 +2,6 @@ package com.footballpluse.footballapp.ui.screens.leagues
 
 enum class LeagueTab(val label: String) {
     STANDINGS("Standings"),
-    PROJECTION("Projection"),
-    LUCK("Luck & xPts"),
     FIXTURES("Fixtures"),
     PLAYER_STATS("Player Stats"),
     SEASON_STATS("Stats"),

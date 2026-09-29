@@ -110,7 +110,6 @@ fun StatsScreen(
     val xgState by viewModel.xgState.collectAsState()
     val timingState by viewModel.timingState.collectAsState()
     val disciplineState by viewModel.disciplineState.collectAsState()
-    val modelState by viewModel.modelState.collectAsState()
 
     var showLeagueSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -172,7 +171,6 @@ fun StatsScreen(
                     StatsTab.XG_ADVANCED -> "xG & Advanced"
                     StatsTab.GOAL_TIMING -> "Goal Timing"
                     StatsTab.DISCIPLINE -> "Discipline"
-                    StatsTab.MODEL -> "Model"
                 }
 
                 Row(
@@ -251,7 +249,6 @@ fun StatsScreen(
                 StatsTab.XG_ADVANCED -> XGAdvancedTabContent(xgState, viewModel, onNavigateToPlayerProfile)
                 StatsTab.GOAL_TIMING -> GoalTimingTabContent(timingState, viewModel)
                 StatsTab.DISCIPLINE -> DisciplineTabContent(disciplineState, viewModel)
-                StatsTab.MODEL -> ModelTabContent(modelState)
             }
         }
     }

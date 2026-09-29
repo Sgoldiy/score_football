@@ -82,7 +82,6 @@ fun ClubInfoScreen(
     val coaches by viewModel.coach.collectAsStateWithLifecycle()
     val recentFixtures by viewModel.recentFixtures.collectAsStateWithLifecycle()
     val topScorers by viewModel.topScorers.collectAsStateWithLifecycle()
-    val advancedStats by viewModel.advancedStats.collectAsStateWithLifecycle()
 
     LaunchedEffect(teamId, leagueId) {
         viewModel.loadClubData(teamId, leagueId)
@@ -111,14 +110,6 @@ fun ClubInfoScreen(
                 is UiState.Loading -> SectionLoading(height = 92.dp)
                 is UiState.Error -> SectionError(text = "Could not load data")
                 is UiState.Success -> SeasonStatsRow(stats = state.data)
-            }
-        }
-
-        item {
-            when (val state = advancedStats) {
-                is UiState.Loading -> SectionLoading(height = 140.dp)
-                is UiState.Error -> {} // silent: section hides when the club isn't covered
-                is UiState.Success -> AdvancedStatsSection(state.data)
             }
         }
 
@@ -591,69 +582,6 @@ private fun TopScorerRow(
                 fontWeight = FontWeight.Bold,
                 fontSize = 13.sp
             )
-        }
-    }
-}
-
-/**
- * Real FC team-page deep stats: shooting, possession, xG and goal-timing,
- * rendered from the verified live /leagues/{l}/teams/{team}/ payload.
- */
-@Composable
-private fun AdvancedStatsSection(s: com.footballpluse.footballapp.viewmodel.TeamAdvancedStatsUi) {
-    SectionTitle(text = "Advanced Stats${s.seasonLabel?.let { " \u2014 $it" } ?: ""}")
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp)
-            .background(Color(0xFF10251D), RoundedCornerShape(14.dp))
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            AdvCell("xG For", s.xgAvg?.let { "%.2f".format(it) } ?: "\u2014")
-            AdvCell("xG Against", s.xgAgainstAvg?.let { "%.2f".format(it) } ?: "\u2014")
-            AdvCell("Possession", s.possessionAvg?.let { "%.0f%%".format(it) } ?: "\u2014")
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-            AdvCell("Shots", s.shotsAvg?.let { "%.1f".format(it) } ?: "\u2014")
-            AdvCell("On Target", s.shotsOnTargetAvg?.let { "%.1f".format(it) } ?: "\u2014")
-            AdvCell("Corners", s.cornersAvg?.let { "%.1f".format(it) } ?: "\u2014")
-        }
-
-        // Goals-per-period mini bars (real goal_bins from the team page).
-        if (s.goalBins.isNotEmpty() && s.timeBins.size == s.goalBins.size) {
-            Spacer(Modifier.height(4.dp))
-            Text(
-                text = "Goals by period" + (s.matchesWithStats?.let { " (last $it tracked matches)" } ?: ""),
-                color = SecondaryText,
-                fontSize = 11.sp
-            )
-            val maxBin = s.goalBins.maxOrNull() ?: 0
-            s.timeBins.indices.forEach { i ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(s.timeBins[i], color = SecondaryText, fontSize = 10.sp, modifier = Modifier.width(44.dp))
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .height(6.dp)
-                            .background(Color(0xFF1E293B), RoundedCornerShape(3.dp))
-                    ) {
-                        val frac = if (maxBin > 0) s.goalBins[i].toFloat() / maxBin else 0f
-                        Box(
-                            Modifier
-                                .fillMaxWidth(frac.coerceIn(0f, 1f))
-                                .height(6.dp)
-                                .background(Color(0xFF4ADE80), RoundedCornerShape(3.dp))
-                        )
-                    }
-                    Text(
-                        "${s.goalBins[i]}",
-                        color = PrimaryText, fontSize = 10.sp, fontWeight = FontWeight.Medium,
-                        modifier = Modifier.width(24.dp), textAlign = TextAlign.End
-                    )
-                }
-            }
         }
     }
 }

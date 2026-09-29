@@ -53,7 +53,7 @@ private fun leagueBadgeUrl(leagueId: Int, leagueName: String): String =
     "https://apiv3.apifootball.com/badges/logo_leagues/${leagueId}_${leagueName.lowercase().replace(' ', '-')}.png"
 
 /* Skeleton of FC-covered leagues, used as merge fallback until the live list
- * arrives. Names/countries mirror FcLeagueCatalog exactly so byName matching
+ * arrives. Names/countries match the uitslagen adapter league map so byName matching
  * works; ids are the legacy ids those leagues are persisted under. */
 private val hardcodedDomesticLeagues = listOf(
     LeagueInfo(id = 152, name = "Premier League", logo = "https://apiv3.apifootball.com/badges/logo_leagues/152_premier-league.png", country = "England", flag = null, season = currentSeason),
