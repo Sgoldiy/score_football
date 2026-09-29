@@ -73,25 +73,32 @@ class HomeViewModel @Inject constructor(
         loadHomeData()
     }
 
+    private val requestedLeaguesForForm = mutableSetOf<Int>()
+
+    /**
+     * Fetches last-5 form for every team in a league in ONE teamRepository call
+     * (which itself is cached per league/season). The old per-team version fired one
+     * API request per visible match row and exhausted the BASIC plan quota.
+     */
     fun fetchFormIfNeeded(teamId: Int, leagueId: Int, season: Int) {
-        if (teamId == 0) return
-        if (_formMap.value.containsKey(teamId)) return
+        if (teamId == 0 || leagueId == 0) return
+        // Quota guard: at most 8 league form batches per session (each is one
+        // full-season fixtures request, cached afterwards).
+        if (requestedLeaguesForForm.size >= 8) return
+        if (!requestedLeaguesForForm.add(leagueId)) {
+            // League already requested — individual team lookups will be resolved from
+            // the in-progress batch (formMap is updated for all teams at once below).
+            return
+        }
         viewModelScope.launch {
-            if (_formMap.value.containsKey(teamId)) return@launch
-            
-            // Temporary placeholder to prevent redundant requests
-            _formMap.update { it + (teamId to "") }
-            
-            val result = teamRepository.getTeamStatistics(teamId, leagueId, season)
-            if (result is ApiResult.Success) {
-                val form = result.data.form ?: ""
-                if (form.isNotEmpty()) {
-                    _formMap.update { it + (teamId to form) }
-                } else {
-                    _formMap.update { it - teamId }
+            try {
+                val result = teamRepository.getTeamFormForLeague(leagueId, season)
+                if (result is ApiResult.Success && result.data.isNotEmpty()) {
+                    _formMap.update { it + result.data }
                 }
-            } else {
-                _formMap.update { it - teamId }
+            } catch (_: Exception) {
+            } finally {
+                requestedLeaguesForForm.remove(leagueId)
             }
         }
     }
@@ -163,7 +170,12 @@ class HomeViewModel @Inject constructor(
                             val upcoming = matches.filter { it.status.short == "NS" || it.status.short == "TBD" }
                             val finished = matches.filter { it.status.short in listOf("FT", "AET", "PEN") }
 
-                            val priorityLeagues = setOf(152, 302, 207, 175, 168, 88, 94, 203, 144, 187, 3, 4, 848, 28, 1, 5, 6, 15, 9)
+                            val priorityLeagues = setOf(
+                                152, 302, 207, 175, 168,           // top 5 domestics
+                                88, 94, 144, 203, 187,             // Eredivisie, Portugal, Belgium, Saudi, Swiss
+                                298435265, -2083694778, -1104376059, 1160697898,  // FC eras: Man City, Arsenal, Liverpool, Man Utd
+                                -1927616143                        // FC era: Tottenham
+                            )
                             val featured = matches.sortedWith(
                                 compareByDescending<Match> { it.isLive }
                                     .thenByDescending { it.league.id in priorityLeagues }
@@ -199,9 +211,13 @@ class HomeViewModel @Inject constructor(
                                 allApiLeagues = allLeaguesInfo
                             )
                         }
-                        is ApiResult.Error -> {
-                            val priorityLeagues = setOf(152, 302, 207, 175, 168, 88, 94, 203, 144, 187, 3, 4, 848, 28, 1, 5, 6, 15, 9)
-                            
+                        is ApiResult.Error -> {                            val priorityLeagues = setOf(
+                                152, 302, 207, 175, 168,           // top 5 domestics
+                                88, 94, 144, 203, 187,             // Eredivisie, Portugal, Belgium, Saudi, Swiss
+                                298435265, -2083694778, -1104376059, 1160697898,  // FC eras: Man City, Arsenal, Liverpool, Man Utd
+                                -1927616143                        // FC era: Tottenham
+                            )
+
                             val apiTopLeagues = allLeagues
                                 .filter { it.league_id?.toIntOrNull() in priorityLeagues }
                                 .map { it.toLeagueInfo() }

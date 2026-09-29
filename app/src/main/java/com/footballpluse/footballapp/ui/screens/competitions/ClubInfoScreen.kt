@@ -143,7 +143,7 @@ fun ClubInfoScreen(
         }
 
         item {
-            SectionTitle(text = "Top Scorers — ${seasonLabel(2025)}")
+            SectionTitle(text = "Top Scorers — ${seasonLabel(com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear())}")
             when (val state = topScorers) {
                 is UiState.Loading -> SectionLoading(height = 240.dp)
                 is UiState.Error -> SectionError(text = "Could not load data")
@@ -393,10 +393,14 @@ private fun SquadPlayerCard(player: SquadPlayer) {
             )
             Spacer(modifier = Modifier.height(4.dp))
 
-            val (badgeColor, posLabel) = when (player.position) {
-                "Goalkeeper" -> Color(0xFFF59E0B) to "GK"
-                "Defender" -> Color(0xFF3B82F6) to "DEF"
-                "Midfielder" -> Color(0xFF10B981) to "MID"
+            // v3 API player_type is plural: "Goalkeepers", "Defenders", ...
+            val pos = player.position?.lowercase() ?: ""
+            val (badgeColor, posLabel) = when {
+                pos.startsWith("goal") -> Color(0xFFF59E0B) to "GK"
+                pos.startsWith("defend") -> Color(0xFF3B82F6) to "DEF"
+                pos.startsWith("midfield") -> Color(0xFF10B981) to "MID"
+                pos.startsWith("forward") || pos.startsWith("attack") -> Color(0xFFEF4444) to "ATT"
+                pos.isBlank() -> Color(0xFF94A3B8) to "—"
                 else -> Color(0xFFEF4444) to "ATT"
             }
             Box(
@@ -583,6 +587,14 @@ private fun TopScorerRow(
 }
 
 @Composable
+private fun AdvCell(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, color = Color(0xFF4ADE80), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text(label, color = SecondaryText, fontSize = 10.sp)
+    }
+}
+
+@Composable
 private fun SectionTitle(text: String) {
     Text(
         text = text,
@@ -627,12 +639,20 @@ private fun seasonLabel(season: Int): String {
 
 private fun formatShortDate(iso: String?): String {
     if (iso.isNullOrBlank()) return ""
+    val formatter = SimpleDateFormat("dd MMM", Locale.getDefault())
 
+    // v3 API match_date is "yyyy-MM-dd"; tolerate full ISO timestamps too
+    if (iso.length == 10) {
+        val d = runCatching {
+            SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(iso)
+        }.getOrNull() ?: return ""
+        return formatter.format(d)
+    }
     val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault()).apply {
         timeZone = TimeZone.getTimeZone("UTC")
     }
-    val formatter = SimpleDateFormat("dd MMM", Locale.getDefault())
-
-    val date: Date = runCatching { parser.parse(iso) }.getOrNull() ?: return ""
+    val date: Date = runCatching { parser.parse(iso) }.getOrNull()
+        ?: runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(iso.take(10)) }.getOrNull()
+        ?: return ""
     return formatter.format(date)
 }

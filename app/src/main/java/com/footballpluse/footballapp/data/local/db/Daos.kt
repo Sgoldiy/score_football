@@ -16,6 +16,9 @@ interface FixtureDao {
 
     @Query("SELECT COUNT(*) FROM fixtures WHERE date = :date")
     suspend fun getFixtureCountByDate(date: String): Int
+
+    @Query("SELECT * FROM fixtures WHERE id = :id LIMIT 1")
+    suspend fun getFixtureById(id: Int): FixtureEntity?
 }
 
 @Dao

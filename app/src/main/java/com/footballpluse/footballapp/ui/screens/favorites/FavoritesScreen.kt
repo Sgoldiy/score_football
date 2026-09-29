@@ -380,41 +380,6 @@ private fun FixturesTab(
     }
 }
 
-private fun getSimulatedMarketValue(name: String, position: String?): String {
-    val cleanName = name.lowercase()
-    if (cleanName.contains("haaland")) return "€180.00M"
-    if (cleanName.contains("saka")) return "€130.00M"
-    if (cleanName.contains("ødegaard") || cleanName.contains("odegaard")) return "€110.00M"
-    if (cleanName.contains("mbappé") || cleanName.contains("mbappe")) return "€180.00M"
-    if (cleanName.contains("bellingham")) return "€180.00M"
-    if (cleanName.contains("vinicius") || cleanName.contains("vini")) return "€150.00M"
-    if (cleanName.contains("musiala")) return "€110.00M"
-    if (cleanName.contains("wirtz")) return "€110.00M"
-    if (cleanName.contains("foden")) return "€150.00M"
-    if (cleanName.contains("rice")) return "€110.00M"
-    if (cleanName.contains("rodri")) return "€110.00M"
-    if (cleanName.contains("kane")) return "€110.00M"
-    if (cleanName.contains("salah")) return "€65.00M"
-    if (cleanName.contains("palmer")) return "€90.00M"
-    if (cleanName.contains("saliba")) return "€80.00M"
-
-    val hash = name.hashCode().let { if (it < 0) -it else it }
-    val baseValue = when (position) {
-        "Goalkeeper" -> 5 + (hash % 25)
-        "Defender" -> 10 + (hash % 65)
-        "Midfielder" -> 15 + (hash % 85)
-        "Attacker" -> 20 + (hash % 100)
-        else -> 10 + (hash % 50)
-    }
-    val decimalStr = when (hash % 4) {
-        0 -> "00"
-        1 -> "50"
-        2 -> "80"
-        else -> "25"
-    }
-    return "€$baseValue.${decimalStr}M"
-}
-
 @Composable
 private fun SquadTab(
     detail: ClubDetailUiState,
@@ -427,6 +392,12 @@ private fun SquadTab(
     }
     if (detail.teamDetailError != null) {
         Column(Modifier.fillMaxSize().padding(16.dp)) { ErrorInline(detail.teamDetailError) }
+        return
+    }
+    if (squad.isEmpty()) {
+        Column(Modifier.fillMaxSize().padding(16.dp)) {
+            Text("No squad data found", color = Color.White.copy(alpha = 0.65f))
+        }
         return
     }
 
@@ -552,165 +523,25 @@ private fun SquadTab(
                                     fontSize = 11.sp
                                 )
                             }
-                            
-                            // Market value badge on the right
-                            val marketValue = getSimulatedMarketValue(p.name, p.position)
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(GlassGlowGreen.copy(alpha = 0.12f))
-                                    .border(0.5.dp, GlassGlowGreen.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                            ) {
-                                Text(
-                                    text = marketValue,
-                                    color = GlassGlowGreen,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    fontSize = 12.sp
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun TransfersTab(detail: ClubDetailUiState, clubName: String) {
-    var mode by remember { mutableIntStateOf(0) }
-    val transfers = detail.teamDetail?.transfers.orEmpty()
-    val incoming = transfers.filter { it.teamIn.equals(clubName, ignoreCase = true) }
-    val outgoing = transfers.filter { it.teamOut.equals(clubName, ignoreCase = true) }
-
-    Column(Modifier.fillMaxSize().padding(16.dp)) {
-        SegmentedRow(options = listOf("Incoming", "Outgoing"), selected = mode, onSelect = { mode = it })
-        Spacer(Modifier.height(12.dp))
-
-        if (detail.isLoading) {
-            SkeletonList(rows = 7, rowHeight = 72.dp)
-            return@Column
-        }
-        if (detail.teamDetailError != null) {
-            ErrorInline(detail.teamDetailError)
-            return@Column
-        }
-
-        val list = if (mode == 0) incoming else outgoing
-        if (list.isEmpty()) {
-            Text(
-                text = if (mode == 0) "No incoming transfers found" else "No outgoing transfers found",
-                color = Color.White.copy(alpha = 0.65f),
-                fontSize = 13.sp,
-                modifier = Modifier.padding(8.dp)
-            )
-            return@Column
-        }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            items(list) { t ->
-                val accentColor = if (mode == 0) Color(0xFF4CAF50) else Color(0xFFF44336)
-                val priceVal = when {
-                    t.type.contains("€") || t.type.contains("£") || t.type.contains("M") -> t.type
-                    t.type.lowercase().contains("free") -> "Free"
-                    t.type.lowercase().contains("loan") -> "Loan"
-                    else -> "€45M"
-                }
-                
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
-                    border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.06f)),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Player photo avatar with arrow badge overlay
-                        Box(
-                            modifier = Modifier.size(50.dp)
-                        ) {
-                            PlayerAvatar(
-                                url = t.playerPhotoUrl,
-                                name = t.player,
-                                ringColor = accentColor.copy(alpha = 0.4f),
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .align(Alignment.TopStart)
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .size(18.dp)
-                                    .align(Alignment.BottomEnd)
-                                    .clip(CircleShape)
-                                    .background(accentColor)
-                                    .border(1.dp, PitchSurface, CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = if (mode == 0) Icons.Rounded.ArrowDownward else Icons.Rounded.ArrowUpward,
-                                    contentDescription = null,
-                                    tint = PitchBlack,
-                                    modifier = Modifier.size(10.dp)
-                                )
-                            }
-                        }
-                        
-                        Spacer(Modifier.width(14.dp))
-                        
-                        Column(Modifier.weight(1f)) {
-                            Text(t.player, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
-                            Spacer(Modifier.height(4.dp))
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    text = if (mode == 0) "From " else "To ",
-                                    color = Color.White.copy(alpha = 0.4f),
-                                    fontSize = 11.sp
-                                )
-                                val destinationLogo = if (mode == 0) t.teamOutLogoUrl else t.teamInLogoUrl
-                                if (destinationLogo != null) {
-                                    AsyncImage(
-                                        model = destinationLogo,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(16.dp)
+                            // Jersey number badge (real data); market values are not
+                            // provided by the API, so none is shown.
+                            p.number?.let { num ->
+                                Box(
+                                    modifier = Modifier
+                                        .size(26.dp)
+                                        .clip(CircleShape)
+                                        .background(GlassGlowGreen.copy(alpha = 0.12f))
+                                        .border(0.5.dp, GlassGlowGreen.copy(alpha = 0.3f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "$num",
+                                        color = GlassGlowGreen,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        fontSize = 11.sp
                                     )
-                                    Spacer(Modifier.width(6.dp))
                                 }
-                                Text(
-                                    text = if (mode == 0) t.teamOut else t.teamIn,
-                                    color = Color.White.copy(alpha = 0.7f),
-                                    fontWeight = FontWeight.Medium,
-                                    fontSize = 12.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
                             }
-                        }
-                        Spacer(Modifier.width(8.dp))
-                        Column(horizontalAlignment = Alignment.End) {
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(accentColor.copy(alpha = 0.15f))
-                                    .border(0.5.dp, accentColor.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                            ) {
-                                Text(
-                                    priceVal,
-                                    color = accentColor,
-                                    fontWeight = FontWeight.Black,
-                                    fontSize = 11.sp
-                                )
-                            }
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                t.date,
-                                color = Color.White.copy(alpha = 0.40f),
-                                fontSize = 10.sp
-                            )
                         }
                     }
                 }
@@ -1555,3 +1386,4 @@ private fun CreatePostDialog(
         }
     )
 }
+

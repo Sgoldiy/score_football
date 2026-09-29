@@ -44,6 +44,7 @@ class LeagueDetailViewModel @Inject constructor(
     private var leagueId: Int = 0
     private var season: Int = 2025
 
+
     fun load(leagueId: Int, season: Int) {
         this.leagueId = leagueId
         this.season = season
@@ -59,7 +60,7 @@ class LeagueDetailViewModel @Inject constructor(
 
             launch { loadStandings(leagueId, season) }
             launch { loadFixtures(leagueId, season) }
-            launch { loadTopScorers(leagueId, season) }
+            launch {                loadTopScorers(leagueId, season) }
             launch { loadTopAssists(leagueId, season) }
             launch { loadTopYellowCards(leagueId, season) }
             launch { loadTopRedCards(leagueId, season) }
@@ -80,7 +81,6 @@ class LeagueDetailViewModel @Inject constructor(
         val a = _state.value.selectedTeamA ?: return
         loadH2H(a.id, b.id)
     }
-
     private fun loadH2H(teamAId: Int, teamBId: Int) {
         _state.update { it.copy(h2hData = ApiResult.Loading) }
         viewModelScope.launch {
@@ -90,14 +90,18 @@ class LeagueDetailViewModel @Inject constructor(
                     secondTeamId = teamBId.toString()
                 ).allEvents().toFixtureResponseList()
                 val teamAWins = fixtures.count { f ->
-                    val w = f.teams?.home?.winner == true && f.teams?.home?.id == teamAId ||
-                            f.teams?.away?.winner == true && f.teams?.away?.id == teamAId
-                    w
+                    when {
+                        f.teams?.home?.id == teamAId && f.teams?.home?.winner == true -> true
+                        f.teams?.away?.id == teamAId && f.teams?.away?.winner == true -> true
+                        else -> false
+                    }
                 }
                 val teamBWins = fixtures.count { f ->
-                    val w = f.teams?.home?.winner == true && f.teams?.home?.id == teamBId ||
-                            f.teams?.away?.winner == true && f.teams?.away?.id == teamBId
-                    w
+                    when {
+                        f.teams?.home?.id == teamBId && f.teams?.home?.winner == true -> true
+                        f.teams?.away?.id == teamBId && f.teams?.away?.winner == true -> true
+                        else -> false
+                    }
                 }
                 val draws = fixtures.count { f ->
                     f.goals?.home != null && f.goals?.away != null &&
@@ -122,15 +126,23 @@ class LeagueDetailViewModel @Inject constructor(
                     )
                 }
 
+                val goalsA = fixtures.sumOf { f ->
+                    when {
+                        f.teams?.home?.id == teamAId -> f.goals?.home ?: 0
+                        f.teams?.away?.id == teamAId -> f.goals?.away ?: 0
+                        else -> 0
+                    }
+                }
+                val goalsB = fixtures.sumOf { f ->
+                    when {
+                        f.teams?.home?.id == teamBId -> f.goals?.home ?: 0
+                        f.teams?.away?.id == teamBId -> f.goals?.away ?: 0
+                        else -> 0
+                    }
+                }
                 val comparisons = listOf(
                     ComparisonStat("Wins", teamAWins.toFloat(), teamBWins.toFloat(), "$teamAWins", "$teamBWins"),
-                    ComparisonStat("Goals", fixtures.sumOf {
-                        val gf = if (it.teams?.home?.id == teamAId) it.goals?.home ?: 0 else it.goals?.away ?: 0
-                        gf
-                    }.toFloat(), fixtures.sumOf {
-                        val gf = if (it.teams?.home?.id == teamBId) it.goals?.home ?: 0 else it.goals?.away ?: 0
-                        gf
-                    }.toFloat(), "?", "?")
+                    ComparisonStat("Goals", goalsA.toFloat(), goalsB.toFloat(), "$goalsA", "$goalsB")
                 )
 
                 val model = H2HUiModel(
@@ -190,10 +202,26 @@ class LeagueDetailViewModel @Inject constructor(
         )
     }
 
+    /**
+     * get_events requires a date window (from/to); use the season span with a
+     * rolling-window fallback.
+     */
+    private suspend fun leagueEvents(leagueId: Int, season: Int): List<com.footballpluse.footballapp.data.model.ApiEvent> {
+        return try {
+            apiService.getEvents(from = "$season-07-01", to = "${season + 1}-06-30", leagueId = leagueId.toString())
+        } catch (e: Exception) {
+            apiService.getEvents(
+                from = com.footballpluse.footballapp.data.repository.FootballRepositoryImpl.daysFromToday(-200),
+                to = com.footballpluse.footballapp.data.repository.FootballRepositoryImpl.daysFromToday(200),
+                leagueId = leagueId.toString()
+            )
+        }
+    }
+
     private suspend fun loadFixtures(leagueId: Int, season: Int) {
         try {
             _state.update { it.copy(fixtures = ApiResult.Loading) }
-            val uiModels = apiService.getEvents(leagueId = leagueId.toString())
+            val uiModels = leagueEvents(leagueId, season)
                 .toFixtureResponseList().map { it.toFixtureUiModel() }
 
             _state.update { it.copy(fixtures = ApiResult.Success(uiModels)) }
@@ -248,8 +276,8 @@ class LeagueDetailViewModel @Inject constructor(
                 )
             }
         val cards = (events ?: emptyList()).filter { it.type == "Card" }
-        val yellows = cards.count { it.detail == "Yellow Card" }
-        val reds = cards.count { it.detail == "Red Card" }
+        val yellows = cards.count { it.detail?.contains("yellow", ignoreCase = true) == true }
+        val reds = cards.count { it.detail?.contains("red", ignoreCase = true) == true }
 
         val liveStatuses = listOf("1H", "2H", "HT", "ET", "BT", "P", "INT", "LIVE")
         val short = fixture?.status?.short ?: ""
@@ -285,7 +313,15 @@ class LeagueDetailViewModel @Inject constructor(
 
     private suspend fun loadTopScorers(leagueId: Int, season: Int) {
         try {
-            val response = apiService.getTopScorers(leagueId.toString())
+            val rawScorers = apiService.getTopScorers(leagueId.toString())
+            // v3 topscorers have no player_image: build badge-CDN URLs from player_key
+            val response = rawScorers
+                .map { scorer ->
+                    val key = scorer.player_id
+                    if (scorer.player_image == null && key != null && key > 0) {
+                        scorer.copy(player_image = "https://apiv3.apifootball.com/badges/players/${key}.png")
+                    } else scorer
+                }
                 .map { it.toPlayerProfileStatisticsResponse() }
             val maxVal = response.maxOfOrNull { it.statistics?.firstOrNull()?.goals?.total ?: 0 } ?: 1
             val models = response.mapIndexed { idx, entry ->
@@ -337,32 +373,69 @@ class LeagueDetailViewModel @Inject constructor(
         if (standingsResult !is ApiResult.Success) return
         val standings = standingsResult.data
         if (standings.isEmpty()) return
+        val fixtures = (fixturesResult as? ApiResult.Success)?.data.orEmpty()
+        val finished = fixtures.filter { it.status == MatchStatusUi.COMPLETED }
 
-        val totalGoals = standings.sumOf { it.goalsFor }
-        val totalPlayed = standings.sumOf { it.played } / 2
+        // Total goals: finished fixtures are ground truth; standings GF sum is the fallback.
+        val fixtureGoals = finished.sumOf { (it.homeScore ?: 0) + (it.awayScore ?: 0) }
+        // FC goal-timing removed with the FC layer; fixture scores are the total.
+        val goalTimingTotal = 0
+        val totalGoals = when {
+            finished.isNotEmpty() -> fixtureGoals
+            goalTimingTotal > 0 -> goalTimingTotal
+            else -> standings.sumOf { it.goalsFor }
+        }
+        val totalPlayed = if (finished.isNotEmpty()) finished.size else standings.sumOf { it.played } / 2
         val avgGoals = if (totalPlayed > 0) totalGoals.toFloat() / totalPlayed else 0f
 
-        val formTeams = standings.sortedByDescending {
-            it.form?.let { f -> f.count { c -> c == 'W' } } ?: 0
+        // Most common scoreline — real, from finished fixtures (null when none available)
+        val mostCommon = finished
+            .filter { it.homeScore != null && it.awayScore != null }
+            .map { "${it.homeScore}\u2013${it.awayScore}" }
+            .groupingBy { it }
+            .eachCount()
+            .maxWithOrNull(compareBy({ it.value }, { it.key }))?.key
+
+        // Cards — real counts summed from finished fixtures (null when no fixture data)
+        val totalYellow = if (finished.isNotEmpty()) finished.sumOf { it.yellowCards } else null
+        val totalRed = if (finished.isNotEmpty()) finished.sumOf { it.redCards } else null
+
+        // Biggest win — largest goal margin among finished fixtures
+        val biggest = finished
+            .filter { it.homeScore != null && it.awayScore != null }
+            .maxByOrNull { kotlin.math.abs((it.homeScore ?: 0) - (it.awayScore ?: 0)) }
+        val biggestWin = biggest?.let { "${it.homeTeam.name} ${it.homeScore}\u2013${it.awayScore} ${it.awayTeam.name}" }
+
+        // Goal timing bands: the FC /goal-timing/ source is gone; upstream has
+        // no equivalent, so the Stats tab bands are zeros.
+        val goalBands = listOf(
+            GoalBand("1\u201315", 0), GoalBand("16\u201330", 0),
+            GoalBand("31\u201345", 0), GoalBand("46\u201360", 0),
+            GoalBand("61\u201375", 0), GoalBand("76\u201390+", 0)
+        )
+
+        // Real form: last 5 finished matches per team (standings have no form field in this API)
+        val resultsByTeam = mutableMapOf<Int, MutableList<Pair<Char, Int>>>()
+        finished.forEach { f ->
+            val hs = f.homeScore ?: return@forEach
+            val aws = f.awayScore ?: return@forEach
+            val homeRes = if (hs > aws) 'W' else if (hs == aws) 'D' else 'L'
+            val awayRes = if (aws > hs) 'W' else if (hs == aws) 'D' else 'L'
+            resultsByTeam.getOrPut(f.homeTeam.id) { mutableListOf() }
+                .add(homeRes to (if (homeRes == 'W') 3 else if (homeRes == 'D') 1 else 0))
+            resultsByTeam.getOrPut(f.awayTeam.id) { mutableListOf() }
+                .add(awayRes to (if (awayRes == 'W') 3 else if (awayRes == 'D') 1 else 0))
         }
-        val inForm = formTeams.take(5).map { s ->
+        val formRows = standings.mapNotNull { s ->
+            val last5 = resultsByTeam[s.team.id]?.takeLast(5) ?: return@mapNotNull null
             FormTeamRow(
                 teamName = s.team.name,
-                form = s.form ?: "UUUUU",
-                pointsGained = s.form?.let { f ->
-                    f.count { c -> c == 'W' } * 3 + f.count { c -> c == 'D' }
-                } ?: 0
+                form = String(last5.map { it.first }.toCharArray()),
+                pointsGained = last5.sumOf { it.second }
             )
-        }
-        val outOfForm = formTeams.takeLast(5).map { s ->
-            FormTeamRow(
-                teamName = s.team.name,
-                form = s.form ?: "UUUUU",
-                pointsGained = s.form?.let { f ->
-                    f.count { c -> c == 'W' } * 3 + f.count { c -> c == 'D' }
-                } ?: 0
-            )
-        }
+        }.sortedByDescending { it.pointsGained }
+        val inForm = formRows.take(5)
+        val outOfForm = formRows.takeLast(5).reversed()
 
         val bestAttack = standings.maxByOrNull { it.goalsFor }
         val bestDefense = standings.minByOrNull { it.goalsAgainst }
@@ -375,19 +448,13 @@ class LeagueDetailViewModel @Inject constructor(
         val awayPct = if (totalResults > 0) awayWins.toFloat() / totalResults else 0f
         val drawPct = if (totalResults > 0) draws.toFloat() / totalResults else 0f
 
-        val goalBands = listOf(
-            GoalBand("1\u201315", 0), GoalBand("16\u201330", 0),
-            GoalBand("31\u201345", 0), GoalBand("46\u201360", 0),
-            GoalBand("61\u201375", 0), GoalBand("76\u201390+", 0)
-        )
-
         val model = SeasonStatsUiModel(
             totalGoals = totalGoals,
             avgGoalsPerGame = avgGoals,
-            mostCommonScoreline = "1\u20130",
-            totalRedCards = 0,
-            totalYellowCards = 0,
-            biggestWin = "",
+            mostCommonScoreline = mostCommon,
+            totalRedCards = totalRed,
+            totalYellowCards = totalYellow,
+            biggestWin = biggestWin,
             goalsByMinuteBand = goalBands,
             bestAttack = Pair(bestAttack?.team?.name ?: "", bestAttack?.goalsFor ?: 0),
             bestDefense = Pair(bestDefense?.team?.name ?: "", bestDefense?.goalsAgainst ?: 0),

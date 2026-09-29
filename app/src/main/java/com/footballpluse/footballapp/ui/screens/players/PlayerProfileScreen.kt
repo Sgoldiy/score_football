@@ -438,13 +438,19 @@ private fun PlayerStatsCard(ps: com.footballpluse.footballapp.domain.model.Playe
                     Spacer(Modifier.width(12.dp))
                     Column {
                         Text(
-                            ps.team.name,
+                            ps.team.name ?: "—",
                             color = Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
                             maxLines = 1
                         )
-                        Text(ps.league.name, color = TextSecondary, fontSize = 11.sp, maxLines = 1)
+                        // v3 player stats have no league info — show appearances instead of an empty line
+                        Text(
+                            ps.league.name.ifBlank { "${ps.appearances} apps" },
+                            color = TextSecondary,
+                            fontSize = 11.sp,
+                            maxLines = 1
+                        )
                     }
                 }
                 // Beautiful rating pill
@@ -671,98 +677,26 @@ private fun InjuryTimelineItem(
 
 @Composable
 private fun PlayerVisualAnalyticsSection(detail: com.footballpluse.footballapp.domain.model.PlayerDetail) {
-    val name = detail.info.name.lowercase()
-    val position = remember(name) {
-        when {
-            name.contains("haaland") || name.contains("saka") || name.contains("mbappe") || name.contains(
-                "vinicius"
-            ) || name.contains("martinell") || name.contains("havertz") || name.contains("striker") || name.contains(
-                "winger"
-            ) -> "Attacker"
-
-            name.contains("odegaard") || name.contains("de bruyne") || name.contains("foden") || name.contains(
-                "silva"
-            ) || name.contains("rodri") || name.contains("rice") || name.contains("bellingham") || name.contains(
-                "valverde"
-            ) || name.contains("playmaker") || name.contains("midfield") -> "Midfielder"
-
-            name.contains("dias") || name.contains("walker") || name.contains("saliba") || name.contains(
-                "magalhaes"
-            ) || name.contains("rüdiger") || name.contains("carvajal") || name.contains("defender") || name.contains(
-                "calafiori"
-            ) -> "Defender"
-
-            name.contains("ederson") || name.contains("raya") || name.contains("courtois") || name.contains(
-                "keeper"
-            ) || name.contains("hands") -> "Goalkeeper"
-
-            else -> "Attacker"
-        }
-    }
-
-    val rating = detail.stats.firstOrNull()?.rating?.toFloatOrNull() ?: 7.2f
-    val ratingFactor = (rating / 8.5f).coerceIn(0.7f, 1.1f)
+    // Position comes from the API (get_players player_type). No name-based guessing.
+    val position = detail.info.type?.removeSuffix("s")?.takeIf { it.isNotBlank() } ?: "Player"
+    val rating = detail.stats.firstOrNull()?.rating?.toFloatOrNull()
     val stat = detail.stats.firstOrNull()
 
-    val attributes = remember(position, ratingFactor, stat) {
-        if (stat != null) {
-            // Speed Calculation
-            val baseSpeed = when (position) {
-                "Attacker" -> 78f
-                "Midfielder" -> 68f
-                "Defender" -> 62f
-                else -> 50f
-            }
-            val speedScore =
-                (baseSpeed + (ratingFactor * 12f) + (stat.dribblesAttempts * 1.2f)).coerceIn(
-                    40f,
-                    99f
-                )
+    if (stat == null) return
 
-            // Passing Calculation
-            val passingScore = (stat.passesAccuracy.coerceIn(40, 95)
-                .toFloat() + (stat.passesKey * 2.2f) + (stat.assists * 8f)).coerceIn(30f, 99f)
-
-            // Physical Calculation
-            val duelRatio =
-                if (stat.duelsTotal > 0) (stat.duelsWon.toFloat() / stat.duelsTotal) else 0.5f
-            val physicalScore =
-                ((duelRatio * 65f) + (ratingFactor * 15f) + (stat.foulsDrawn * 1.5f)).coerceIn(
-                    35f,
-                    99f
-                )
-
-            // Defense Calculation
-            val defensiveActions = stat.tacklesTotal + stat.interceptions + stat.blocks
-            val baseDefense = when (position) {
-                "Defender" -> 65f
-                "Midfielder" -> 45f
-                else -> 20f
-            }
-            val defenseScore =
-                (baseDefense + (defensiveActions * 3f) + (ratingFactor * 10f)).coerceIn(15f, 99f)
-
-            // Shooting Calculation
-            val shotsRatio =
-                if (stat.shotsTotal > 0) (stat.shotsOnTarget.toFloat() / stat.shotsTotal) else 0.4f
-            val baseShooting = when (position) {
-                "Attacker" -> 60f
-                "Midfielder" -> 45f
-                else -> 15f
-            }
-            val shootingScore =
-                (baseShooting + (shotsRatio * 30f) + (stat.goals * 7f)).coerceIn(25f, 99f)
-
-            listOf(speedScore, passingScore, physicalScore, defenseScore, shootingScore)
-        } else {
-            // Fallback to sensible defaults
-            when (position) {
-                "Attacker" -> listOf(88f, 75f, 70f, 35f, 85f)
-                "Midfielder" -> listOf(76f, 88f, 72f, 60f, 72f)
-                "Defender" -> listOf(72f, 70f, 82f, 88f, 40f)
-                else -> listOf(52f, 62f, 78f, 90f, 10f)
-            }
-        }
+    // Radar axes show REAL season totals from the API (no invented attribute scores).
+    val axisLabels = listOf("Goals", "Assists", "Shots", "Passes", "Dribbles", "Defending")
+    val axisMax = listOf(40f, 25f, 120f, 3000f, 150f, 150f)
+    val axisValues = listOf(
+        stat.goals.toFloat(),
+        stat.assists.toFloat(),
+        stat.shotsTotal.toFloat(),
+        stat.passesTotal.toFloat(),
+        stat.dribblesAttempts.toFloat(),
+        (stat.tacklesTotal + stat.interceptions + stat.blocks).toFloat()
+    )
+    val attributes = remember(stat) {
+        axisValues.mapIndexed { i, v -> ((v / axisMax[i]) * 100f).coerceIn(2f, 100f) }
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -778,7 +712,7 @@ private fun PlayerVisualAnalyticsSection(detail: com.footballpluse.footballapp.d
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                "Advanced Visual Analytics",
+                "Season Output",
                 color = Color.White,
                 fontWeight = FontWeight.Bold,
                 fontSize = 16.sp
@@ -797,17 +731,27 @@ private fun PlayerVisualAnalyticsSection(detail: com.footballpluse.footballapp.d
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    "Performance Radar Chart",
+                    "Performance Radar",
                     color = Color.White,
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp
                 )
-                Text("Rating: $rating • Role: $position", color = TextSecondary, fontSize = 11.sp)
+                Text(
+                    buildString {
+                        append(position)
+                        rating?.let { append("  -  Rating: "); append(String.format("%.1f", it)) }
+                        append("  -  ")
+                        append(stat.appearances)
+                        append(" apps")
+                    },
+                    color = TextSecondary,
+                    fontSize = 11.sp
+                )
 
                 Spacer(Modifier.height(24.dp))
 
                 Box(
-                    modifier = Modifier.size(200.dp),
+                    modifier = Modifier.size(220.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Canvas(modifier = Modifier.fillMaxSize()) {
@@ -815,13 +759,13 @@ private fun PlayerVisualAnalyticsSection(detail: com.footballpluse.footballapp.d
                         val canvasHeight = size.height
                         val center =
                             androidx.compose.ui.geometry.Offset(canvasWidth / 2f, canvasHeight / 2f)
-                        val radius = minOf(canvasWidth, canvasHeight) * 0.4f
+                        val radius = minOf(canvasWidth, canvasHeight) * 0.38f
 
                         val skeletonSteps = listOf(0.25f, 0.50f, 0.75f, 1.0f)
                         skeletonSteps.forEach { step ->
                             val path = Path()
-                            for (i in 0..4) {
-                                val angle = i * 2 * kotlin.math.PI / 5 - kotlin.math.PI / 2
+                            for (i in 0..5) {
+                                val angle = i * 2 * kotlin.math.PI / 6 - kotlin.math.PI / 2
                                 val r = radius * step
                                 val px = (center.x + r * kotlin.math.cos(angle)).toFloat()
                                 val py = (center.y + r * kotlin.math.sin(angle)).toFloat()
@@ -835,8 +779,8 @@ private fun PlayerVisualAnalyticsSection(detail: com.footballpluse.footballapp.d
                             )
                         }
 
-                        for (i in 0..4) {
-                            val angle = i * 2 * kotlin.math.PI / 5 - kotlin.math.PI / 2
+                        for (i in 0..5) {
+                            val angle = i * 2 * kotlin.math.PI / 6 - kotlin.math.PI / 2
                             val px = (center.x + radius * kotlin.math.cos(angle)).toFloat()
                             val py = (center.y + radius * kotlin.math.sin(angle)).toFloat()
                             drawLine(
@@ -848,8 +792,8 @@ private fun PlayerVisualAnalyticsSection(detail: com.footballpluse.footballapp.d
                         }
 
                         val attrPath = Path()
-                        for (i in 0..4) {
-                            val angle = i * 2 * kotlin.math.PI / 5 - kotlin.math.PI / 2
+                        for (i in 0..5) {
+                            val angle = i * 2 * kotlin.math.PI / 6 - kotlin.math.PI / 2
                             val attrVal = attributes[i] / 100f
                             val r = radius * attrVal
                             val px = (center.x + r * kotlin.math.cos(angle)).toFloat()
@@ -868,8 +812,8 @@ private fun PlayerVisualAnalyticsSection(detail: com.footballpluse.footballapp.d
                             style = Stroke(width = 2.dp.toPx())
                         )
 
-                        for (i in 0..4) {
-                            val angle = i * 2 * kotlin.math.PI / 5 - kotlin.math.PI / 2
+                        for (i in 0..5) {
+                            val angle = i * 2 * kotlin.math.PI / 6 - kotlin.math.PI / 2
                             val attrVal = attributes[i] / 100f
                             val r = radius * attrVal
                             val px = (center.x + r * kotlin.math.cos(angle)).toFloat()
@@ -883,199 +827,24 @@ private fun PlayerVisualAnalyticsSection(detail: com.footballpluse.footballapp.d
                     }
 
                     Box(Modifier.fillMaxSize()) {
-                        Text(
-                            "SPD\n(${attributes[0].toInt()})",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 9.sp,
-                            modifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .offset(y = (-14).dp),
-                            textAlign = TextAlign.Center
+                        val labelAlignments = listOf(
+                            Alignment.TopCenter,
+                            Alignment.TopEnd,
+                            Alignment.BottomEnd,
+                            Alignment.BottomCenter,
+                            Alignment.BottomStart,
+                            Alignment.TopStart
                         )
-                        Text(
-                            "PAS\n(${attributes[1].toInt()})",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 9.sp,
-                            modifier = Modifier
-                                .align(Alignment.TopEnd)
-                                .offset(x = 10.dp, y = 40.dp),
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            "PHY\n(${attributes[2].toInt()})",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 9.sp,
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .offset(x = 6.dp, y = 12.dp),
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            "DEF\n(${attributes[3].toInt()})",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 9.sp,
-                            modifier = Modifier
-                                .align(Alignment.BottomStart)
-                                .offset(x = (-6).dp, y = 12.dp),
-                            textAlign = TextAlign.Center
-                        )
-                        Text(
-                            "SHO\n(${attributes[4].toInt()})",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 9.sp,
-                            modifier = Modifier
-                                .align(Alignment.TopStart)
-                                .offset(x = (-10).dp, y = 40.dp),
-                            textAlign = TextAlign.Center
-                        )
-                    }
-                }
-            }
-        }
-
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
-            shape = RoundedCornerShape(24.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(0.5.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(24.dp))
-        ) {
-            Column(
-                modifier = Modifier.padding(18.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    "Tactical Activity Heatmap",
-                    color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp
-                )
-                Text("Live game heatmap density coverage", color = TextSecondary, fontSize = 11.sp)
-
-                Spacer(Modifier.height(20.dp))
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(180.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF0F3B20))
-                        .border(1.dp, Color.White.copy(alpha = 0.15f), RoundedCornerShape(12.dp))
-                ) {
-                    Canvas(modifier = Modifier.fillMaxSize()) {
-                        val width = size.width
-                        val height = size.height
-
-                        drawRect(
-                            color = Color.White.copy(alpha = 0.2f),
-                            style = Stroke(width = 1.dp.toPx())
-                        )
-                        drawLine(
-                            color = Color.White.copy(alpha = 0.2f),
-                            start = androidx.compose.ui.geometry.Offset(width / 2f, 0f),
-                            end = androidx.compose.ui.geometry.Offset(width / 2f, height),
-                            strokeWidth = 1.dp.toPx()
-                        )
-                        drawCircle(
-                            color = Color.White.copy(alpha = 0.2f),
-                            radius = 28.dp.toPx(),
-                            center = androidx.compose.ui.geometry.Offset(width / 2f, height / 2f),
-                            style = Stroke(width = 1.dp.toPx())
-                        )
-
-                        drawRect(
-                            color = Color.White.copy(alpha = 0.2f),
-                            topLeft = androidx.compose.ui.geometry.Offset(0f, height * 0.25f),
-                            size = androidx.compose.ui.geometry.Size(width * 0.12f, height * 0.5f),
-                            style = Stroke(width = 1.dp.toPx())
-                        )
-                        drawRect(
-                            color = Color.White.copy(alpha = 0.2f),
-                            topLeft = androidx.compose.ui.geometry.Offset(
-                                width * 0.88f,
-                                height * 0.25f
-                            ),
-                            size = androidx.compose.ui.geometry.Size(width * 0.12f, height * 0.5f),
-                            style = Stroke(width = 1.dp.toPx())
-                        )
-
-                        val spots = when (position) {
-                            "Attacker" -> listOf(
-                                androidx.compose.ui.geometry.Offset(
-                                    width * 0.75f,
-                                    height * 0.4f
-                                ) to 48.dp.toPx(),
-                                androidx.compose.ui.geometry.Offset(
-                                    width * 0.85f,
-                                    height * 0.55f
-                                ) to 36.dp.toPx(),
-                                androidx.compose.ui.geometry.Offset(
-                                    width * 0.65f,
-                                    height * 0.3f
-                                ) to 32.dp.toPx()
-                            )
-
-                            "Midfielder" -> listOf(
-                                androidx.compose.ui.geometry.Offset(
-                                    width * 0.5f,
-                                    height * 0.5f
-                                ) to 54.dp.toPx(),
-                                androidx.compose.ui.geometry.Offset(
-                                    width * 0.4f,
-                                    height * 0.35f
-                                ) to 40.dp.toPx(),
-                                androidx.compose.ui.geometry.Offset(
-                                    width * 0.6f,
-                                    height * 0.65f
-                                ) to 42.dp.toPx()
-                            )
-
-                            "Defender" -> listOf(
-                                androidx.compose.ui.geometry.Offset(
-                                    width * 0.25f,
-                                    height * 0.5f
-                                ) to 50.dp.toPx(),
-                                androidx.compose.ui.geometry.Offset(
-                                    width * 0.15f,
-                                    height * 0.3f
-                                ) to 36.dp.toPx(),
-                                androidx.compose.ui.geometry.Offset(
-                                    width * 0.35f,
-                                    height * 0.6f
-                                ) to 32.dp.toPx()
-                            )
-
-                            else -> listOf(
-                                androidx.compose.ui.geometry.Offset(
-                                    width * 0.06f,
-                                    height * 0.5f
-                                ) to 40.dp.toPx(),
-                                androidx.compose.ui.geometry.Offset(
-                                    width * 0.08f,
-                                    height * 0.45f
-                                ) to 28.dp.toPx()
-                            )
-                        }
-
-                        spots.forEach { (center, radiusValue) ->
-                            drawCircle(
-                                brush = Brush.radialGradient(
-                                    colors = listOf(
-                                        Color(0xFFFF3D00).copy(alpha = 0.5f),
-                                        Color(0xFFFFC107).copy(alpha = 0.25f),
-                                        Color(0xFF4CAF50).copy(alpha = 0.05f),
-                                        Color.Transparent
-                                    ),
-                                    center = center,
-                                    radius = radiusValue
-                                ),
-                                radius = radiusValue,
-                                center = center
+                        labelAlignments.forEachIndexed { i, align ->
+                            Text(
+                                axisLabels[i] + "\n(" + ("%g".format(axisValues[i])) + ")",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 9.sp,
+                                modifier = Modifier
+                                    .align(align)
+                                    .padding(2.dp),
+                                textAlign = TextAlign.Center
                             )
                         }
                     }

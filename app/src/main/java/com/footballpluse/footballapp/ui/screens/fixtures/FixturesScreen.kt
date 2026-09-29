@@ -352,7 +352,7 @@ fun FixturesList(
         val teamsToFetch = visibleKeys.flatMap { leagueId ->
             val leagueMatches = grouped.entries.firstOrNull { it.key.id == leagueId }?.value.orEmpty()
             leagueMatches.flatMap { match ->
-                val season = match.league.season ?: 2025
+                val season = match.league.season ?: com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()
                 listOf(
                     Triple(match.homeTeam.id, match.league.id, season),
                     Triple(match.awayTeam.id, match.league.id, season)
@@ -367,7 +367,7 @@ fun FixturesList(
 
     LaunchedEffect(matches) {
         matches.forEach { match ->
-            val season = match.league.season ?: 2025
+            val season = match.league.season ?: com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()
             onFetchForm(match.homeTeam.id, match.league.id, season)
             onFetchForm(match.awayTeam.id, match.league.id, season)
         }

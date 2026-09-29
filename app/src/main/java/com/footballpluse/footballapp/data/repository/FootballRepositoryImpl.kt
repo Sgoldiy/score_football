@@ -9,8 +9,12 @@ import com.footballpluse.footballapp.data.remote.ApiService
 import com.footballpluse.footballapp.data.util.ApiResult
 import com.footballpluse.footballapp.domain.model.*
 import com.footballpluse.footballapp.domain.repository.FootballRepository
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
+import java.text.SimpleDateFormat
+import java.util.*
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -22,6 +26,24 @@ class FootballRepositoryImpl @Inject constructor(
     private val leagueDao: LeagueDao,
     private val teamRepository: TeamRepository
 ) : FootballRepository {
+
+    companion object {
+        private val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+
+        fun today(): String = sdf.format(Date())
+        fun daysFromToday(offset: Int): String {
+            val cal = Calendar.getInstance()
+            cal.add(Calendar.DAY_OF_YEAR, offset)
+            return sdf.format(cal.time)
+        }
+
+        /** Leagues scanned to build the searchable team pool. */
+        private val SEARCH_POOL_LEAGUES = listOf(152, 302, 207, 175, 168, 88, 94, 203, 144, 187, 188, 169)
+
+        @Volatile
+        private var teamPoolCache: List<ApiStanding>? = null
+    }
+
     override fun getFixturesByDate(date: String): Flow<ApiResult<List<Match>>> = flow {
         // First check cache and emit immediately if present
         val cached = fixtureDao.getFixturesByDate(date).first()
@@ -42,7 +64,7 @@ class FootballRepositoryImpl @Inject constructor(
                 emit(ApiResult.Success(emptyList()))
             }
         } catch (e: Exception) {
-            val isNoDataError = e.message?.contains("404") == true || 
+            val isNoDataError = e.message?.contains("404") == true ||
                                e.message?.contains("No event found") == true ||
                                e is com.squareup.moshi.JsonDataException
 
@@ -70,13 +92,14 @@ class FootballRepositoryImpl @Inject constructor(
             try {
                 val events = apiService.getLivescore()
                 val liveFixtures = events.toFixtureResponseList()
-                val liveMatches = liveFixtures.map { it.toMatch() }.filter { it.isLive }
+                val liveMatches = liveFixtures.map { it.toMatch() }
+                    .filter { it.isLive || (it.elapsed ?: 0) > 0 && it.homeScore != null }
                 emit(ApiResult.Success(liveMatches))
             } catch (e: Exception) {
-                val isNoDataError = e.message?.contains("404") == true || 
+                val isNoDataError = e.message?.contains("404") == true ||
                                    e.message?.contains("No event found") == true ||
                                    e is com.squareup.moshi.JsonDataException
-                
+
                 if (isNoDataError) {
                     emit(ApiResult.Success(emptyList()))
                 } else {
@@ -89,7 +112,7 @@ class FootballRepositoryImpl @Inject constructor(
 
     override suspend fun getMatchDetail(fixtureId: Int): ApiResult<MatchDetail> {
         return try {
-            val eventsResponse = apiService.getEvents(matchId = fixtureId.toString())
+            val eventsResponse = apiService.getEventById(matchId = fixtureId.toString())
             val apiEvent = eventsResponse.firstOrNull() ?: return ApiResult.Error("Match not found")
             val response = apiEvent.toFixtureResponse()
 
@@ -125,7 +148,7 @@ class FootballRepositoryImpl @Inject constructor(
 
             val homeId = response.teams?.home?.id
             val awayId = response.teams?.away?.id
-            val h2h = if (homeId != null && awayId != null) {
+            val h2h = if (homeId != null && awayId != null && homeId != 0 && awayId != 0) {
                 try {
                     apiService.getHeadToHead(
                         firstTeamId = homeId.toString(),
@@ -161,22 +184,19 @@ class FootballRepositoryImpl @Inject constructor(
                 }
             }
 
-            val playerPerformances = try {
-                val matchStatsResponse = apiService.getMatchStatistics(matchId = fixtureId.toString())
-                val playerStats = matchStatsResponse.values.firstOrNull()?.player_statistics ?: emptyList()
-                
-                val homePlayers = playerStats.filter { it.team_name == response.teams?.home?.name }
+            // v3 API: player_statistics.team_name is literally "home"/"away" (verified live)
+            val playerPerformances = if (statsWrapper != null) {
+                val playerStats = statsWrapper.player_statistics ?: emptyList()
+                val homePlayers = playerStats.filter { it.team_name.equals("home", ignoreCase = true) }
                     .map { it.toPlayerPerformance() }
-                val awayPlayers = playerStats.filter { it.team_name == response.teams?.away?.name }
+                val awayPlayers = playerStats.filter { it.team_name.equals("away", ignoreCase = true) }
                     .map { it.toPlayerPerformance() }
-                
+
                 listOfNotNull(
                     if (homePlayers.isNotEmpty()) PlayerMatchStats(homeId ?: 0, homePlayers) else null,
                     if (awayPlayers.isNotEmpty()) PlayerMatchStats(awayId ?: 0, awayPlayers) else null
                 )
-            } catch (_: Exception) {
-                emptyList<PlayerMatchStats>()
-            }
+            } else emptyList()
 
             ApiResult.Success(
                 MatchDetail(
@@ -234,15 +254,19 @@ class FootballRepositoryImpl @Inject constructor(
         }
     }
 
+    /**
+     * Team search: this API has NO direct team-name search endpoint (verified live:
+     * get_teams only accepts league_id/team_id), so we find leagues whose names match
+     * the query and scan their squads. Delegates to searchTeamsDirect.
+     */
     override suspend fun searchTeams(query: String): ApiResult<List<TeamInfo>> {
         return try {
-            val teams = apiService.getTeams()
-            val filtered = teams.filter {
-                it.team_name?.contains(query, ignoreCase = true) == true
-            }
-            ApiResult.Success(filtered.map {
-                TeamInfo(id = it.team_key.toIntOr(0), name = it.team_name ?: "", logo = it.team_badge)
-            })
+            val results = searchTeamsDirect(query)
+            ApiResult.Success(
+                results.mapNotNull { resp ->
+                    resp.team?.let { TeamInfo(it.id, it.name ?: "", it.logo, country = it.country) }
+                }
+            )
         } catch (e: Exception) {
             ApiResult.Error(e.message ?: "Search failed")
         }
@@ -284,7 +308,15 @@ class FootballRepositoryImpl @Inject constructor(
     override fun getFixturesByLeagueSeason(leagueId: Int, season: Int): Flow<ApiResult<List<Match>>> = flow {
         emit(ApiResult.Loading)
         try {
-            val events = apiService.getEvents(leagueId = leagueId.toString())
+            // get_events requires a date window: use the season span
+            val from = if (season > 0) "$season-07-01" else daysFromToday(-400)
+            val to = if (season > 0) "${season + 1}-06-30" else daysFromToday(400)
+            val events = try {
+                apiService.getEvents(from = from, to = to, leagueId = leagueId.toString())
+            } catch (e: Exception) {
+                // Fallback: a 400-day rolling window around today
+                apiService.getEvents(from = daysFromToday(-200), to = daysFromToday(200), leagueId = leagueId.toString())
+            }
             emit(ApiResult.Success(events.toFixtureResponseList().map { it.toMatch() }))
         } catch (e: Exception) {
             emit(ApiResult.Error(e.message ?: "Failed to load league fixtures"))
@@ -293,11 +325,19 @@ class FootballRepositoryImpl @Inject constructor(
 
     override suspend fun getFixturesByTeamSeasonLeague(teamId: Int, leagueId: Int, season: Int): ApiResult<List<Match>> {
         return try {
-            val events = apiService.getEvents(leagueId = leagueId.toString())
+            // get_events requires a date window (from/to). Use a 400-day window to cover a season.
+            val events = apiService.getEvents(
+                from = daysFromToday(-200),
+                to = daysFromToday(200),
+                teamId = teamId.toString()
+            )
             val teamFixtures = events.filter {
                 it.match_hometeam_id == teamId.toString() || it.match_awayteam_id == teamId.toString()
             }
-            ApiResult.Success(teamFixtures.toFixtureResponseList().map { it.toMatch() })
+            val filtered = if (leagueId > 0) {
+                teamFixtures.filter { it.league_id == leagueId.toString() }
+            } else teamFixtures
+            ApiResult.Success(filtered.toFixtureResponseList().map { it.toMatch() })
         } catch (e: Exception) {
             ApiResult.Error(e.message ?: "Failed to load team fixtures")
         }
@@ -349,16 +389,18 @@ class FootballRepositoryImpl @Inject constructor(
 
     override suspend fun getRecentFixturesDirect(teamId: Int, leagueId: Int, season: Int): List<FixtureResponse> {
         return try {
-            val events = apiService.getEvents(leagueId = leagueId.toString())
-            val teamFixtures = events.filter {
+            // get_events requires a date window (from/to); team_id filter optional
+            val events = apiService.getEvents(
+                from = daysFromToday(-200),
+                to = daysFromToday(200),
+                teamId = teamId.toString()
+            )
+            events.filter {
                 it.match_hometeam_id == teamId.toString() || it.match_awayteam_id == teamId.toString()
             }.sortedByDescending { event ->
-                try {
-                    java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
-                        .parse(event.match_date ?: "")?.time ?: 0L
-                } catch (_: Exception) { 0L }
+                eventTimestamp(event.match_date, event.match_time)
             }.take(5)
-            teamFixtures.toFixtureResponseList()
+                .toFixtureResponseList()
         } catch (e: Exception) {
             emptyList()
         }
@@ -372,13 +414,78 @@ class FootballRepositoryImpl @Inject constructor(
         }
     }
 
+    /**
+     * Player pool (name -> season stats incl. shots_total) from one get_teams call
+     * per league. Expensive, so it is cached process-wide and shared by Search and
+     * the Stats "Advanced" tab — never called more than once per league per session.
+     */
+    @Volatile
+    private var playersPoolCache: Pair<Int, List<ApiPlayer>>? = null
+
+    suspend fun getPlayersPoolSnapshot(leagueId: Int): List<ApiPlayer> {
+        playersPoolCache?.let { (lid, players) -> if (lid == leagueId) return players }
+        val teams = try {
+            kotlinx.coroutines.withTimeoutOrNull(25_000) {
+                apiService.getTeams(leagueId = leagueId.toString())
+            }
+        } catch (_: Exception) { null }
+        val players = teams?.flatMap { it.players ?: emptyList() } ?: emptyList()
+        if (players.isNotEmpty()) playersPoolCache = leagueId to players
+        return players
+    }
+
+    private suspend fun getTeamPool(): List<ApiStanding> {
+        teamPoolCache?.let { return it }
+        val pool = kotlinx.coroutines.withTimeoutOrNull(20_000) {
+            kotlinx.coroutines.coroutineScope {
+                SEARCH_POOL_LEAGUES.map { leagueId ->
+                    async {
+                        try {
+                            apiService.getStandings(leagueId = leagueId.toString())
+                        } catch (_: Exception) {
+                            emptyList<ApiStanding>()
+                        }
+                    }
+                }.awaitAll().flatten().distinctBy { it.team_id }
+            }
+        } ?: emptyList()
+        if (pool.isNotEmpty()) teamPoolCache = pool
+        return pool
+    }
+
     override suspend fun searchTeamsDirect(query: String): List<TeamInfoResponse> {
         return try {
-            val allTeams = apiService.getTeams()
-            allTeams.filter { it.team_name?.contains(query, ignoreCase = true) == true }
-                .map { it.toTeamInfoResponse() }
+            val q = query.trim()
+            // get_teams has NO name search (verified live: only league_id/team_id params).
+            // Build a searchable team pool from standings of popular leagues — standings are
+            // lightweight and include team_id, team_name and team_badge.
+            val pool = getTeamPool()
+            val matches = pool.filter { it.team_name?.contains(q, ignoreCase = true) == true }
+                .map { s ->
+                    TeamInfoResponse(
+                        team = Team(id = s.team_id.toIntOr(0), name = s.team_name, code = null,
+                            country = s.country_name, founded = null, national = null, logo = s.team_badge),
+                        venue = null
+                    )
+                }
+            if (matches.isNotEmpty()) return matches
+
+            // Fallback: find leagues whose own name matches the query and scan their squads
+            val leagues = apiService.getLeagues()
+            val matchedLeagueIds = leagues.filter { it.league_name?.contains(q, ignoreCase = true) == true }
+                .mapNotNull { it.league_id }
+            val results = mutableListOf<TeamInfoResponse>()
+            for (leagueId in matchedLeagueIds.take(3)) {
+                try {
+                    val teams = apiService.getTeams(leagueId = leagueId)
+                    results += teams.filter { it.team_name?.contains(q, ignoreCase = true) == true }
+                        .map { it.toTeamInfoResponse() }
+                } catch (_: Exception) { }
+            }
+            results.distinctBy { it.team?.id }
         } catch (e: Exception) {
             emptyList()
         }
     }
+
 }

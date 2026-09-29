@@ -30,15 +30,8 @@ class FixtureDetailViewModel @Inject constructor(
     private val _userVote = MutableStateFlow<Int?>(null)
     val userVote: StateFlow<Int?> = _userVote
 
-    private val _pollPercentages = MutableStateFlow(Triple(42, 23, 35))
-    val pollPercentages: StateFlow<Triple<Int, Int, Int>> = _pollPercentages
-
     private val _comments = MutableStateFlow<List<ChatMessage>>(emptyList())
     val comments: StateFlow<List<ChatMessage>> = _comments
-
-    init {
-        // startCommentSimulator()
-    }
 
     fun loadFixtureDetails(fixtureId: Int) {
         viewModelScope.launch {
@@ -47,14 +40,9 @@ class FixtureDetailViewModel @Inject constructor(
         }
     }
 
+    /** Records the user's own prediction (no fake crowd percentages — the API has no poll data). */
     fun submitVote(choice: Int) {
         _userVote.value = choice
-        val current = _pollPercentages.value
-        _pollPercentages.value = when (choice) {
-            0 -> Triple(current.first + 3, maxOf(current.second - 1, 5), maxOf(current.third - 2, 5))
-            1 -> Triple(maxOf(current.first - 1, 5), current.second + 3, maxOf(current.third - 2, 5))
-            else -> Triple(maxOf(current.first - 2, 5), maxOf(current.second - 1, 5), current.third + 3)
-        }
     }
 
     fun sendComment(text: String, username: String) {
@@ -65,37 +53,5 @@ class FixtureDetailViewModel @Inject constructor(
             timestamp = System.currentTimeMillis()
         )
         _comments.value = _comments.value + newMsg
-    }
-
-    private fun startCommentSimulator() {
-        viewModelScope.launch {
-            val userNames = listOf(
-                "StrikerKing", "RedDevils_7", "TacticalFocus", "MidfieldMaestro", 
-                "CleanSheetGoalie", "VAR_Official", "FootyGuru", "ElClasicoFan"
-            )
-            val commentary = listOf(
-                "What a tactical battle we are seeing here! 🧠",
-                "Are they going to review that potential penalty? 🧐",
-                "The atmosphere is absolutely electric! 🔥",
-                "Substitutions need to happen soon to inject energy",
-                "Incredible pressing from the midfield line!",
-                "VAR checked... no penalty. Controversy! 🤯",
-                "That save was absolute world-class! 🧤",
-                "Goal of the week contender if that had gone in!"
-            )
-            
-            while (true) {
-                kotlinx.coroutines.delay(12_000)
-                val randomUser = userNames.random()
-                val randomText = commentary.random()
-                val msg = ChatMessage(
-                    id = java.util.UUID.randomUUID().toString(),
-                    username = randomUser,
-                    text = randomText,
-                    timestamp = System.currentTimeMillis()
-                )
-                _comments.value = _comments.value + msg
-            }
-        }
     }
 }

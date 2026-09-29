@@ -61,6 +61,10 @@ data class ApiPlayer(
     val player_age: String?,
     val player_birthdate: String?,
     val player_match_played: String?,
+    val player_minutes: String? = null,
+    // get_players responses embed the player's current team (verified live)
+    val team_name: String? = null,
+    val team_key: String? = null,
     val player_goals: String?,
     val player_yellow_cards: String?,
     val player_red_cards: String?,
@@ -120,47 +124,66 @@ data class ApiStanding(
     val league_logo: String? = null,
     val fk_stage_key: String? = null,
     val stage_name: String? = null,
-    @Json(name = "overall_promotion") val overallPromotion: String? = null
+    @Json(name = "overall_promotion") val overallPromotion: String? = null,
+    // v3 API home/away splits (verified live)
+    val home_league_position: String? = null,
+    val home_league_payed: String? = null,
+    @Json(name = "home_league_W") val home_W: String? = null,
+    @Json(name = "home_league_D") val home_D: String? = null,
+    @Json(name = "home_league_L") val home_L: String? = null,
+    @Json(name = "home_league_GF") val home_GF: String? = null,
+    @Json(name = "home_league_GA") val home_GA: String? = null,
+    @Json(name = "home_league_PTS") val home_PTS: String? = null,
+    val away_league_position: String? = null,
+    val away_league_payed: String? = null,
+    @Json(name = "away_league_W") val away_W: String? = null,
+    @Json(name = "away_league_D") val away_D: String? = null,
+    @Json(name = "away_league_L") val away_L: String? = null,
+    @Json(name = "away_league_GF") val away_GF: String? = null,
+    @Json(name = "away_league_GA") val away_GA: String? = null,
+    @Json(name = "away_league_PTS") val away_PTS: String? = null
 )
 
 @JsonClass(generateAdapter = true)
 data class ApiEvent(
-    val match_id: String?,
-    val country_id: String?,
-    val country_name: String?,
-    val league_id: String?,
-    val league_name: String?,
-    val match_date: String?,
-    val match_status: String?,
-    val match_time: String?,
-    val match_hometeam_id: String?,
-    val match_hometeam_name: String?,
-    val match_hometeam_score: String?,
-    val match_awayteam_id: String?,
-    val match_awayteam_name: String?,
-    val match_awayteam_score: String?,
-    val match_hometeam_halftime_score: String?,
-    val match_awayteam_halftime_score: String?,
-    val match_hometeam_extra_score: String?,
-    val match_awayteam_extra_score: String?,
-    val match_hometeam_penalty_score: String?,
-    val match_awayteam_penalty_score: String?,
-    val match_hometeam_ft_score: String?,
-    val match_awayteam_ft_score: String?,
-    val match_hometeam_system: String?,
-    val match_awayteam_system: String?,
-    val match_live: String?,
-    val match_round: String?,
-    val match_stadium: String?,
-    val match_referee: String?,
-    val team_home_badge: String?,
-    val team_away_badge: String?,
-    val league_logo: String?,
-    @Json(name = "goalscorers") val goalscorer: List<ApiGoalScorer>?,
-    val cards: List<ApiCard>?,
-    val substitutions: ApiSubstitutions?,
-    val statistics: List<ApiMatchStatistic>?,
-    val lineup: ApiLineupWrapper?
+    val match_id: String? = null,
+    val country_id: String? = null,
+    val country_name: String? = null,
+    val league_id: String? = null,
+    val league_name: String? = null,
+    val match_date: String? = null,
+    val match_status: String? = null,
+    val match_time: String? = null,
+    val match_hometeam_id: String? = null,
+    val match_hometeam_name: String? = null,
+    val match_hometeam_score: String? = null,
+    val match_awayteam_id: String? = null,
+    val match_awayteam_name: String? = null,
+    val match_awayteam_score: String? = null,
+    val match_hometeam_halftime_score: String? = null,
+    val match_awayteam_halftime_score: String? = null,
+    val match_hometeam_extra_score: String? = null,
+    val match_awayteam_extra_score: String? = null,
+    val match_hometeam_penalty_score: String? = null,
+    val match_awayteam_penalty_score: String? = null,
+    val match_hometeam_ft_score: String? = null,
+    val match_awayteam_ft_score: String? = null,
+    val match_hometeam_system: String? = null,
+    val match_awayteam_system: String? = null,
+    val match_live: String? = null,
+    val match_round: String? = null,
+    val match_stadium: String? = null,
+    val match_referee: String? = null,
+    // v3 API season label, e.g. "2026/2027" (verified live)
+    @Json(name = "league_year") val league_year: String? = null,
+    val team_home_badge: String? = null,
+    val team_away_badge: String? = null,
+    val league_logo: String? = null,
+    @Json(name = "goalscorers") val goalscorer: List<ApiGoalScorer>? = null,
+    val cards: List<ApiCard>? = null,
+    val substitutions: ApiSubstitutions? = null,
+    val statistics: List<ApiMatchStatistic>? = null,
+    val lineup: ApiLineupWrapper? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -180,7 +203,12 @@ data class ApiGoalScorer(
     val time: String?,
     val home_scorer: String?,
     val score: String?,
-    val away_scorer: String?
+    val away_scorer: String?,
+    // v3 API assist fields (verified live)
+    val home_assist: String? = null,
+    val away_assist: String? = null,
+    // e.g. "Penalty", "Own goal" (verified live)
+    val info: String? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -308,14 +336,38 @@ data class ApiTopScorer(
     @Json(name = "player_key") val player_id: Long? = null,
     @Json(name = "team_key") val team_id: String? = null,
     val player_image: String? = null,
-    val team_badge: String? = null
+    val team_badge: String? = null,
+    // v3 API ranking field (verified live)
+    @Json(name = "player_place") val player_place: String? = null
 )
 
 @JsonClass(generateAdapter = true)
 data class ApiPrediction(
     @Json(name = "prob_HW") val homeWin: String?,
     @Json(name = "prob_D") val draw: String?,
-    @Json(name = "prob_AW") val awayWin: String?
+    @Json(name = "prob_AW") val awayWin: String?,
+    // Full dc_v2 probability set surfaced from the FootballCharts match detail
+    // (legacy fields kept for ViewModel compatibility).
+    val advice: String? = null,
+    val btts_yes: String? = null,
+    val over_25: String? = null,
+    val under_25: String? = null,
+    val over_05: String? = null,
+    val over_15: String? = null,
+    val over_35: String? = null,
+    val over_45: String? = null,
+    val ht_over_05: String? = null,
+    val ht_over_15: String? = null,
+    val expected_home_goals: Double? = null,
+    val expected_away_goals: Double? = null,
+    /** Pre-formatted extras for the prediction card: "O0.5 85% O1.5 58% ..." */
+    val overLadder: String? = null,
+    val htLines: String? = null,
+    val xgSummary: String? = null,
+    /** Model freshness: staleness + effective sample sizes. */
+    val modelNote: String? = null,
+    /** Compact goals summary: "O2.5 35.6% · BTTS 20%" */
+    val goalsSummary: String? = null
 )
 
 // Keep existing wrapper types needed by domain
@@ -974,7 +1026,9 @@ data class PredictionDetail(
     val under_over: String?,
     val goals: PredictionGoals?,
     val advice: String?,
-    val percent: PredictionPercent?
+    val percent: PredictionPercent?,
+    /** FC model extras: over/under ladder, xG, model freshness (not parsed from JSON). */
+    val extras: String? = null
 )
 
 @JsonClass(generateAdapter = true)

@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
 
+
 @HiltViewModel
 class ClubInfoViewModel @Inject constructor(
     private val repository: FootballRepository
@@ -34,6 +35,7 @@ class ClubInfoViewModel @Inject constructor(
     private val _topScorers = MutableStateFlow<UiState<List<PlayerProfileStatisticsResponse>>>(UiState.Loading)
     val topScorers: StateFlow<UiState<List<PlayerProfileStatisticsResponse>>> = _topScorers
 
+
     fun loadClubData(teamId: Int, leagueId: Int) {
         viewModelScope.launch {
             launch { fetchTeamInfo(teamId) }
@@ -44,6 +46,7 @@ class ClubInfoViewModel @Inject constructor(
             launch { fetchTopScorers(leagueId) }
         }
     }
+
 
     private suspend fun fetchTeamInfo(teamId: Int) {
         try {
@@ -56,7 +59,10 @@ class ClubInfoViewModel @Inject constructor(
 
     private suspend fun fetchTeamStats(teamId: Int, leagueId: Int) {
         try {
-            val stats = repository.getTeamStatisticsDirect(teamId, leagueId, 2025)
+            val stats = repository.getTeamStatisticsDirect(
+                teamId, leagueId,
+                com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()
+            )
             _teamStats.value = UiState.Success(stats)
         } catch (e: Exception) {
             _teamStats.value = UiState.Error(e.message ?: "Error loading team stats")
@@ -83,7 +89,10 @@ class ClubInfoViewModel @Inject constructor(
 
     private suspend fun fetchRecentFixtures(teamId: Int, leagueId: Int) {
         try {
-            val fixtures = repository.getRecentFixturesDirect(teamId, leagueId, 2025)
+            val fixtures = repository.getRecentFixturesDirect(
+                teamId, leagueId,
+                com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()
+            )
             _recentFixtures.value = UiState.Success(fixtures)
         } catch (e: Exception) {
             _recentFixtures.value = UiState.Error(e.message ?: "Error loading fixtures")
@@ -92,7 +101,10 @@ class ClubInfoViewModel @Inject constructor(
 
     private suspend fun fetchTopScorers(leagueId: Int) {
         try {
-            val scorers = repository.getTopScorersDirect(leagueId, 2025)
+            val scorers = repository.getTopScorersDirect(
+                leagueId,
+                com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()
+            )
             _topScorers.value = UiState.Success(scorers.take(5))
         } catch (e: Exception) {
             _topScorers.value = UiState.Error(e.message ?: "Error loading top scorers")

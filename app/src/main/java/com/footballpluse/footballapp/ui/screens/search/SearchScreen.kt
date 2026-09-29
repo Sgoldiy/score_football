@@ -160,7 +160,7 @@ private fun SearchSuggestions() {
         )
         Spacer(Modifier.height(16.dp))
 
-        val popular = listOf("Premier League", "La Liga", "Champions League", "Serie A")
+        val popular = listOf("Premier League", "La Liga", "Bundesliga", "Serie A")
         popular.forEach { name ->
             SuggestionItem(name)
         }

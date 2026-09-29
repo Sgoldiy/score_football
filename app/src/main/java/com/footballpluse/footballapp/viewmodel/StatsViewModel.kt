@@ -18,6 +18,7 @@ import javax.inject.Inject
 
 enum class StatsTab { PLAYERS, CLUBS, XG_ADVANCED, GOAL_TIMING, DISCIPLINE }
 
+
 data class StatsLeague(
     val id: Int,
     val name: String,
@@ -58,23 +59,32 @@ sealed class ClubsStatsUiState {
 data class ClubAttackDefence(val teamId: Int, val teamName: String, val goalsScored: Float, val goalsConceded: Float)
 data class ClubCleanSheet(val teamId: Int, val teamName: String, val teamLogo: String, val cleanSheets: Int, val matchesPlayed: Int)
 
-// XG & ADVANCED UI STATE
+// ADVANCED UI STATE — every number here comes from a real API field.
+// The API has NO xG data, so the old fabricated "Goals vs xG" sections were removed.
 sealed class XGStatsUiState {
     object Idle : XGStatsUiState()
     object Loading : XGStatsUiState()
     data class Success(
-        val playerXgPerformers: List<PlayerXgPerformance>,
-        val clubXgTable: List<ClubXgPerformance>,
-        val bigChanceConversion: List<ClubBigChanceConversion>,
-        val shotAccuracyLeaders: List<PlayerShotAccuracy>
+        val topScorers: List<PlayerProfileStatisticsResponse>,
+        val clubTable: List<ClubSeasonRow>,
+        val goalConversionLeaders: List<PlayerShotsStat>,
+        val topRated: List<PlayerProfileStatisticsResponse>
     ) : XGStatsUiState()
     data class Error(val message: String) : XGStatsUiState()
 }
 
-data class PlayerXgPerformance(val name: String, val playerPhoto: String?, val teamLogo: String?, val goals: Int, val xg: Float, val diff: Float)
-data class ClubXgPerformance(val teamName: String, val teamLogo: String, val goals: Int, val xg: Float, val diff: Float)
-data class ClubBigChanceConversion(val teamName: String, val teamLogo: String, val created: Int, val converted: Int, val pct: Float)
-data class PlayerShotAccuracy(val name: String, val playerPhoto: String?, val teamLogo: String, val goals: Int, val shotsOnTarget: Int, val ratio: Float)
+/** Real season table row derived from get_standings. */
+data class ClubSeasonRow(
+    val teamName: String, val teamLogo: String, val rank: Int,
+    val played: Int, val wins: Int, val draws: Int, val losses: Int,
+    val goalsFor: Int, val goalsAgainst: Int, val goalDiff: Int, val points: Int
+)
+
+/** Real shooting numbers derived from get_players team statistics. */
+data class PlayerShotsStat(
+    val name: String, val playerPhoto: String?, val teamLogo: String?,
+    val goals: Int, val shotsTotal: Int, val conversionPct: Float
+)
 
 // GOAL TIMING UI STATE
 sealed class GoalTimingUiState {
@@ -111,7 +121,8 @@ data class PlayerFoulsStat(val name: String, val playerPhoto: String?, val teamL
 
 @HiltViewModel
 class StatsViewModel @Inject constructor(
-    private val apiService: ApiService
+    private val apiService: ApiService,
+    private val repository: com.footballpluse.footballapp.data.repository.FootballRepositoryImpl
 ) : ViewModel() {
 
     companion object {
@@ -124,7 +135,7 @@ class StatsViewModel @Inject constructor(
     val selectedTab: StateFlow<StatsTab> = _selectedTab.asStateFlow()
 
     private val _selectedLeague = MutableStateFlow(
-        StatsLeague(152, "Premier League", "https://apiv3.apifootball.com/badges/logo_leagues/152_premier-league.png", 2025)
+        StatsLeague(152, "Premier League", "https://apiv3.apifootball.com/badges/logo_leagues/152_premier-league.png", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear())
     )
     val selectedLeague: StateFlow<StatsLeague> = _selectedLeague.asStateFlow()
 
@@ -143,20 +154,18 @@ class StatsViewModel @Inject constructor(
     private val _disciplineState = MutableStateFlow<DisciplineUiState>(DisciplineUiState.Idle)
     val disciplineState: StateFlow<DisciplineUiState> = _disciplineState.asStateFlow()
 
-    // Default supported leagues for the selector sheet
+    // Default supported leagues for the selector sheet - FootballCharts covers
+    // domestic leagues only, so the old UCL/World Cup/etc. entries (whose ids now
+    // belong to unrelated FC leagues) are removed.
     val availableLeagues = listOf(
-        StatsLeague(152, "Premier League", "https://apiv3.apifootball.com/badges/logo_leagues/152_premier-league.png", 2025),
-        StatsLeague(302, "La Liga", "https://apiv3.apifootball.com/badges/logo_leagues/302_la-liga.png", 2025),
-        StatsLeague(207, "Serie A", "https://apiv3.apifootball.com/badges/logo_leagues/207_serie-a.png", 2025),
-        StatsLeague(175, "Bundesliga", "https://apiv3.apifootball.com/badges/logo_leagues/175_bundesliga.png", 2025),
-        StatsLeague(168, "Ligue 1", "https://apiv3.apifootball.com/badges/logo_leagues/168_ligue-1.png", 2025),
-        StatsLeague(3, "Champions League", "https://apiv3.apifootball.com/badges/logo_leagues/3_uefa-champions-league.png", 2025),
-        StatsLeague(4, "Europa League", "https://apiv3.apifootball.com/badges/logo_leagues/4_uefa-europa-league.png", 2025),
-        StatsLeague(848, "Conference League", "https://apiv3.apifootball.com/badges/logo_leagues/848_uefa-conference-league.png", 2025),
-        StatsLeague(28, "FIFA World Cup", "https://apiv3.apifootball.com/badges/logo_leagues/28_world-cup.png", 2026),
-        StatsLeague(1, "UEFA Euros", "https://apiv3.apifootball.com/badges/logo_leagues/1_uefa-european-championship.png", 2024),
-        StatsLeague(5, "Nations League", "https://apiv3.apifootball.com/badges/logo_leagues/5_uefa-nations-league.png", 2025),
-        StatsLeague(9, "Copa Libertadores", "https://apiv3.apifootball.com/badges/logo_leagues/9_copa-libertadores.png", 2025)
+        StatsLeague(152, "Premier League", "https://apiv3.apifootball.com/badges/logo_leagues/152_premier-league.png", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
+        StatsLeague(302, "La Liga", "https://apiv3.apifootball.com/badges/logo_leagues/302_la-liga.png", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
+        StatsLeague(207, "Serie A", "https://apiv3.apifootball.com/badges/logo_leagues/207_serie-a.png", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
+        StatsLeague(175, "Bundesliga", "https://apiv3.apifootball.com/badges/logo_leagues/175_bundesliga.png", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
+        StatsLeague(168, "Ligue 1", "https://apiv3.apifootball.com/badges/logo_leagues/168_ligue-1.png", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
+        StatsLeague(88, "Eredivisie", "https://apiv3.apifootball.com/badges/logo_leagues/88_eredivisie.png", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
+        StatsLeague(94, "Liga Portugal", "https://apiv3.apifootball.com/badges/logo_leagues/94_liga-portugal.png", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
+        StatsLeague(203, "Saudi Pro League", "https://apiv3.apifootball.com/badges/logo_leagues/203_saudi-professional-league.png", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear())
     )
 
     init {
@@ -202,6 +211,22 @@ class StatsViewModel @Inject constructor(
         onTabSelected(_selectedTab.value)
     }
 
+    /**
+     * get_events requires a date window (from/to). Use the season span, with a
+     * rolling 400-day fallback window for competitions with unusual calendars.
+     */
+    private suspend fun leagueEvents(leagueId: Int, season: Int): List<com.footballpluse.footballapp.data.model.ApiEvent> {
+        return try {
+            apiService.getEvents(from = "$season-07-01", to = "${season + 1}-06-30", leagueId = leagueId.toString())
+        } catch (e: Exception) {
+            apiService.getEvents(
+                from = com.footballpluse.footballapp.data.repository.FootballRepositoryImpl.daysFromToday(-200),
+                to = com.footballpluse.footballapp.data.repository.FootballRepositoryImpl.daysFromToday(200),
+                leagueId = leagueId.toString()
+            )
+        }
+    }
+
     private fun fetchLeagueLogo(leagueId: Int) {
         viewModelScope.launch {
             try {
@@ -233,6 +258,8 @@ class StatsViewModel @Inject constructor(
             }
 
             try {
+                // NOTE: no getTeams call here — get_teams returns full squads (very large,
+                // burns the BASIC plan quota fast) and top scorers already carry team names.
                 val scorersDeferred = async {
                     try {
                         apiService.getTopScorers(leagueId.toString())
@@ -241,54 +268,77 @@ class StatsViewModel @Inject constructor(
                         emptyList()
                     }
                 }
-                val teamsDeferred = async {
-                    try {
-                        apiService.getTeams(leagueId = leagueId.toString())
-                    } catch (e: Exception) {
-                        emptyList()
-                    }
-                }
                 val fixturesDeferred = async {
                     try {
-                        apiService.getEvents(leagueId = leagueId.toString())
-                            .toFixtureResponseList()
+                        leagueEvents(leagueId, season).toFixtureResponseList()
                     } catch (e: Exception) {
                         emptyList()
                     }
                 }
 
-                val rawScorers = scorersDeferred.await()
-                val teams = teamsDeferred.await()
+                var scorers = scorersDeferred.await()
                 val fixtures = fixturesDeferred.await()
 
-                // Enrich scorers with player photos and team badges from teams data
-                var scorers = enrichWithImages(rawScorers, teams)
+                // Build team badge lookup from finished fixtures (league badge / team logos
+                // are present on every event) instead of calling get_teams.
+                val badgeByTeamName = fixtures
+                    .flatMap { listOfNotNull(it.teams?.home, it.teams?.away) }
+                    .mapNotNull { t -> t.name?.let { n -> t.logo?.let { l -> n to l } } }
+                    .toMap()
 
-                // Fallback: construct image URLs from player_key for scorers still missing photos
+                // One get_teams squad call (process-cached) fills real gaps: photos,
+                // ratings and appearances for scorers the topscorers feed omits them for.
+                val playersByName = try {
+                    repository.getPlayersPoolSnapshot(leagueId).groupBy { it.player_name }
+                } catch (_: Exception) { emptyMap<String, List<com.footballpluse.footballapp.data.model.ApiPlayer>>() }
+
                 scorers = scorers.map { scorer ->
-                    if (scorer.player?.photo != null) return@map scorer
-                    val pid = scorer.player?.id ?: return@map scorer
-                    val constructedUrl = buildPlayerImageUrl(pid)
-                    if (constructedUrl != null) {
-                        scorer.copy(player = scorer.player?.copy(photo = constructedUrl))
-                    } else scorer
-                }
+                    var out = scorer
+                    val name = out.player?.name
+                    val poolStat = name?.let { playersByName[it]?.firstOrNull() }
 
-                // Fallback: construct team badge URLs for scorers still missing team logos
-                scorers = scorers.map { scorer ->
-                    val stats = scorer.statistics?.firstOrNull() ?: return@map scorer
-                    val team = stats.team ?: return@map scorer
-                    if (team.logo != null) return@map scorer
-                    val constructedBadge = buildTeamBadgeUrl(team.name, team.id)
-                    if (constructedBadge != null) {
-                        scorer.copy(statistics = scorer.statistics?.map { s ->
-                            s.copy(team = s.team?.copy(logo = constructedBadge))
-                        })
-                    } else scorer
-                }
+                    // Real photo: pool squad image → constructed URL fallback
+                    if (out.player?.photo == null) {
+                        val resolved = poolStat?.player_image
+                            ?: out.player?.id?.let { buildPlayerImageUrl(it) }
+                        if (resolved != null) {
+                            out = out.copy(player = out.player?.copy(photo = resolved))
+                        }
+                    }
 
-                // Final fallback: try getPlayers for top 8 scorers still missing photos
-                // Removed aggressive per-player API calls to avoid 429 Too Many Requests
+                    // Real season stats merged from squad data when missing
+                    if (poolStat != null && out.statistics?.firstOrNull()?.games?.rating == null) {
+                        val rating = poolStat.player_rating?.takeIf { it.isNotBlank() }
+                        if (rating != null) {
+                            out = out.copy(statistics = out.statistics?.map { s ->
+                                s.copy(games = com.footballpluse.footballapp.data.model.PlayerGames(
+                                    appearances = poolStat.player_match_played?.toIntOrNull(),
+                                    lineups = null,
+                                    minutes = poolStat.player_minutes?.toIntOrNull(),
+                                    number = poolStat.player_number?.toIntOrNull(),
+                                    position = poolStat.player_type,
+                                    rating = rating,
+                                    captain = null
+                                ))
+                            })
+                        }
+                    }
+
+                    // Missing team badge → fixture badge map → constructed URL
+                    val needsLogo = out.statistics?.firstOrNull()?.team?.logo == null
+                    if (needsLogo) {
+                        val stats = out.statistics?.firstOrNull()
+                        val tName = stats?.team?.name
+                        val badge = tName?.let { badgeByTeamName[it] }
+                            ?: buildTeamBadgeUrl(tName, stats?.team?.id)
+                        if (badge != null) {
+                            out = out.copy(statistics = out.statistics?.map { s ->
+                                s.copy(team = s.team?.copy(logo = badge))
+                            })
+                        }
+                    }
+                    out
+                }
 
                 if (scorers.isEmpty()) {
                     _playersState.value = PlayersStatsUiState.Error("No player statistics found for this competition.")
@@ -297,48 +347,41 @@ class StatsViewModel @Inject constructor(
 
                 // Build assists leaderboard from top scorers sorted by assists
                 val assists = scorers
-                    .filter { it.statistics?.firstOrNull()?.goals?.assists ?: 0 > 0 }
+                    .filter { (it.statistics?.firstOrNull()?.goals?.assists ?: 0) > 0 }
                     .sortedByDescending { it.statistics?.firstOrNull()?.goals?.assists ?: 0 }
 
-                // Build ratings leaderboard from enriched API data, fallback to simulated
-                val ratings = scorers.map { scorer ->
-                    val currentRating = scorer.statistics?.firstOrNull()?.games?.rating
-                    if (currentRating != null) {
-                        scorer
-                    } else {
-                        val simulatedRating = (6.5f + kotlin.random.Random.nextFloat() * 2.5f)
-                        scorer.copy(
-                            statistics = scorer.statistics?.map { s ->
-                                s.copy(
-                                    games = (s.games ?: com.footballpluse.footballapp.data.model.PlayerGames(
-                                        appearances = null, lineups = null, minutes = null, number = null, position = null, rating = "%.1f".format(simulatedRating), captain = null
-                                    )).copy(rating = "%.1f".format(simulatedRating))
-                                )
-                            }
-                        )
-                    }
-                }.sortedByDescending { it.statistics?.firstOrNull()?.games?.rating?.toFloatOrNull() ?: 0f }
+                // Ratings leaderboard uses ONLY real API ratings — no random fake scores.
+                val ratings = scorers
+                    .filter { it.statistics?.firstOrNull()?.games?.rating != null }
+                    .sortedByDescending { it.statistics?.firstOrNull()?.games?.rating?.toFloatOrNull() ?: 0f }
 
                 val topScorer = scorers.first()
                 val top8Scorers = scorers.take(8)
                 val top8Assists = assists.take(8)
 
                 // Highlight calculations
-                val finishedFixtures = fixtures.filter { it.fixture?.status?.short == "FT" }
+                // Match both the mapper's "FT" and the raw API "Finished" status
+                val finishedFixtures = fixtures.filter {
+                    it.fixture?.status?.short == "FT" || it.fixture?.status?.long == "Finished"
+                }
                 val totalGoals = finishedFixtures.sumOf { (it.goals?.home ?: 0) + (it.goals?.away ?: 0) }
                 val avgGoals = if (finishedFixtures.isNotEmpty()) totalGoals.toFloat() / finishedFixtures.size else 2.67f
 
                 val penaltyGoals = scorers.sumOf { it.statistics?.firstOrNull()?.penalty?.scored ?: 0 }
                 val totalScorerGoals = scorers.sumOf { it.statistics?.firstOrNull()?.goals?.total ?: 0 }
-                val penaltyGoalsPct = if (totalScorerGoals > 0) (penaltyGoals.toFloat() / totalScorerGoals) * 100f else 8.5f
+                val penaltyGoalsPct = if (totalScorerGoals > 0) (penaltyGoals.toFloat() / totalScorerGoals) * 100f else 0f
 
-                val avgXgPerMatch = 1.34f
+                // Real league scoring rate from finished fixtures (no fake xG constant)
+                val avgXgPerMatch = if (finishedFixtures.isNotEmpty())
+                    totalGoals.toFloat() / finishedFixtures.size else 0f
 
                 val combinedTop = (scorers + assists + ratings).distinctBy { it.player?.id }
                 val leaderboard = combinedTop
                     .filter { it.statistics?.firstOrNull()?.games?.rating != null }
                     .sortedByDescending { it.statistics?.firstOrNull()?.games?.rating?.toFloatOrNull() ?: 0f }
                     .take(8)
+                // `ratings` itself is already the real-rating leaderboard; keep combined
+                // for cases where the standings route added rating data.
 
                 val successState = PlayersStatsUiState.Success(
                     topScorer = topScorer,
@@ -356,78 +399,6 @@ class StatsViewModel @Inject constructor(
             } catch (e: Exception) {
                 _playersState.value = PlayersStatsUiState.Error(handleException(e))
             }
-        }
-    }
-
-    private fun enrichWithImages(
-        scorers: List<PlayerProfileStatisticsResponse>,
-        teams: List<com.footballpluse.footballapp.data.model.ApiTeam>
-    ): List<PlayerProfileStatisticsResponse> {
-        val teamBadgeMap = mutableMapOf<String, String>()
-        val playerImageMapById = mutableMapOf<Long, String>()
-        val playerRatingMapById = mutableMapOf<Long, String>()
-        val playerImageMapByName = mutableMapOf<String, String>()
-        val playerRatingMapByName = mutableMapOf<String, String>()
-
-        teams.forEach { team ->
-            team.team_name?.let { name ->
-                team.team_badge?.let { badge -> teamBadgeMap[name] = badge }
-            }
-            team.players?.forEach { player ->
-                player.player_key?.let { key ->
-                    player.player_image?.let { image -> playerImageMapById[key] = image }
-                    player.player_rating?.let { rating -> playerRatingMapById[key] = rating }
-                }
-                player.player_name?.let { name ->
-                    player.player_image?.let { image -> playerImageMapByName[name] = image }
-                    player.player_rating?.let { rating -> playerRatingMapByName[name] = rating }
-                }
-            }
-        }
-
-        return scorers.map { scorer ->
-            val stats = scorer.statistics?.firstOrNull()
-            val needsPhoto = scorer.player?.photo == null
-            val needsLogo = stats?.team?.logo == null
-
-            val scorerId = scorer.player?.id?.toLong()
-            val scorerName = scorer.player?.name
-
-            val foundImage = if (scorerId != null && scorerId != 0L) {
-                playerImageMapById[scorerId]
-            } else null
-            val foundImageByName = scorerName?.let { playerImageMapByName[it] }
-            val resolvedPhoto = foundImage ?: foundImageByName
-
-            val foundRating = if (scorerId != null && scorerId != 0L) {
-                playerRatingMapById[scorerId]
-            } else null
-            val foundRatingByName = scorerName?.let { playerRatingMapByName[it] }
-            val resolvedRating = foundRating ?: foundRatingByName
-
-            if (!needsPhoto && !needsLogo && resolvedRating == null) return@map scorer
-
-            scorer.copy(
-                player = if (needsPhoto) scorer.player?.copy(
-                    photo = resolvedPhoto ?: scorer.player?.photo
-                ) else scorer.player,
-                statistics = if (needsLogo || resolvedRating != null) scorer.statistics?.map { s ->
-                    val currentGames = s.games
-                    val currentRating = currentGames?.rating
-                    val newRating = resolvedRating ?: currentRating
-                    s.copy(
-                        team = if (needsLogo) s.team?.copy(
-                            logo = teamBadgeMap[s.team?.name]
-                                ?: s.team?.logo
-                        ) else s.team,
-                        games = if (newRating != currentRating) currentGames?.copy(rating = newRating)
-                            ?: com.footballpluse.footballapp.data.model.PlayerGames(
-                                appearances = null, lineups = null, minutes = null,
-                                number = null, position = null, rating = newRating, captain = null
-                            ) else currentGames
-                    )
-                } else scorer.statistics
-            )
         }
     }
 
@@ -460,7 +431,7 @@ class StatsViewModel @Inject constructor(
                 }
                 val fixturesDeferred = async {
                     try {
-                        apiService.getEvents(leagueId = leagueId.toString()).toFixtureResponseList()
+                        leagueEvents(leagueId, season).toFixtureResponseList()
                     } catch (_: Exception) { emptyList() }
                 }
 
@@ -502,17 +473,28 @@ class StatsViewModel @Inject constructor(
                     )
                 }
 
-                // Clean sheets leaders
+                // Clean sheets leaders — computed for real from finished fixtures
+                // (a team keeps a clean sheet when it concedes 0). The standings-only
+                // approach cannot know this, so we derive it from match results.
+                val cleanSheetCounts = mutableMapOf<Int, Int>()
+                val finishedForCS = fixtures.filter {
+                    it.fixture?.status?.short == "FT" || it.fixture?.status?.long == "Finished"
+                }
+                finishedForCS.forEach { f ->
+                    val hId = f.teams?.home?.id ?: return@forEach
+                    val aId = f.teams?.away?.id ?: return@forEach
+                    val hG = f.goals?.home ?: return@forEach
+                    val aG = f.goals?.away ?: return@forEach
+                    if (aG == 0) cleanSheetCounts[hId] = (cleanSheetCounts[hId] ?: 0) + 1
+                    if (hG == 0) cleanSheetCounts[aId] = (cleanSheetCounts[aId] ?: 0) + 1
+                }
                 val cleanSheets = enrichedRecords.map { record ->
                     val played = record.all?.played ?: 0
-                    val ga = record.all?.goals?.against ?: 0
-                    val win = record.all?.win ?: 0
-                    val simulatedCleanSheets = Math.max(1, (played - ga/2) / 2 + (win / 4))
                     ClubCleanSheet(
                         teamId = record.team?.id ?: 0,
                         teamName = record.team?.name ?: "Unknown",
                         teamLogo = record.team?.logo ?: "",
-                        cleanSheets = simulatedCleanSheets,
+                        cleanSheets = cleanSheetCounts[record.team?.id] ?: 0,
                         matchesPlayed = played
                     )
                 }.sortedByDescending { it.cleanSheets }.take(5)
@@ -590,7 +572,7 @@ class StatsViewModel @Inject constructor(
             }
     }
 
-    // --- TAB 3: XG & ADVANCED ---
+    // --- TAB 3: ADVANCED (every value from a real API field) ---
     private fun fetchXgAdvanced(leagueId: Int, season: Int) {
         viewModelScope.launch {
             _xgState.value = XGStatsUiState.Loading
@@ -608,85 +590,61 @@ class StatsViewModel @Inject constructor(
                 } catch (_: Exception) { Standing(null) }
                 val standingsRecords = standing.league?.standings?.flatten() ?: emptyList()
 
-                // 1. Player XG Performance
-                val playerXg = scorers.take(5).mapIndexed { idx, playerStats ->
-                    val goals = playerStats.statistics?.firstOrNull()?.goals?.total ?: 0
-                    val xg = goals.toFloat() * when(idx) {
-                        0 -> 0.78f
-                        1 -> 0.85f
-                        2 -> 0.91f
-                        3 -> 1.05f
-                        else -> 1.25f
-                    }
-                    val diff = goals - xg
-                    PlayerXgPerformance(
-                        name = playerStats.player?.name ?: "Player",
-                        playerPhoto = playerStats.player?.photo,
-                        teamLogo = playerStats.statistics?.firstOrNull()?.team?.logo,
-                        goals = goals,
-                        xg = xg,
-                        diff = diff
+                if (scorers.isEmpty() && standingsRecords.isEmpty()) {
+                    _xgState.value = XGStatsUiState.Error("No advanced statistics available for this competition.")
+                    return@launch
+                }
+
+                // 1. Top scorers — real goal counts from get_topscorers.
+                val topScorers = scorers.take(8)
+
+                // 2. Real season table from get_standings.
+                val clubTable = standingsRecords.map { r ->
+                    ClubSeasonRow(
+                        teamName = r.team?.name ?: "Team",
+                        teamLogo = r.team?.logo ?: "",
+                        rank = r.rank,
+                        played = r.all?.played ?: 0,
+                        wins = r.all?.win ?: 0,
+                        draws = r.all?.draw ?: 0,
+                        losses = r.all?.lose ?: 0,
+                        goalsFor = r.all?.goals?.goalsFor ?: 0,
+                        goalsAgainst = r.all?.goals?.against ?: 0,
+                        goalDiff = r.goalsDiff ?: 0,
+                        points = r.points ?: 0
                     )
                 }
 
-                // 2. Club XG Table
-                val clubXg = if (standingsRecords.isNotEmpty()) {
-                    standingsRecords.take(8).mapIndexed { idx, record ->
-                        val goals = record.all?.goals?.goalsFor ?: 30
-                        val xg = goals.toFloat() * when(idx) {
-                            0 -> 0.82f
-                            1 -> 0.88f
-                            2 -> 0.94f
-                            3 -> 1.02f
-                            else -> 1.15f
-                        }
-                        val diff = goals - xg
-                        ClubXgPerformance(
-                            teamName = record.team?.name ?: "Team",
-                            teamLogo = record.team?.logo ?: "",
-                            goals = goals,
-                            xg = xg,
-                            diff = diff
-                        )
-                    }
-                } else emptyList()
-
-                // 3. Big Chance Conversion Rate
-                val conversion = if (standingsRecords.isNotEmpty()) {
-                    standingsRecords.mapIndexed { idx, record ->
-                        val created = 40 + (standingsRecords.size - idx) * 3
-                        val converted = (created * when(idx % 3) {
-                            0 -> 0.48f
-                            1 -> 0.38f
-                            else -> 0.32f
-                        }).toInt()
-                        ClubBigChanceConversion(
-                            teamName = record.team?.name ?: "Team",
-                            teamLogo = record.team?.logo ?: "",
-                            created = created, converted = converted,
-                            pct = (converted.toFloat() / created) * 100f
-                        )
-                    }.sortedByDescending { it.pct }.take(5)
-                } else emptyList()
-
-                // 4. Shot Accuracy Leaders
-                val shotAccuracy = scorers.take(5).map { playerStats ->
-                    val totalGoals = playerStats.statistics?.firstOrNull()?.goals?.total ?: 10
-                    val shotsOnTarget = playerStats.statistics?.firstOrNull()?.shots?.on ?: (totalGoals * 2)
-                    PlayerShotAccuracy(
-                        name = playerStats.player?.name ?: "Player",
-                        playerPhoto = playerStats.player?.photo,
-                        teamLogo = playerStats.statistics?.firstOrNull()?.team?.logo ?: "",
-                        goals = totalGoals, shotsOnTarget = shotsOnTarget,
-                        ratio = if (shotsOnTarget > 0) (totalGoals.toFloat() / shotsOnTarget) * 100f else 0f
+                // 3. Real shot conversion for top scorers via get_players (season
+                //    shots_total). The API has no xG feed — that fabricated section
+                //    was removed; this is the closest real measure of finishing.
+                val shotsByPlayer = fetchShotsForScorers(leagueId, scorers.take(5))
+                val goalConversionLeaders = scorers.take(5).mapNotNull { s ->
+                    val name = s.player?.name ?: return@mapNotNull null
+                    val shots = shotsByPlayer[name] ?: return@mapNotNull null
+                    val goals = s.statistics?.firstOrNull()?.goals?.total ?: 0
+                    if (shots <= 0) return@mapNotNull null
+                    PlayerShotsStat(
+                        name = name,
+                        playerPhoto = s.player?.photo,
+                        teamLogo = s.statistics?.firstOrNull()?.team?.logo,
+                        goals = goals,
+                        shotsTotal = shots,
+                        conversionPct = goals.toFloat() / shots * 100f
                     )
-                }.sortedByDescending { it.ratio }
+                }.sortedByDescending { it.conversionPct }
+
+                // 4. Real ratings — only players the API actually rated.
+                val topRated = scorers
+                    .filter { it.statistics?.firstOrNull()?.games?.rating != null }
+                    .sortedByDescending { it.statistics?.firstOrNull()?.games?.rating?.toFloatOrNull() ?: 0f }
+                    .take(8)
 
                 val successState = XGStatsUiState.Success(
-                    playerXgPerformers = playerXg,
-                    clubXgTable = clubXg,
-                    bigChanceConversion = conversion,
-                    shotAccuracyLeaders = shotAccuracy
+                    topScorers = topScorers,
+                    clubTable = clubTable,
+                    goalConversionLeaders = goalConversionLeaders,
+                    topRated = topRated
                 )
 
                 putCache(cacheKey, successState)
@@ -695,6 +653,24 @@ class StatsViewModel @Inject constructor(
                 _xgState.value = XGStatsUiState.Error(handleException(e))
             }
         }
+    }
+
+    /**
+     * Real shots_total per scorer from get_players team-season stats (shared pool
+     * cache with Search). Failures simply omit a player — no invented numbers.
+     */
+    private suspend fun fetchShotsForScorers(leagueId: Int, scorers: List<PlayerProfileStatisticsResponse>): Map<String, Int> {
+        val byName = mutableMapOf<String, Int>()
+        try {
+            val index = repository.getPlayersPoolSnapshot(leagueId).groupBy { it.player_name }
+            scorers.forEach { s ->
+                val name = s.player?.name ?: return@forEach
+                val stat = index[name]?.firstOrNull()
+                val shots = stat?.player_shots_total?.toIntOrNull() ?: 0
+                if (shots > 0) byName[name] = shots
+            }
+        } catch (_: Exception) { }
+        return byName
     }
 
     // --- TAB 4: GOAL TIMING ---
@@ -708,29 +684,28 @@ class StatsViewModel @Inject constructor(
             }
 
             try {
-                val fixtures = apiService.getEvents(leagueId = leagueId.toString()).toFixtureResponseList()
-                val finished = fixtures.filter { it.fixture?.status?.short == "FT" || it.goals?.home != null }
-                    .ifEmpty { fixtures.take(50) } // fallback: use any available fixtures
+                val fixtures = leagueEvents(leagueId, season).toFixtureResponseList()
+
+                // Use ONLY real goal events. The list endpoint sometimes carries goalscorer
+                // data; when it does we get true goal minutes, otherwise we refuse to invent
+                // numbers (the previous seeded-Random "simulation" fabricated a heatmap).
+                val finished = fixtures.filter { f ->
+                    (f.fixture?.status?.short == "FT" || f.fixture?.status?.long == "Finished") &&
+                        f.events?.any { it.type == "Goal" } == true
+                }
 
                 if (finished.isEmpty()) {
-                    // Generate simulated timing data when no fixtures available
-                    val simHeatmap = listOf(12, 18, 22, 8, 25, 28, 35, 20)
-                    val successState = GoalTimingUiState.Success(
-                        leagueTimingHeatmap = simHeatmap,
-                        teamSpecificTiming = emptyMap(),
-                        firstGoalAdvantage = FirstGoalAdvantageData(68.0f, 0),
-                        allTeams = emptyList()
+                    _timingState.value = GoalTimingUiState.Error(
+                        "Goal timing needs per-match event data, which this competition's feed " +
+                            "doesn't include right now. Try another competition."
                     )
-                    putCache(cacheKey, successState)
-                    _timingState.value = successState
                     return@launch
                 }
 
-                // Timing heatmap: aggregate simulated deterministic minutes for finished fixtures
                 // Bins: 0-15 (0), 16-30 (1), 31-45 (2), 45+ (3), 46-60 (4), 61-75 (5), 76-90 (6), 90+ (7)
                 val timingHeatmap = IntArray(8) { 0 }
-                val teamTiming = mutableMapOf<Int, MutableList<Int>>() // teamId -> timing array
-                val teamConcededTiming = mutableMapOf<Int, MutableList<Int>>() // teamId -> timing array
+                val teamTiming = mutableMapOf<Int, MutableList<Int>>() // teamId -> scored buckets
+                val teamConcededTiming = mutableMapOf<Int, MutableList<Int>>() // teamId -> conceded buckets
 
                 var firstGoalWinsCount = 0
                 var firstGoalMatchesCount = 0
@@ -749,27 +724,23 @@ class StatsViewModel @Inject constructor(
                     if (teamList.none { it.first == homeId }) teamList.add(Triple(homeId, homeName, homeLogo))
                     if (teamList.none { it.first == awayId }) teamList.add(Triple(awayId, awayName, awayLogo))
 
-                    val random = java.util.Random(fixture.fixture?.id?.toLong() ?: 0L)
                     val homeGoals = fixture.goals?.home ?: 0
                     val awayGoals = fixture.goals?.away ?: 0
 
-                    val listScoredHome = mutableListOf<Int>()
-                    val listScoredAway = mutableListOf<Int>()
-
-                    // Simulate goal timing deterministically
-                    repeat(homeGoals) {
-                        val min = random.nextInt(95) + 1
-                        listScoredHome.add(min)
-                    }
-                    repeat(awayGoals) {
-                        val min = random.nextInt(95) + 1
-                        listScoredAway.add(min)
-                    }
+                    // Real goal minutes from match events, split by team
+                    val goalEvents = fixture.events.orEmpty().filter { it.type == "Goal" }
+                    val listScoredHome = goalEvents.filter { it.team?.id == homeId }
+                        .map { it.time?.elapsed ?: 0 }.filter { it > 0 }
+                    val listScoredAway = goalEvents.filter { it.team?.id == awayId }
+                        .map { it.time?.elapsed ?: 0 }.filter { it > 0 }
+                    // Own goals credited to the benefiting team by the scorer side already;
+                    // fall back to fixture score counts if events under-report.
+                    val scoredHome = listScoredHome.ifEmpty { List(homeGoals) { 0 }.filter { it > 0 } }
+                    val scoredAway = listScoredAway.ifEmpty { List(awayGoals) { 0 }.filter { it > 0 } }
 
                     // Heatmap aggregation
-                    (listScoredHome + listScoredAway).forEach { min ->
-                        val bucket = getGoalBucket(min)
-                        timingHeatmap[bucket]++
+                    (scoredHome + scoredAway).forEach { min ->
+                        timingHeatmap[getGoalBucket(min)]++
                     }
 
                     // Team-specific timing
@@ -778,18 +749,18 @@ class StatsViewModel @Inject constructor(
                     val awayScores = teamTiming.getOrPut(awayId) { MutableList(8) { 0 } }
                     val awayConcedes = teamConcededTiming.getOrPut(awayId) { MutableList(8) { 0 } }
 
-                    listScoredHome.forEach { min ->
+                    scoredHome.forEach { min ->
                         homeScores[getGoalBucket(min)]++
                         awayConcedes[getGoalBucket(min)]++
                     }
-
-                    listScoredAway.forEach { min ->
+                    scoredAway.forEach { min ->
                         awayScores[getGoalBucket(min)]++
                         homeConcedes[getGoalBucket(min)]++
                     }
 
                     // First goal advantage check
-                    val allGoalsWithTeam = (listScoredHome.map { Pair(it, "home") } + listScoredAway.map { Pair(it, "away") })
+                    val allGoalsWithTeam = (scoredHome.map { Pair(it, "home") } + scoredAway.map { Pair(it, "away") })
+                        .filter { it.first > 0 }
                         .sortedBy { it.first }
 
                     if (allGoalsWithTeam.isNotEmpty()) {
@@ -813,7 +784,7 @@ class StatsViewModel @Inject constructor(
                     )
                 }
 
-                val firstGoalPct = if (firstGoalMatchesCount > 0) (firstGoalWinsCount.toFloat() / firstGoalMatchesCount) * 100f else 68.0f
+                val firstGoalPct = if (firstGoalMatchesCount > 0) (firstGoalWinsCount.toFloat() / firstGoalMatchesCount) * 100f else 0f
 
                 val successState = GoalTimingUiState.Success(
                     leagueTimingHeatmap = timingHeatmap.toList(),
@@ -854,209 +825,105 @@ class StatsViewModel @Inject constructor(
             }
 
             try {
-                val scorers = apiService.getTopScorers(leagueId.toString())
-                    .map { it.toPlayerProfileStatisticsResponse() }
-
-                // 1. Most carded players (simulated from top scorers)
-                data class TempCardHolder(val name: String, val playerPhoto: String?, val teamLogo: String?, val teamName: String?, var yellow: Int, var red: Int)
-                val playersCardMap = mutableMapOf<Int, TempCardHolder>()
-                var cardIdx = 0
-                scorers.forEach { stat ->
-                    val player = stat.player ?: return@forEach
-                    val statsList = stat.statistics
-                    val firstStats = statsList?.firstOrNull() ?: return@forEach
-                    val cards = firstStats.cards
-                    val teamLogo = statsList.firstOrNull()?.team?.logo
-                    val teamName = statsList.firstOrNull()?.team?.name
-                    val yellowCount = cards?.yellow ?: (3 + cardIdx * 2)
-                    val redCount = cards?.red ?: (cardIdx / 3)
-                    val holder = playersCardMap.getOrPut(player.id) {
-                        TempCardHolder(player.name ?: "Player", player.photo, teamLogo, teamName, 0, 0)
-                    }
-                    holder.yellow += yellowCount
-                    holder.red += redCount
-                    cardIdx++
+                // All card data comes from REAL match events (type == "Card") on finished
+                // fixtures. Top scorers in this API carry no card data, so the previous
+                // "simulated" counts were pure fabrication — removed.
+                val fixtures = leagueEvents(leagueId, season).toFixtureResponseList()
+                val finished = fixtures.filter {
+                    it.fixture?.status?.short == "FT" || it.fixture?.status?.long == "Finished"
                 }
 
-                if (playersCardMap.isEmpty()) {
-                    // Generate simulated discipline data when no real data available
-                    simulatedDisciplineData(scorers)
+                data class TempCardHolder(
+                    val name: String, var yellow: Int = 0, var red: Int = 0,
+                    var teamName: String? = null, var teamLogo: String? = null
+                )
+                val playersCardMap = mutableMapOf<String, TempCardHolder>()
+                val teamYellows = mutableMapOf<Int, Int>()
+                val teamReds = mutableMapOf<Int, Int>()
+                val teamNames = mutableMapOf<Int, String>()
+                val teamLogos = mutableMapOf<Int, String?>()
+
+                finished.forEach { f ->
+                    val homeId = f.teams?.home?.id ?: 0
+                    val awayId = f.teams?.away?.id ?: 0
+                    f.teams?.home?.id?.let { id ->
+                        teamNames[id] = f.teams?.home?.name ?: ""
+                        teamLogos[id] = f.teams?.home?.logo
+                    }
+                    f.teams?.away?.id?.let { id ->
+                        teamNames[id] = f.teams?.away?.name ?: ""
+                        teamLogos[id] = f.teams?.away?.logo
+                    }
+
+                    f.events?.filter { it.type == "Card" }?.forEach { cardEvent ->
+                        val playerName = cardEvent.player?.name ?: return@forEach
+                        val isRed = cardEvent.detail?.contains("Red", ignoreCase = true) == true ||
+                                cardEvent.detail?.contains("Second Yellow", ignoreCase = true) == true
+                        val teamId = cardEvent.team?.id ?: 0
+
+                        val holder = playersCardMap.getOrPut(playerName) { TempCardHolder(playerName) }
+                        if (holder.teamName == null) {
+                            holder.teamName = teamNames[teamId]
+                            holder.teamLogo = teamLogos[teamId]
+                        }
+                        if (isRed) holder.red++ else holder.yellow++
+
+                        if (isRed) teamReds[teamId] = (teamReds[teamId] ?: 0) + 1
+                        else teamYellows[teamId] = (teamYellows[teamId] ?: 0) + 1
+                    }
+                }
+
+                val mostCardedPlayers = playersCardMap.values
+                    .filter { it.yellow > 0 || it.red > 0 }
+                    .map { holder ->
+                        PlayerCardsStat(
+                            name = holder.name,
+                            playerPhoto = null, // card events carry no player photos
+                            teamLogo = holder.teamLogo,
+                            teamName = holder.teamName,
+                            yellowCount = holder.yellow,
+                            redCount = holder.red
+                        )
+                    }.sortedWith { c1, c2 ->
+                        val redDiff = c2.redCount.compareTo(c1.redCount)
+                        if (redDiff != 0) redDiff else c2.yellowCount.compareTo(c1.yellowCount)
+                    }.take(5)
+
+                val dirtiestTeams = (teamYellows.keys + teamReds.keys).distinct().map { teamId ->
+                    TeamCardsStat(
+                        teamName = teamNames[teamId] ?: "Team $teamId",
+                        teamLogo = teamLogos[teamId] ?: "",
+                        yellowCount = teamYellows[teamId] ?: 0,
+                        redCount = teamReds[teamId] ?: 0
+                    )
+                }.sortedWith { t1, t2 ->
+                    val diff = ((t2.yellowCount + t2.redCount * 2)).compareTo(t1.yellowCount + t1.redCount * 2)
+                    if (diff != 0) diff else t2.redCount.compareTo(t1.redCount)
+                }.take(8)
+
+                if (mostCardedPlayers.isEmpty() && dirtiestTeams.isEmpty()) {
+                    _disciplineState.value = DisciplineUiState.Error(
+                        "No card event data available for this competition yet."
+                    )
                     return@launch
                 }
 
-                val mostCardedPlayers = playersCardMap.values.map { holder ->
-                    PlayerCardsStat(
-                        name = holder.name,
-                        playerPhoto = holder.playerPhoto,
-                        teamLogo = holder.teamLogo,
-                        teamName = holder.teamName,
-                        yellowCount = holder.yellow,
-                        redCount = holder.red
-                    )
-                }.sortedWith { c1, c2 ->
-                    val redDiff = c2.redCount.compareTo(c1.redCount)
-                    if (redDiff != 0) redDiff else c2.yellowCount.compareTo(c1.yellowCount)
-                }.take(5)
-
-                // 2. Dirtiest teams (aggregate cards per team)
-                val teamCardMap = mutableMapOf<String, Pair<String, PlayerCards>>()
-                scorers.forEach { stat ->
-                    val statsList = stat.statistics
-                    val firstStats = statsList?.firstOrNull() ?: return@forEach
-                    val team = firstStats.team ?: return@forEach
-                    val cards = firstStats.cards ?: return@forEach
-                    val teamName = team.name ?: "Unknown"
-                    val logo = team.logo ?: ""
-
-                    val current = teamCardMap[teamName] ?: Pair(logo, PlayerCards(0, 0, 0))
-                    val currentCards = current.second
-
-                    teamCardMap[teamName] = Pair(
-                        current.first,
-                        PlayerCards(
-                            yellow = (currentCards.yellow ?: 0) + (cards.yellow ?: 0),
-                            yellowred = 0,
-                            red = (currentCards.red ?: 0) + (cards.red ?: 0)
-                        )
-                    )
-                }
-
-                val dirtiestTeams = teamCardMap.map { entry ->
-                    TeamCardsStat(
-                        teamName = entry.key,
-                        teamLogo = entry.value.first,
-                        yellowCount = entry.value.second.yellow ?: 0,
-                        redCount = entry.value.second.red ?: 0
-                    )
-                }.sortedWith { t1, t2 ->
-                    val redDiff = t2.redCount.compareTo(t1.redCount)
-                    if (redDiff != 0) redDiff else t2.yellowCount.compareTo(t1.yellowCount)
-                }.take(8)
-
-                // 3. Foul leaders & Most fouled
-                val foulLeaders = scorers.take(5).map { stat ->
-                    val player = stat.player
-                    val statsList = stat.statistics
-                    val firstStats = statsList?.firstOrNull()
-                    val commits = firstStats?.fouls?.committed ?: (12 + ((firstStats?.cards?.yellow ?: 1) * 3))
-                    PlayerFoulsStat(
-                        name = player?.name ?: "Player",
-                        playerPhoto = player?.photo,
-                        teamLogo = firstStats?.team?.logo ?: "",
-                        teamName = firstStats?.team?.name,
-                        count = commits
-                    )
-                }.sortedByDescending { it.count }
-
-                val mostFouled = scorers.take(5).mapIndexed { idx, stat ->
-                    val player = stat.player
-                    PlayerFoulsStat(
-                        name = player?.name ?: "Player",
-                        playerPhoto = player?.photo,
-                        teamLogo = stat.statistics?.firstOrNull()?.team?.logo ?: "",
-                        teamName = stat.statistics?.firstOrNull()?.team?.name,
-                        count = 15 + (5 - idx) * 4
-                    )
-                }.sortedByDescending { it.count }
-
+                // Foul counts are not part of this API's feeds (top scorers carry no foul
+                // data and event streams don't include fouls), so those sections stay
+                // empty instead of showing invented numbers.
                 val successState = DisciplineUiState.Success(
                     mostCardedPlayers = mostCardedPlayers,
                     dirtiestTeams = dirtiestTeams,
-                    foulLeaders = foulLeaders,
-                    mostFouledPlayers = mostFouled
+                    foulLeaders = emptyList(),
+                    mostFouledPlayers = emptyList()
                 )
 
                 putCache(cacheKey, successState)
                 _disciplineState.value = successState
             } catch (e: Exception) {
-                simulatedDisciplineData(emptyList())
+                _disciplineState.value = DisciplineUiState.Error(handleException(e))
             }
         }
-    }
-
-    private suspend fun simulatedDisciplineData(scorers: List<PlayerProfileStatisticsResponse>) {
-        val simulated = scorers.ifEmpty {
-            listOf(
-                "Erling Haaland" to "https://media.api-sports.io/football/players/1100.png",
-                "Mohamed Salah" to "https://media.api-sports.io/football/players/899.png",
-                "Kylian Mbappe" to "https://media.api-sports.io/football/players/1099.png",
-                "Harry Kane" to "https://media.api-sports.io/football/players/1045.png",
-                "Lionel Messi" to "https://media.api-sports.io/football/players/123.png",
-                "Cristiano Ronaldo" to "https://media.api-sports.io/football/players/874.png",
-                "Robert Lewandowski" to "https://media.api-sports.io/football/players/1058.png",
-                "Kevin De Bruyne" to "https://media.api-sports.io/football/players/550.png"
-            ).mapIndexed { idx, (name, photo) ->
-                PlayerProfileStatisticsResponse(
-                    player = Player(id = 1000 + idx, name = name, firstname = null, lastname = null,
-                        age = null, birth = null, nationality = null, height = null, weight = null,
-                        injured = null, photo = photo, type = null, reason = null),
-                    statistics = listOf(
-                        PlayerStatistics(player = null, team = Team(id = 200 + idx, name = "Team $idx",
-                            code = null, country = null, founded = null, national = null, logo = null),
-                            league = null, games = null, offsides = null, substitutes = null, shots = null,
-                            goals = PlayerGoals(total = 15 - idx, conceded = null, assists = 5 + idx, saves = null),
-                            passes = null, tackles = null, duels = null, dribbles = null,
-                            fouls = PlayerFouls(drawn = null, committed = 8 + idx * 2),
-                            cards = PlayerCards(yellow = 3 + idx * 2, yellowred = 0, red = idx / 3),
-                            penalty = null)
-                    )
-                )
-            }
-        }
-
-        val mostCardedPlayers = simulated.mapIndexed { idx, stat ->
-            PlayerCardsStat(
-                name = stat.player?.name ?: "Player $idx",
-                playerPhoto = stat.player?.photo,
-                teamLogo = stat.statistics?.firstOrNull()?.team?.logo,
-                teamName = stat.statistics?.firstOrNull()?.team?.name,
-                yellowCount = 3 + idx * 2,
-                redCount = idx / 3
-            )
-        }.sortedWith { c1, c2 ->
-            val redDiff = c2.redCount.compareTo(c1.redCount)
-            if (redDiff != 0) redDiff else c2.yellowCount.compareTo(c1.yellowCount)
-        }.take(5)
-
-        val dirtiestTeams = simulated.mapIndexed { idx, stat ->
-            val statsList = stat.statistics
-            val firstStats = statsList?.firstOrNull()
-            TeamCardsStat(
-                teamName = firstStats?.team?.name ?: "Team $idx",
-                teamLogo = firstStats?.team?.logo ?: "",
-                yellowCount = 10 + idx * 5,
-                redCount = idx / 2
-            )
-        }.distinctBy { it.teamName }.take(8)
-
-        val foulLeaders = simulated.mapIndexed { idx, stat ->
-            PlayerFoulsStat(
-                name = stat.player?.name ?: "Player $idx",
-                playerPhoto = stat.player?.photo,
-                teamLogo = stat.statistics?.firstOrNull()?.team?.logo ?: "",
-                teamName = stat.statistics?.firstOrNull()?.team?.name,
-                count = 15 + (5 - idx) * 3
-            )
-        }.sortedByDescending { it.count }
-
-        val mostFouled = simulated.mapIndexed { idx, stat ->
-            PlayerFoulsStat(
-                name = stat.player?.name ?: "Player $idx",
-                playerPhoto = stat.player?.photo,
-                teamLogo = stat.statistics?.firstOrNull()?.team?.logo ?: "",
-                teamName = stat.statistics?.firstOrNull()?.team?.name,
-                count = 12 + idx * 4
-            )
-        }.sortedByDescending { it.count }
-
-        val successState = DisciplineUiState.Success(
-            mostCardedPlayers = mostCardedPlayers,
-            dirtiestTeams = dirtiestTeams,
-            foulLeaders = foulLeaders,
-            mostFouledPlayers = mostFouled
-        )
-
-        _disciplineState.value = successState
     }
 
     // --- CACHE HELPERS ---

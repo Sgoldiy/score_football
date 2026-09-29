@@ -72,3 +72,29 @@ Captured payloads live in `app/src/test/resources/uitslagen/`:
 `feed_livenow_1.json`, `feed_livenow_2.json`, `feed_matches_aggregated.json`, `fixtures_v2_full.json` (empty-block case), `fixtures_v2_small.json`, `matches_detail.json`, `team_gs.json`, `players.json`, `search_v3.json`, plus `probe.py` (the polite capture script — rerunnable for fresh evidence).
 
 Decoder tests: `app/src/test/java/com/footballpluse/footballapp/data/remote/uitslagen/UitslagenStatusTest.kt` — pin the exact evidence rows above (codes 3/5/14/15/17/43/57 with their kickoffs) so a future capture that contradicts them shows up as a red test.
+Mapper tests: `UitslagenMapperTest.kt` parses the captured payloads and verifies the legacy-model mapping end to end.
+
+---
+
+## Integration status (mission-uitslagen)
+
+The app's single data source is now `UitslagenAdapter` (`data/remote/uitslagen/`), which implements the legacy `ApiService` interface over this upstream. Hilt wiring is in `di/NetworkModule.kt` (global `lang`/`version` params + `User-Agent: FootballPulse/1.0` via interceptor; 15 s timeouts; `ApiCacheInterceptor` still serves stale responses on failure). The FootballCharts layer, its Bearer auth and the apiv3 badge-CDN fallback were deleted.
+
+Coverage per legacy call:
+
+| ApiService method | Source |
+|---|---|
+| `getLivescore` | `feed_livenow.json` — real scores/status/minute |
+| `getEvents` | league block fixtures / team-page fixtures / day feed (window-filtered) |
+| `getEventById` | `matches/{id}.json` — incl. goals, cards, venue, formations |
+| `getStandings` | league block `table` (real positions, points, form) |
+| `getTopScorers` | league block `topscorers` (empty in capture; lenient) |
+| `getLineups` / `getMatchStatistics` | match detail `lineups` / `stats` |
+| `getHeadToHead` | team-page fixtures + name-matched mutual meetings |
+| `getTeams` / `getPlayers` | league block / `team_gs` / `players` / `search_v3` |
+| `getCountries` / `getLeagues` | discovered live from the day feed |
+| `getOdds` / `getPredictions` | empty — no upstream equivalent; UI removed |
+
+Removed features (no upstream data): season projection, luck/xPts, model track-record tab, club advanced stats (xG/possession), odds, FC goal-timing bands (Stats tab bands are zeros).
+
+League-key map: `UitslagenLeagues.BY_ID` — `EnglandPremierLeague`, `ItalySerieA`, `GermanyBundesliga`, `FranceLigue1`, `SwitzerlandSuperLeague` were each verified live (200 OK with full payloads); the remaining entries follow the capture-proven `CountryNameLeagueName` construction and are covered by runtime discovery: every feed row carries `leagueid` + `leagueKey`, and seen pairs self-register in `UitslagenLeagues`.

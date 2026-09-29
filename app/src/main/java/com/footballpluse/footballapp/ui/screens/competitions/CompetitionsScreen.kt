@@ -32,34 +32,34 @@ private data class CompetitionCard(
     val accentColor: Color
 )
 
+private val currentSeasonLabel =
+    com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear().let { y ->
+        "$y/" + ((y + 1) % 100).toString().padStart(2, '0')
+    }
+
+/* FootballCharts covers domestic leagues only - the UCL and World Cup cards
+ * from the previous provider were removed because the source cannot serve
+ * them (ids 3/28 now belong to different FC leagues). */
 private val COMPETITIONS = listOf(
     CompetitionCard(
-        "pl", 152, "Premier League", "2025/26", "\uD83C\uDFC6",
+        "pl", 152, "Premier League", currentSeasonLabel, "\uD83C\uDFC6",
         Color(0xFF4C1D95), Color(0xFFA78BFA)
     ),
     CompetitionCard(
-        "ucl", 3, "Champions League", "2025/26", "\uD83C\uDFC6",
-        Color(0xFF1E3A8A), Color(0xFF60A5FA)
-    ),
-    CompetitionCard(
-        "laliga", 302, "La Liga", "2025/26", "\uD83C\uDFC6",
+        "laliga", 302, "La Liga", currentSeasonLabel, "\uD83C\uDFC6",
         Color(0xFF7F1D1D), Color(0xFFF87171)
     ),
     CompetitionCard(
-        "bundesliga", 175, "Bundesliga", "2025/26", "\uD83C\uDFC6",
+        "bundesliga", 175, "Bundesliga", currentSeasonLabel, "\uD83C\uDFC6",
         Color(0xFF1C1C1E), Color(0xFFEF4444)
     ),
     CompetitionCard(
-        "seriea", 207, "Serie A", "2025/26", "\uD83C\uDFC6",
+        "seriea", 207, "Serie A", currentSeasonLabel, "\uD83C\uDFC6",
         Color(0xFF0F172A), Color(0xFF3B82F6)
     ),
     CompetitionCard(
-        "ligue1", 168, "Ligue 1", "2025/26", "\uD83C\uDFC6",
+        "ligue1", 168, "Ligue 1", currentSeasonLabel, "\uD83C\uDFC6",
         Color(0xFF134E4A), Color(0xFF2DD4BF)
-    ),
-    CompetitionCard(
-        "worldcup", 28, "FIFA World Cup", "2026", "\uD83C\uDF0D",
-        Color(0xFF451A03), Color(0xFFF59E0B)
     )
 )
 
@@ -97,7 +97,12 @@ fun CompetitionsScreen(
             items(COMPETITIONS, key = { it.id }) { comp ->
                 CompetitionCardItem(
                     card = comp,
-                    onClick = { onCompetitionClick(comp.leagueId, if (comp.id == "worldcup") 2026 else 2025) }
+                    onClick = {
+                        onCompetitionClick(
+                            comp.leagueId,
+                            com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()
+                        )
+                    }
                 )
             }
         }
