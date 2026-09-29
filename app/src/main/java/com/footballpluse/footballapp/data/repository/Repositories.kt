@@ -22,7 +22,18 @@ class FixturesRepository @Inject constructor(
 
     suspend fun getFixturesByLeagueSeason(leagueId: Int, season: Int): ApiResult<List<FixtureResponse>> {
         return try {
-            val events = apiService.getEvents(leagueId = leagueId.toString())
+            // get_events requires a date window (from/to); use the season span
+            val from = if (season > 0) "$season-07-01" else "2025-07-01"
+            val to = if (season > 0) "${season + 1}-06-30" else "2026-06-30"
+            val events = try {
+                apiService.getEvents(from = from, to = to, leagueId = leagueId.toString())
+            } catch (e: Exception) {
+                apiService.getEvents(
+                    from = com.footballpluse.footballapp.data.repository.FootballRepositoryImpl.daysFromToday(-200),
+                    to = com.footballpluse.footballapp.data.repository.FootballRepositoryImpl.daysFromToday(200),
+                    leagueId = leagueId.toString()
+                )
+            }
             ApiResult.Success(events.toFixtureResponseList())
         } catch (e: Exception) {
             ApiResult.Error(e.message ?: "Unknown error")
@@ -31,7 +42,7 @@ class FixturesRepository @Inject constructor(
 
     suspend fun getFixtureById(fixtureId: Int): ApiResult<FixtureResponse> {
         return try {
-            val events = apiService.getEvents(matchId = fixtureId.toString())
+            val events = apiService.getEventById(matchId = fixtureId.toString())
             val fixture = events.firstOrNull()?.toFixtureResponse()
                 ?: return ApiResult.Error("Fixture not found")
             ApiResult.Success(fixture)
@@ -42,13 +53,18 @@ class FixturesRepository @Inject constructor(
 
     suspend fun getNextFixtureForTeam(teamId: Int, next: Int = 1): ApiResult<FixtureResponse> {
         return try {
-            val allTeams = apiService.getTeams(teamId = teamId.toString())
-            val leagueId = null // Could be derived from team data
-            val events = apiService.getEvents()
+            // get_events requires a date window (from/to). Scan from today forward.
+            val from = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                .format(java.util.Date())
+            val cal = java.util.Calendar.getInstance()
+            cal.add(java.util.Calendar.DAY_OF_YEAR, 60)
+            val to = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                .format(cal.time)
+            val events = apiService.getEvents(from = from, to = to, teamId = teamId.toString())
             val upcoming = events.filter {
                 (it.match_hometeam_id == teamId.toString() || it.match_awayteam_id == teamId.toString()) &&
                     it.match_status == "Not Started"
-            }
+            }.sortedBy { com.footballpluse.footballapp.data.mapper.eventTimestamp(it.match_date, it.match_time) }
             val fixture = upcoming.firstOrNull()
                 ?: return ApiResult.Error("No upcoming fixture found")
             ApiResult.Success(fixture.toFixtureResponse())
@@ -72,7 +88,7 @@ class FixturesRepository @Inject constructor(
         return try {
             val lineupMap = apiService.getLineups(matchId = fixtureId.toString())
             val lineupWrapper = lineupMap.values.firstOrNull()?.lineup
-            val events = apiService.getEvents(matchId = fixtureId.toString())
+            val events = apiService.getEventById(matchId = fixtureId.toString())
             val event = events.firstOrNull()
             val homeId = event?.match_hometeam_id.toIntOr(0)
             val awayId = event?.match_awayteam_id.toIntOr(0)
@@ -87,7 +103,7 @@ class FixturesRepository @Inject constructor(
 
     suspend fun getEvents(fixtureId: Int): ApiResult<List<FixtureEvent>> {
         return try {
-            val events = apiService.getEvents(matchId = fixtureId.toString())
+            val events = apiService.getEventById(matchId = fixtureId.toString())
             val fixture = events.firstOrNull()?.toFixtureResponse()
             ApiResult.Success(fixture?.events ?: emptyList())
         } catch (e: Exception) {
@@ -99,7 +115,7 @@ class FixturesRepository @Inject constructor(
         return try {
             val statsMap = apiService.getMatchStatistics(matchId = fixtureId.toString())
             val stats = statsMap.values.firstOrNull()?.statistics ?: emptyList()
-            val events = apiService.getEvents(matchId = fixtureId.toString())
+            val events = apiService.getEventById(matchId = fixtureId.toString())
             val event = events.firstOrNull()
             val homeId = event?.match_hometeam_id.toIntOr(0)
             val awayId = event?.match_awayteam_id.toIntOr(0)
@@ -136,6 +152,49 @@ class FixturesRepository @Inject constructor(
 class TeamRepository @Inject constructor(private val apiService: ApiService) {
     private val standingsCache = java.util.concurrent.ConcurrentHashMap<String, List<ApiStanding>>()
 
+    // leagueId_season -> (teamId -> last-5 form string like "WWDLW")
+    private val formCache = java.util.concurrent.ConcurrentHashMap<String, Map<Int, String>>()
+
+    /**
+     * The v3 get_standings response has NO form field (verified live), so recent form
+     * must be derived from finished league fixtures. Computed once per league/season
+     * for every team and cached.
+     */
+    private suspend fun computeFormsFromFixtures(leagueId: Int, season: Int): Map<Int, String> {
+        formCache["${leagueId}_$season"]?.let { return it }
+        val forms = try {
+            val events = try {
+                apiService.getEvents(from = "$season-07-01", to = "${season + 1}-06-30", leagueId = leagueId.toString())
+            } catch (e: Exception) {
+                apiService.getEvents(
+                    from = com.footballpluse.footballapp.data.repository.FootballRepositoryImpl.daysFromToday(-200),
+                    to = com.footballpluse.footballapp.data.repository.FootballRepositoryImpl.daysFromToday(200),
+                    leagueId = leagueId.toString()
+                )
+            }
+            val perTeam = mutableMapOf<Int, MutableList<Triple<Long, Int, Int>>>() // teamId -> (timestamp, goalsFor, goalsAgainst)
+            events.filter { it.match_status == "Finished" }.forEach { e ->
+                val hId = e.match_hometeam_id?.toIntOrNull() ?: return@forEach
+                val aId = e.match_awayteam_id?.toIntOrNull() ?: return@forEach
+                val hG = e.match_hometeam_score?.trim()?.toIntOrNull() ?: return@forEach
+                val aG = e.match_awayteam_score?.trim()?.toIntOrNull() ?: return@forEach
+                val ts = com.footballpluse.footballapp.data.mapper.eventTimestamp(e.match_date, e.match_time)
+                perTeam.getOrPut(hId) { mutableListOf() }.add(Triple(ts, hG, aG))
+                perTeam.getOrPut(aId) { mutableListOf() }.add(Triple(ts, aG, hG))
+            }
+            perTeam.mapValues { (_, matches) ->
+                matches.sortedByDescending { it.first }
+                    .take(5)
+                    .map { (ts, gf, ga) -> when { gf > ga -> 'W'; gf == ga -> 'D'; else -> 'L' } }
+                    .joinToString("")
+            }
+        } catch (e: Exception) {
+            emptyMap()
+        }
+        if (forms.isNotEmpty()) formCache["${leagueId}_$season"] = forms
+        return forms
+    }
+
     suspend fun getTeamInfo(teamId: Int): ApiResult<TeamInfoResponse> {
         return try {
             val teams = apiService.getTeams(teamId = teamId.toString())
@@ -144,6 +203,19 @@ class TeamRepository @Inject constructor(private val apiService: ApiService) {
             ApiResult.Success(info)
         } catch (e: Exception) {
             ApiResult.Error(e.message ?: "Unknown error")
+        }
+    }
+
+    /**
+     * Last-5 form for EVERY team in the league with a single fixtures call
+     * (shared with computeFormsFromFixtures' cache). Home screen calls this once per
+     * league instead of once per match row.
+     */
+    suspend fun getTeamFormForLeague(leagueId: Int, season: Int): ApiResult<Map<Int, String>> {
+        return try {
+            ApiResult.Success(computeFormsFromFixtures(leagueId, season))
+        } catch (e: Exception) {
+            ApiResult.Error(e.message ?: "Failed to load form")
         }
     }
 
@@ -161,7 +233,8 @@ class TeamRepository @Inject constructor(private val apiService: ApiService) {
 
                 val stats = TeamStatistics(
                     league = null, team = null,
-                    form = teamStanding.overall_form,
+                    // v3 standings have no form field — derive from recent league fixtures
+                    form = computeFormsFromFixtures(leagueId, season)[teamId] ?: teamStanding.overall_form,
                     fixtures = TeamFixturesStats(
                         played = FixtureCount(null, null, played),
                         wins = FixtureCount(null, null, wins),

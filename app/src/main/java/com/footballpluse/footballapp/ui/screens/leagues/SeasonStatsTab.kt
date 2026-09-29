@@ -85,12 +85,10 @@ fun SeasonAtAGlanceRow(stats: SeasonStatsUiModel) {
     ) {
         GlanceCard("Total Goals", "${stats.totalGoals}")
         GlanceCard("Avg Goals/Game", String.format("%.1f", stats.avgGoalsPerGame))
-        GlanceCard("Common Score", stats.mostCommonScoreline)
-        GlanceCard("Red Cards", "${stats.totalRedCards}")
-        GlanceCard("Yellow Cards", "${stats.totalYellowCards}")
-        if (stats.biggestWin.isNotBlank()) {
-            GlanceCard("Biggest Win", stats.biggestWin)
-        }
+        stats.mostCommonScoreline?.let { GlanceCard("Common Score", it) }
+        stats.totalRedCards?.let { GlanceCard("Red Cards", "$it") }
+        stats.totalYellowCards?.let { GlanceCard("Yellow Cards", "$it") }
+        stats.biggestWin?.let { GlanceCard("Biggest Win", it) }
     }
 }
 

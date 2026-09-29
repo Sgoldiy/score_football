@@ -103,6 +103,14 @@ fun LeagueDetailScreen(
                         standings = state.standings,
                         onTeamClick = onTeamClick
                     )
+                    LeagueTab.PROJECTION -> ProjectionTab(
+                        projection = state.projection,
+                        onTeamClick = onTeamClick
+                    )
+                    LeagueTab.LUCK -> LuckTab(
+                        luck = state.luck,
+                        onTeamClick = onTeamClick
+                    )
                     LeagueTab.FIXTURES -> FixturesTab(
                         fixtures = state.fixtures,
                         onMatchClick = onMatchClick

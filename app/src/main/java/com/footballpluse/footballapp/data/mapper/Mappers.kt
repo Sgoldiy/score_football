@@ -7,12 +7,20 @@ import com.footballpluse.footballapp.domain.model.*
 
 // ─── New API model → Old model mappers ───
 internal fun String?.toIntOr(def: Int = 0): Int = this?.toIntOrNull() ?: def
-private fun mapStatus(status: String?, matchLive: String?): String = when {
+
+/** "45+2" -> 45, "90+4" -> 90, "13" -> 13 */
+internal fun String?.minuteToElapsed(): Int? =
+    this?.trim()?.takeWhile { it.isDigit() }?.toIntOrNull()
+
+/** "45+4" -> 4; returns null when there is no stoppage part */
+internal fun String?.stoppageMinute(): Int? =
+    this?.takeIf { it.contains("+") }?.substringAfter("+")?.takeWhile { it.isDigit() }?.toIntOrNull()
+
+private fun mapStatus(status: String?, matchLive: String?, elapsed: Int? = null): String = when {
     status.isNullOrEmpty() -> "NS"
     status == "Finished" -> "FT"
     status == "Not Started" -> "NS"
-    status == "In Play" || matchLive == "1" -> "LIVE"
-    status == "Halftime" -> "HT"
+    status == "Halftime" || status == "Half Time" -> "HT"
     status == "Extra Time" -> "ET"
     status == "Penalties" -> "P"
     status == "Postponed" -> "PST"
@@ -22,35 +30,89 @@ private fun mapStatus(status: String?, matchLive: String?): String = when {
     status == "After Extra Time" || status == "After ET" -> "AET"
     status == "After Penalties" || status == "After Pen." -> "AP"
     status == "Awarded" -> "AW"
-    status.firstOrNull()?.isDigit() == true -> "LIVE"
+    status == "In Play" -> "LIVE"
+    matchLive == "1" -> "LIVE"
+    // v3 API: in-play matches carry the minute as the status, e.g. "13", "45+2"
+    status.firstOrNull()?.isDigit() == true -> if (elapsed != null) "LIVE" else "NS"
     else -> status.take(3).uppercase()
+}
+
+internal fun isLiveStatus(status: String?, matchLive: String?): Boolean =
+    mapStatus(status, matchLive, status.minuteToElapsed()) == "LIVE" ||
+        (status?.firstOrNull()?.isDigit() == true && status.minuteToElapsed() != null)
+
+/** "2026/2027" -> 2026, "2026" -> 2026 */
+internal fun String?.seasonToStartYear(): Int? =
+    this?.takeWhile { it.isDigit() }?.toIntOrNull()
+
+/**
+ * Match timestamp from v3 API. match_date is "yyyy-MM-dd" and match_time is the
+ * kickoff in Europe/Berlin local time. Combining them gives a correct UTC instant
+ * (CET = UTC+1, CEST = UTC+2, DST handled automatically by the Europe/Berlin zone).
+ */
+internal fun eventTimestamp(date: String?, time: String?): Long {
+    if (date.isNullOrBlank()) return 0L
+    return try {
+        val zone = java.time.ZoneId.of("Europe/Berlin")
+        val d = java.time.LocalDate.parse(date.take(10))
+        val (h, m) = if (time != null && time.contains(":")) {
+            val parts = time.split(":")
+            Pair(parts[0].toIntOrNull() ?: 0, parts[1].toIntOrNull() ?: 0)
+        } else Pair(0, 0)
+        d.atTime(h, m).atZone(zone).toInstant().toEpochMilli() / 1000L
+    } catch (_: Exception) {
+        try {
+            java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                .parse(date.take(10))?.time?.div(1000L) ?: 0L
+        } catch (_: Exception) { 0L }
+    }
 }
 
 fun ApiEvent.toFixtureResponse(): FixtureResponse {
     val fixtureId = match_id.toIntOr(0)
     val homeId = match_hometeam_id.toIntOr(0)
     val awayId = match_awayteam_id.toIntOr(0)
-    val timestamp = try {
-        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
-            .parse(match_date ?: "")?.time ?: 0L
-    } catch (_: Exception) { 0L }
+    val timestamp = eventTimestamp(match_date, match_time)
+    val elapsed = match_status.minuteToElapsed()
+    val statusShort = mapStatus(match_status, match_live, elapsed)
+    val isLive = statusShort == "LIVE"
+
+    fun winner(isHome: Boolean): Boolean? {
+        val hs = match_hometeam_score?.trim()?.toIntOrNull()
+        val as_ = match_awayteam_score?.trim()?.toIntOrNull()
+        if (hs == null || as_ == null) return null
+        val mine = if (isHome) hs else as_
+        val other = if (isHome) as_ else hs
+        return if (mine > other && statusShort == "FT") true
+        else if (other > mine && statusShort == "FT") false
+        else null
+    }
+
     return FixtureResponse(
         fixture = Fixture(
             id = fixtureId, referee = match_referee, timezone = null,
             date = match_date, timestamp = timestamp,
             periods = Periods(null, null),
             venue = Venue(id = null, name = match_stadium, address = null, city = null, capacity = null, surface = null, image = null),
-            status = FixtureStatus(long = match_status, short = mapStatus(match_status, match_live), elapsed = match_status?.takeWhile { it.isDigit() }?.toIntOrNull(), extra = null)
+            status = FixtureStatus(long = match_status ?: "", short = statusShort, elapsed = elapsed, extra = null)
         ),
-        league = League(id = league_id.toIntOr(0), name = league_name, type = null, country = country_name, logo = league_logo, flag = null, season = null, round = match_round, standings = null),
+        league = League(
+            id = league_id.toIntOr(0), name = league_name, type = null, country = country_name,
+            logo = league_logo, flag = null,
+            season = league_year.seasonToStartYear(),
+            round = match_round, standings = null
+        ),
         teams = FixtureTeams(
-            home = FixtureTeam(id = homeId, name = match_hometeam_name, logo = team_home_badge, winner = null, update = null, colors = null),
-            away = FixtureTeam(id = awayId, name = match_awayteam_name, logo = team_away_badge, winner = null, update = null, colors = null)
+            home = FixtureTeam(id = homeId, name = match_hometeam_name, logo = team_home_badge, winner = winner(true), update = null, colors = null),
+            away = FixtureTeam(id = awayId, name = match_awayteam_name, logo = team_away_badge, winner = winner(false), update = null, colors = null)
         ),
-        goals = FixtureGoals(home = match_hometeam_score?.toIntOrNull(), away = match_awayteam_score?.toIntOrNull()),
+        goals = FixtureGoals(home = match_hometeam_score?.trim()?.toIntOrNull(), away = match_awayteam_score?.trim()?.toIntOrNull()),
         score = FixtureScore(
             halftime = FixtureGoals(home = match_hometeam_halftime_score?.toIntOrNull(), away = match_awayteam_halftime_score?.toIntOrNull()),
-            fulltime = FixtureGoals(home = match_hometeam_ft_score?.toIntOrNull() ?: match_hometeam_score?.toIntOrNull(), away = match_awayteam_ft_score?.toIntOrNull() ?: match_awayteam_score?.toIntOrNull()),
+            fulltime = FixtureGoals(
+                home = match_hometeam_ft_score?.toIntOrNull() ?: match_hometeam_score?.trim()?.toIntOrNull(),
+                away = match_awayteam_ft_score?.toIntOrNull() ?: match_awayteam_score?.trim()?.toIntOrNull()
+            ),
             extratime = FixtureGoals(home = match_hometeam_extra_score?.toIntOrNull(), away = match_awayteam_extra_score?.toIntOrNull()),
             penalty = FixtureGoals(home = match_hometeam_penalty_score?.toIntOrNull(), away = match_awayteam_penalty_score?.toIntOrNull())
         ),
@@ -60,8 +122,8 @@ fun ApiEvent.toFixtureResponse(): FixtureResponse {
             (substitutions?.away?.map { it.toFixtureEvent(awayId) } ?: emptyList()),
         lineups = lineup?.let { l ->
             listOfNotNull(
-                l.home?.toFixtureLineup(homeId, match_hometeam_name, team_home_badge),
-                l.away?.toFixtureLineup(awayId, match_awayteam_name, team_away_badge)
+                l.home?.toFixtureLineup(homeId, match_hometeam_name, team_home_badge, match_hometeam_system),
+                l.away?.toFixtureLineup(awayId, match_awayteam_name, team_away_badge, match_awayteam_system)
             )
         } ?: emptyList(),
         statistics = statistics?.map { it.toFixtureTeamStatistics(homeId, awayId) } ?: emptyList(),
@@ -74,7 +136,7 @@ internal fun ApiSubstitution.toFixtureEvent(teamId: Int): FixtureEvent {
     val outPlayer = players.getOrNull(0)?.trim()
     val inPlayer = players.getOrNull(1)?.trim()
     return FixtureEvent(
-        time = EventTime(elapsed = time?.toIntOrNull(), extra = null),
+        time = EventTime(elapsed = time.minuteToElapsed(), extra = null),
         team = EventTeam(id = teamId, name = null, logo = null),
         player = EventPlayer(id = null, name = outPlayer),
         assist = EventPlayer(id = null, name = inPlayer),
@@ -87,29 +149,47 @@ internal fun ApiSubstitution.toFixtureEvent(teamId: Int): FixtureEvent {
 fun List<ApiEvent>.toFixtureResponseList(): List<FixtureResponse> = map { it.toFixtureResponse() }
 
 internal fun ApiGoalScorer.toFixtureEvent(homeId: Int, awayId: Int): FixtureEvent {
-    val scorerName = if (home_scorer != null && home_scorer != score) home_scorer else away_scorer
-    val isHome = home_scorer != null && home_scorer != score
+    val isHome = !home_scorer.isNullOrBlank()
+    val scorerName = if (isHome) home_scorer else away_scorer
+    val assistName = if (isHome) home_assist else away_assist
+    val isPenalty = info?.contains("Penalty", ignoreCase = true) == true ||
+            info?.contains("pen.", ignoreCase = true) == true
+    val isOwnGoal = info?.contains("Own", ignoreCase = true) == true ||
+            info?.contains("o.g.", ignoreCase = true) == true
+    val extra = time.stoppageMinute()
+    val detail = when {
+        isOwnGoal -> "Own Goal"
+        isPenalty -> "Penalty"
+        else -> "Goal"
+    }
     return FixtureEvent(
-        time = EventTime(elapsed = time?.toIntOrNull(), extra = null),
-        team = EventTeam(id = if (isHome) homeId else awayId, name = if (isHome) null else null, logo = null),
+        time = EventTime(
+            elapsed = time.minuteToElapsed() ?: 0,
+            extra = extra
+        ),
+        team = EventTeam(id = if (isHome) homeId else awayId, name = null, logo = null),
         player = EventPlayer(id = null, name = scorerName),
-        assist = null,
+        assist = EventPlayer(id = null, name = assistName),
         type = "Goal",
-        detail = score,
+        detail = detail,
         comments = null
     )
 }
 
 internal fun ApiCard.toFixtureEvent(homeId: Int, awayId: Int): FixtureEvent {
-    val isHome = home_fault != null
+    val isHome = !home_fault.isNullOrBlank()
+    val cardDetail = card ?: "yellow card"
     return FixtureEvent(
-        time = EventTime(elapsed = time?.toIntOrNull(), extra = info_time?.toIntOrNull()),
+        time = EventTime(
+            elapsed = time.minuteToElapsed() ?: 0,
+            extra = info_time.stoppageMinute()
+        ),
         team = EventTeam(id = if (isHome) homeId else awayId, name = null, logo = null),
         player = EventPlayer(id = null, name = if (isHome) home_fault else away_fault),
         assist = null,
-        type = card,
-        detail = info,
-        comments = null
+        type = "Card",
+        detail = cardDetail.replaceFirstChar { it.uppercase() },
+        comments = info
     )
 }
 
@@ -123,20 +203,46 @@ internal fun ApiMatchStatistic.toFixtureTeamStatistics(homeId: Int, awayId: Int)
     )
 }
 
-internal fun ApiTeamLineup.toFixtureLineup(teamId: Int, teamName: String?, badge: String?): FixtureLineup {
+/** Position digit -> tactical grid row. v3 positions: 1=GK, 2-5=DEF, 6-8=MID, 9-11=FWD */
+internal fun lineupPositionToRow(pos: String?): Int = when (pos?.trim()?.toIntOrNull()) {
+    1 -> 1
+    in 2..5 -> 2
+    in 6..8 -> 3
+    in 9..11 -> 4
+    else -> 4
+}
+
+internal fun ApiTeamLineup.toFixtureLineup(teamId: Int, teamName: String?, badge: String?, formation: String? = null): FixtureLineup {
+    val startXI = starting_lineups ?: emptyList()
+    // Count players per row so grid columns are correct ("row:col")
+    val perRow = IntArray(6)
+    val mappedStartXI = startXI.map { it.toLineupPlayerWrapper(perRow) }
     return FixtureLineup(
         team = FixtureTeam(id = teamId, name = teamName, logo = badge, winner = null, update = null, colors = null),
-        coach = coaches?.firstOrNull()?.let { LineupCoach(id = null, name = it.player, photo = null) },
-        formation = null,
-        startXI = starting_lineups?.map { it.toLineupPlayerWrapper() } ?: emptyList(),
-        substitutes = substitutes?.map { it.toLineupPlayerWrapper() } ?: emptyList()
+        coach = coaches?.firstOrNull()?.let { LineupCoach(id = it.player_key?.toIntOrNull(), name = it.player, photo = null) },
+        formation = formation,
+        startXI = mappedStartXI,
+        substitutes = substitutes?.map { it.toLineupPlayerWrapper(null) } ?: emptyList()
     )
 }
 
-private fun ApiLineupPlayer.toLineupPlayerWrapper(): LineupPlayerWrapper {
+private fun ApiLineupPlayer.toLineupPlayerWrapper(rowCounter: IntArray?): LineupPlayerWrapper {
     val num = player_number?.toIntOrNull()
+    val posDigit = player_pos?.trim()?.toIntOrNull()
+    val row = lineupPositionToRow(player_pos)
+    val col = if (rowCounter != null) {
+        rowCounter[row] += 1
+        rowCounter[row]
+    } else 1
+    val grid = if (rowCounter != null) "$row:$col" else null
     return LineupPlayerWrapper(
-        player = LineupPlayer(id = player_key?.toIntOrNull(), name = player, number = num ?: 0, pos = player_pos, grid = null)
+        player = LineupPlayer(
+            id = player_key?.toIntOrNull() ?: 0,
+            name = player ?: "",
+            number = num ?: 0,
+            pos = player_pos ?: "",
+            grid = grid
+        )
     )
 }
 
@@ -147,7 +253,8 @@ fun List<ApiStanding>.toStanding(): Standing {
         league = LeagueStanding(
             id = first?.league_id.toIntOr(0), name = first?.league_name,
             country = first?.country_name, logo = first?.league_logo,
-            flag = null, season = null,
+            flag = null,
+            season = null,
             standings = listOf(records.sortedBy { it.rank })
         )
     )
@@ -162,15 +269,37 @@ internal fun ApiStanding.toStandingRecord(): StandingRecord {
     val goalsFor = overall_GF?.toIntOrNull()
     val goalsAgainst = overall_GA?.toIntOrNull()
     val goalsDiff = if (goalsFor != null && goalsAgainst != null) goalsFor - goalsAgainst else null
+
+    val homeRecord = StandingGoals(
+        played = home_league_payed?.toIntOrNull(),
+        win = home_W?.toIntOrNull(),
+        draw = home_D?.toIntOrNull(),
+        lose = home_L?.toIntOrNull(),
+        goals = StandingGoalsDetail(
+            goalsFor = home_GF?.toIntOrNull(),
+            against = home_GA?.toIntOrNull()
+        )
+    )
+    val awayRecord = StandingGoals(
+        played = away_league_payed?.toIntOrNull(),
+        win = away_W?.toIntOrNull(),
+        draw = away_D?.toIntOrNull(),
+        lose = away_L?.toIntOrNull(),
+        goals = StandingGoalsDetail(
+            goalsFor = away_GF?.toIntOrNull(),
+            against = away_GA?.toIntOrNull()
+        )
+    )
+
     return StandingRecord(
         rank = rank, team = Team(id = team_id.toIntOr(0), name = team_name, code = null, country = country_name,
             founded = null, national = null, logo = team_badge),
         points = standing_PTS?.toIntOrNull(), goalsDiff = goalsDiff, group = standing_group,
-        form = overall_form, status = standing_place_type, description = null,
+        form = overall_form, status = standing_place_type, description = overallPromotion,
         all = StandingGoals(played = played, win = wins, draw = draws, lose = loses,
             goals = StandingGoalsDetail(goalsFor = goalsFor, against = goalsAgainst)),
-        home = StandingGoals(played = null, win = null, draw = null, lose = null, goals = null),
-        away = StandingGoals(played = null, win = null, draw = null, lose = null, goals = null),
+        home = homeRecord,
+        away = awayRecord,
         update = null
     )
 }
@@ -182,12 +311,12 @@ fun ApiLeague.toLeagueInfo(): LeagueInfo {
         logo = league_logo,
         country = country_name,
         flag = country_logo,
-        season = league_season?.takeWhile { it.isDigit() }?.toIntOrNull()
+        season = league_season.seasonToStartYear()
     )
 }
 
 fun ApiLeague.toLeagueResponse(): LeagueResponse {
-    val seasonInt = league_season?.takeWhile { it.isDigit() }?.toIntOrNull() ?: 2025
+    val seasonInt = league_season.seasonToStartYear() ?: java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)
     val isCup = league_name?.contains("cup", ignoreCase = true) == true ||
             league_name?.contains("copa", ignoreCase = true) == true ||
             league_name?.contains("trophy", ignoreCase = true) == true ||
@@ -230,14 +359,25 @@ fun ApiPlayer.toPlayerProfileStatisticsResponse(): PlayerProfileStatisticsRespon
             id = (player_key ?: 0).toInt(), name = player_name, firstname = null, lastname = null,
             age = player_age?.toIntOrNull(),
             birth = player_birthdate?.let { PlayerBirth(date = it, place = null, country = player_country) },
-            nationality = player_country, height = null, weight = null, injured = player_injured?.toIntOrNull()?.let { it == 1 },
+            nationality = player_country, height = null, weight = null,
+            injured = player_injured?.equals("Yes", ignoreCase = true) ?: (player_injured == "1"),
             photo = player_image, type = player_type, reason = null
         ),
         statistics = listOf(
             PlayerStatistics(
-                player = null, team = null, league = null,
-                games = PlayerGames(appearances = player_match_played?.toIntOrNull(), lineups = null,
-                    minutes = null, number = player_number?.toIntOrNull(), position = player_type, rating = player_rating ?: "0.0", captain = player_is_captain?.toIntOrNull()?.let { it == 1 }),
+                player = null,
+                // get_players embeds team_name/team_key on the player object
+                team = Team(id = team_key.toIntOr(0), name = team_name, code = null, country = null, founded = null, national = null, logo = null),
+                league = null,
+                games = PlayerGames(
+                    appearances = player_match_played?.toIntOrNull(),
+                    lineups = null,
+                    minutes = player_minutes?.toIntOrNull(),
+                    number = player_number?.toIntOrNull(),
+                    position = player_type,
+                    rating = player_rating?.takeIf { it.isNotBlank() } ?: "0.0",
+                    captain = player_is_captain?.toIntOrNull()?.let { it > 0 }
+                ),
                 offsides = null,
                 substitutes = PlayerSubstitutes(`in` = null, out = player_substitute_out?.toIntOrNull(), bench = player_substitutes_on_bench?.toIntOrNull()),
                 shots = PlayerShots(total = player_shots_total?.toIntOrNull(), on = null),
@@ -295,8 +435,10 @@ fun ApiOdd.toOddsResponse(): OddsResponse {
 fun ApiPrediction.toPrediction(): Prediction {
     return Prediction(
         predictions = PredictionDetail(
-            winner = null, win_or_draw = null, under_over = null, goals = null, advice = null,
-            percent = PredictionPercent(home = homeWin, draw = draw, away = awayWin)
+            winner = null, win_or_draw = null, under_over = null, goals = null,
+            advice = advice,
+            percent = PredictionPercent(home = homeWin, draw = draw, away = awayWin),
+            extras = listOfNotNull(overLadder, xgSummary, modelNote).joinToString(" \u00b7 ").ifBlank { null }
         ),
         league = null, teams = null, comparison = null, h2h = null
     )
@@ -340,7 +482,7 @@ fun ApiTeam.toTeamDetail(standing: ApiStanding? = null): TeamDetail {
             logo = team_badge,
             country = team_country
         ),
-        venue = venue?.let { 
+        venue = venue?.let {
             VenueInfo(
                 id = null,
                 name = it.venue_name,
@@ -367,17 +509,17 @@ fun PlayerProfileStatisticsResponse.toPlayerDetail(): PlayerDetail {
 
 fun List<ApiCoach>.toCoaches(): List<Coach> = map {
     Coach(
-        id = it.coach_name?.hashCode(), 
-        name = it.coach_name, 
-        firstname = null, 
-        lastname = null, 
+        id = it.coach_name?.hashCode(),
+        name = it.coach_name,
+        firstname = null,
+        lastname = null,
         age = it.coach_age?.toIntOrNull(),
-        birth = null, 
-        nationality = it.coach_country, 
-        height = null, 
-        weight = null, 
-        photo = null, 
-        team = null, 
+        birth = null,
+        nationality = it.coach_country,
+        height = null,
+        weight = null,
+        photo = null,
+        team = null,
         career = null
     )
 }
@@ -417,7 +559,7 @@ fun FixtureResponse.toMatch(): Match {
         ),
         homeScore = goals?.home,
         awayScore = goals?.away,
-        isLive = fixture?.status?.short in listOf("1H", "2H", "HT", "ET", "BT", "P", "INT", "LIVE") || fixture?.status?.elapsed != null
+        isLive = fixture?.status?.short in listOf("1H", "2H", "HT", "ET", "BT", "P", "INT", "LIVE")
     )
 }
 
@@ -439,7 +581,7 @@ fun FixtureResponse.toEntity(date: String): FixtureEntity {
         statusShort = fixture?.status?.short,
         elapsed = fixture?.status?.elapsed,
         timestamp = fixture?.timestamp ?: 0L,
-        isLive = fixture?.status?.short in listOf("1H", "2H", "HT", "ET", "BT", "P", "INT", "LIVE") || fixture?.status?.elapsed != null
+        isLive = fixture?.status?.short in listOf("1H", "2H", "HT", "ET", "BT", "P", "INT", "LIVE")
     )
 }
 
@@ -507,7 +649,8 @@ fun Prediction.toMatchPrediction(): MatchPrediction {
         winnerName = predictions?.winner?.name,
         homePercent = predictions?.percent?.home,
         drawPercent = predictions?.percent?.draw,
-        awayPercent = predictions?.percent?.away
+        awayPercent = predictions?.percent?.away,
+        extras = predictions?.extras
     )
 }
 
@@ -516,7 +659,7 @@ fun OddsResponse.toMatchOdds(): List<MatchOdd> {
         MatchOdd(
             bookmaker = bookmaker.name ?: "",
             label = bookmaker.bets?.firstOrNull()?.name ?: "",
-            values = bookmaker.bets?.firstOrNull()?.values?.map { 
+            values = bookmaker.bets?.firstOrNull()?.values?.map {
                 OddValue(it.value ?: "", it.odd ?: "")
             } ?: emptyList()
         )
@@ -584,7 +727,8 @@ fun PlayerProfileStatisticsResponse.toPlayerInfo(): PlayerInfo {
         nationality = player?.nationality,
         height = player?.height,
         weight = player?.weight,
-        photo = player?.photo
+        photo = player?.photo,
+        type = player?.type
     )
 }
 

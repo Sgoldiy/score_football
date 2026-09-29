@@ -28,6 +28,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -535,6 +536,11 @@ fun PopularTabContent(
     val worldCups = remember(leagues) { leagues.filter { it.leagueType == "Cup" || it.isInternational } }
     val topDomestic = remember(leagues) { leagues.filter { it.id in setOf(152, 302, 207, 175, 168) } }
 
+    if (leagues.isEmpty()) {
+        EmptyLeaguesMessage()
+        return
+    }
+
     LazyColumn(
         contentPadding = PaddingValues(vertical = 12.dp)
     ) {
@@ -637,6 +643,17 @@ fun FlatLeagueList(
     onFavoriteClick: (Int) -> Unit,
     viewModel: LeaguesViewModel
 ) {
+    if (leagues.isEmpty()) {
+        EmptyLeaguesMessage(
+            message = when (tab) {
+                LeagueTab.LIVE -> "No live matches right now"
+                LeagueTab.YOUTH -> "No youth competitions found"
+                LeagueTab.WOMEN -> "No women's competitions found"
+                else -> "No competitions found"
+            }
+        )
+        return
+    }
     LazyColumn(
         contentPadding = PaddingValues(vertical = 12.dp)
     ) {
@@ -652,6 +669,23 @@ fun FlatLeagueList(
                 viewModel = viewModel
             )
         }
+    }
+}
+
+@Composable
+fun EmptyLeaguesMessage(message: String = "No competitions available right now.\nPull to retry from the header, or try again later.") {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 32.dp, vertical = 48.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = message,
+            fontSize = 13.sp,
+            color = Color(0xFF666666),
+            textAlign = TextAlign.Center
+        )
     }
 }
 
@@ -747,10 +781,13 @@ fun LeagueItem(
                     fontWeight = FontWeight.Medium
                 )
             } else {
-                val details = if (league.currentRound != null && league.teamCount != null) {
-                    "${league.currentRound} · ${league.teamCount} teams"
-                } else {
-                    "Loading details..."
+                // Show real info when details haven't loaded (or failed due to API
+                // quota) instead of a perpetual "Loading details..."
+                val details = when {
+                    league.currentRound != null && league.teamCount != null ->
+                        "${league.currentRound} · ${league.teamCount} teams"
+                    league.todayCount > 0 -> "${league.todayCount} matches today"
+                    else -> league.leagueType
                 }
                 Text(
                     text = details,

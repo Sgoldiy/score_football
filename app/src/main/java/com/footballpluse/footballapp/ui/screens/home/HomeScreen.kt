@@ -35,6 +35,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.footballpluse.footballapp.R
+import com.footballpluse.footballapp.data.util.SeasonUtils
 import com.footballpluse.footballapp.domain.model.LeagueInfo
 import com.footballpluse.footballapp.domain.model.Match
 import com.footballpluse.footballapp.ui.components.BroadcastMatchCard
@@ -46,36 +47,29 @@ import com.footballpluse.footballapp.viewmodel.HomeViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
+private val currentSeason = SeasonUtils.currentSeasonStartYear()
+
 private fun leagueBadgeUrl(leagueId: Int, leagueName: String): String =
     "https://apiv3.apifootball.com/badges/logo_leagues/${leagueId}_${leagueName.lowercase().replace(' ', '-')}.png"
 
+/* Skeleton of FC-covered leagues, used as merge fallback until the live list
+ * arrives. Names/countries mirror FcLeagueCatalog exactly so byName matching
+ * works; ids are the legacy ids those leagues are persisted under. */
 private val hardcodedDomesticLeagues = listOf(
-    LeagueInfo(id = 152, name = "Premier League", logo = "https://apiv3.apifootball.com/badges/logo_leagues/152_premier-league.png", country = "England", flag = null, season = 2025),
-    LeagueInfo(id = 302, name = "La Liga", logo = "https://apiv3.apifootball.com/badges/logo_leagues/302_la-liga.png", country = "Spain", flag = null, season = 2025),
-    LeagueInfo(id = 207, name = "Serie A", logo = "https://apiv3.apifootball.com/badges/logo_leagues/207_serie-a.png", country = "Italy", flag = null, season = 2025),
-    LeagueInfo(id = 175, name = "Bundesliga", logo = "https://apiv3.apifootball.com/badges/logo_leagues/175_bundesliga.png", country = "Germany", flag = null, season = 2025),
-    LeagueInfo(id = 168, name = "Ligue 1", logo = "https://apiv3.apifootball.com/badges/logo_leagues/168_ligue-1.png", country = "France", flag = null, season = 2025),
-    LeagueInfo(id = 88, name = "Eredivisie", logo = "https://apiv3.apifootball.com/badges/logo_leagues/88_eredivisie.png", country = "Netherlands", flag = null, season = 2025),
-    LeagueInfo(id = 94, name = "Liga Portugal", logo = "https://apiv3.apifootball.com/badges/logo_leagues/94_liga-portugal.png", country = "Portugal", flag = null, season = 2025),
-    LeagueInfo(id = 203, name = "Super Lig", logo = "https://apiv3.apifootball.com/badges/logo_leagues/203_super-lig.png", country = "Turkey", flag = null, season = 2025),
-    LeagueInfo(id = 144, name = "Jupiler Pro League", logo = "https://apiv3.apifootball.com/badges/logo_leagues/144_jupiler-pro-league.png", country = "Belgium", flag = null, season = 2025),
-    LeagueInfo(id = 187, name = "Liga MX", logo = "https://apiv3.apifootball.com/badges/logo_leagues/187_liga-mx.png", country = "Mexico", flag = null, season = 2025),
-    LeagueInfo(id = 188, name = "Serie A", logo = "https://apiv3.apifootball.com/badges/logo_leagues/188_serie-a.png", country = "Brazil", flag = null, season = 2025),
-    LeagueInfo(id = 169, name = "Championship", logo = "https://apiv3.apifootball.com/badges/logo_leagues/169_championship.png", country = "England", flag = null, season = 2025),
+    LeagueInfo(id = 152, name = "Premier League", logo = "https://apiv3.apifootball.com/badges/logo_leagues/152_premier-league.png", country = "England", flag = null, season = currentSeason),
+    LeagueInfo(id = 302, name = "LaLiga", logo = "https://apiv3.apifootball.com/badges/logo_leagues/302_la-liga.png", country = "Spain", flag = null, season = currentSeason),
+    LeagueInfo(id = 207, name = "Serie A", logo = "https://apiv3.apifootball.com/badges/logo_leagues/207_serie-a.png", country = "Italy", flag = null, season = currentSeason),
+    LeagueInfo(id = 175, name = "Bundesliga", logo = "https://apiv3.apifootball.com/badges/logo_leagues/175_bundesliga.png", country = "Germany", flag = null, season = currentSeason),
+    LeagueInfo(id = 168, name = "Ligue 1", logo = "https://apiv3.apifootball.com/badges/logo_leagues/168_ligue-1.png", country = "France", flag = null, season = currentSeason),
+    LeagueInfo(id = 88, name = "Eredivisie", logo = "https://apiv3.apifootball.com/badges/logo_leagues/88_eredivisie.png", country = "Netherlands", flag = null, season = currentSeason),
+    LeagueInfo(id = 94, name = "Liga Portugal", logo = "https://apiv3.apifootball.com/badges/logo_leagues/94_liga-portugal.png", country = "Portugal", flag = null, season = currentSeason),
+    LeagueInfo(id = 144, name = "Jupiler Pro League", logo = "https://apiv3.apifootball.com/badges/logo_leagues/144_jupiler-pro-league.png", country = "Belgium", flag = null, season = currentSeason),
+    LeagueInfo(id = 203, name = "Saudi Professional League", logo = "https://apiv3.apifootball.com/badges/logo_leagues/203_saudi-professional-league.png", country = "Saudi Arabia", flag = null, season = currentSeason),
+    LeagueInfo(id = 187, name = "Super League", logo = "https://apiv3.apifootball.com/badges/logo_leagues/187_super-league.png", country = "Switzerland", flag = null, season = currentSeason),
 )
 
-private val hardcodedInternationalLeagues = listOf(
-    LeagueInfo(id = 3, name = "Champions League", logo = "https://apiv3.apifootball.com/badges/logo_leagues/3_uefa-champions-league.png", country = "World", flag = null, season = 2025),
-    LeagueInfo(id = 4, name = "Europa League", logo = "https://apiv3.apifootball.com/badges/logo_leagues/4_uefa-europa-league.png", country = "World", flag = null, season = 2025),
-    LeagueInfo(id = 848, name = "Conference League", logo = "https://apiv3.apifootball.com/badges/logo_leagues/848_uefa-conference-league.png", country = "World", flag = null, season = 2025),
-    LeagueInfo(id = 28, name = "FIFA World Cup", logo = "https://apiv3.apifootball.com/badges/logo_leagues/28_world-cup.png", country = "World", flag = null, season = 2026),
-    LeagueInfo(id = 1, name = "UEFA Euro", logo = "https://apiv3.apifootball.com/badges/logo_leagues/1_uefa-european-championship.png", country = "World", flag = null, season = 2028),
-    LeagueInfo(id = 5, name = "Nations League", logo = "https://apiv3.apifootball.com/badges/logo_leagues/5_uefa-nations-league.png", country = "World", flag = null, season = 2025),
-    LeagueInfo(id = 6, name = "Copa America", logo = "https://apiv3.apifootball.com/badges/logo_leagues/6_copa-america.png", country = "World", flag = null, season = 2024),
-    LeagueInfo(id = 15, name = "Club World Cup", logo = "https://apiv3.apifootball.com/badges/logo_leagues/15_fifa-club-world-cup.png", country = "World", flag = null, season = 2025),
-    LeagueInfo(id = 9, name = "Copa Libertadores", logo = "https://apiv3.apifootball.com/badges/logo_leagues/9_copa-libertadores.png", country = "World", flag = null, season = 2025),
-    LeagueInfo(id = 17, name = "AFF Championship", logo = "https://apiv3.apifootball.com/badges/logo_leagues/17_aff-championship.png", country = "World", flag = null, season = 2025),
-)
+/* International competitions (UCL, World Cup, ...) are not covered by the
+ * FootballCharts source, so there is no fallback rail for them anymore. */
 
 private fun getLeagueCardColor(leagueId: Int): Color {
     return when (leagueId) {
@@ -254,19 +248,7 @@ private fun HomeContent(
         }
     }
 
-    val internationalLeagues = remember(state.topLeagues, state.allApiLeagues) {
-        val apiMap = state.allApiLeagues.associateBy { it.id }
-        val matchMap = state.topLeagues.associateBy { it.id }
-        hardcodedInternationalLeagues.map { fallback ->
-            val api = apiMap[fallback.id]
-            val match = matchMap[fallback.id]
-            when {
-                api != null -> api.copy(season = api.season ?: fallback.season)
-                match != null -> match
-                else -> fallback
-            }
-        }
-    }
+    val internationalLeagues: List<LeagueInfo> = emptyList()
 
     val listState = rememberLazyListState()
 
@@ -276,7 +258,7 @@ private fun HomeContent(
 
     LaunchedEffect(allToday) {
         allToday.forEach { match ->
-            val season = match.league.season ?: 2025
+            val season = match.league.season ?: currentSeason
             onFetchForm(match.homeTeam.id, match.league.id, season)
             onFetchForm(match.awayTeam.id, match.league.id, season)
         }
@@ -286,7 +268,7 @@ private fun HomeContent(
         val visibleKeys = listState.layoutInfo.visibleItemsInfo.mapNotNull { it.key as? String }
         val teamsToFetch = visibleKeys.mapNotNull { key ->
             leagueGroupMap[key]?.flatMap { match ->
-                val season = match.league.season ?: 2025
+                val season = match.league.season ?: currentSeason
                 listOf(
                     Triple(match.homeTeam.id, match.league.id, season),
                     Triple(match.awayTeam.id, match.league.id, season)
@@ -329,9 +311,9 @@ private fun HomeContent(
                                 leagueId = league.id,
                                 leagueName = league.name,
                                 logoUrl = league.logo ?: leagueBadgeUrl(league.id, league.name),
-                                season = league.season ?: 2025,
+                                season = league.season ?: currentSeason,
                                 hasLiveMatches = state.liveMatches.any { it.league.id == league.id },
-                                onClick = { onNavigateToLeagueDetail?.invoke(league.id, league.season ?: 2025) ?: onNavigateToLeagues() }
+                                onClick = { onNavigateToLeagueDetail?.invoke(league.id, league.season ?: currentSeason) ?: onNavigateToLeagues() }
                             )
                         }
                     }
@@ -352,9 +334,9 @@ private fun HomeContent(
                                 leagueId = league.id,
                                 leagueName = league.name,
                                 logoUrl = league.logo ?: leagueBadgeUrl(league.id, league.name),
-                                season = league.season ?: 2025,
+                                season = league.season ?: currentSeason,
                                 hasLiveMatches = state.liveMatches.any { it.league.id == league.id },
-                                onClick = { onNavigateToLeagueDetail?.invoke(league.id, league.season ?: 2025) ?: onNavigateToLeagues() }
+                                onClick = { onNavigateToLeagueDetail?.invoke(league.id, league.season ?: currentSeason) ?: onNavigateToLeagues() }
                             )
                         }
                     }
@@ -622,7 +604,7 @@ private fun MatchRow(
     awayForm: String,
     onMatchClick: (String) -> Unit
 ) {
-    val isFinished = match.status.short in listOf("FT", "AET", "PEN")
+    val isFinished = match.status.short in listOf("FT", "AET", "PEN", "AP")
     Row(
         modifier = Modifier.fillMaxWidth()
             .clickable { onMatchClick(match.id.toString()) }

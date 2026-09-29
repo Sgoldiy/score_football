@@ -25,19 +25,19 @@ class TopPlayersViewModel @Inject constructor(
         val season: Int
     )
 
+    // FootballCharts covers domestic leagues only - UCL/UEL/UECL/World Cup/Euro
+    // tabs from the previous provider were removed because that source cannot
+    // serve them (their old ids now belong to unrelated FC leagues).
     val tabs = listOf(
-        CompetitionTab("europe", "Europe", listOf(152, 302, 207, 175, 168), 2025),
-        CompetitionTab("premier_league", "Premier League", listOf(152), 2025),
-        CompetitionTab("la_liga", "La Liga", listOf(302), 2025),
-        CompetitionTab("serie_a", "Serie A", listOf(207), 2025),
-        CompetitionTab("bundesliga", "Bundesliga", listOf(175), 2025),
-        CompetitionTab("ligue_1", "Ligue 1", listOf(168), 2025),
-        CompetitionTab("ucl", "UCL", listOf(3), 2025),
-        CompetitionTab("uel", "UEL", listOf(4), 2025),
-        CompetitionTab("uecl", "UECL", listOf(683), 2025),
-        CompetitionTab("world_cup", "World Cup", listOf(28), 2026),
-        CompetitionTab("euro", "Euro", listOf(1), 2024),
-        CompetitionTab("copa_america", "Copa America", listOf(9), 2024),
+        CompetitionTab("europe", "Europe", listOf(152, 302, 207, 175, 168), com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
+        CompetitionTab("premier_league", "Premier League", listOf(152), com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
+        CompetitionTab("la_liga", "La Liga", listOf(302), com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
+        CompetitionTab("serie_a", "Serie A", listOf(207), com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
+        CompetitionTab("bundesliga", "Bundesliga", listOf(175), com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
+        CompetitionTab("ligue_1", "Ligue 1", listOf(168), com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
+        CompetitionTab("eredivisie", "Eredivisie", listOf(88), com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
+        CompetitionTab("liga_portugal", "Liga Portugal", listOf(94), com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
+        CompetitionTab("saudi", "Saudi League", listOf(203), com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
     )
 
     private val _tabData = MutableStateFlow<Map<String, ApiResult<TopPlayersData>>>(emptyMap())

@@ -2,6 +2,8 @@ package com.footballpluse.footballapp.ui.screens.leagues
 
 enum class LeagueTab(val label: String) {
     STANDINGS("Standings"),
+    PROJECTION("Projection"),
+    LUCK("Luck & xPts"),
     FIXTURES("Fixtures"),
     PLAYER_STATS("Player Stats"),
     SEASON_STATS("Stats"),
@@ -88,10 +90,13 @@ data class PlayerStatUiModel(
 data class SeasonStatsUiModel(
     val totalGoals: Int,
     val avgGoalsPerGame: Float,
-    val mostCommonScoreline: String,
-    val totalRedCards: Int,
-    val totalYellowCards: Int,
-    val biggestWin: String,
+    /** Most common scoreline from finished fixtures; null when no fixture data. */
+    val mostCommonScoreline: String?,
+    /** Real card totals from finished fixtures; null when no fixture data. */
+    val totalRedCards: Int?,
+    val totalYellowCards: Int?,
+    /** Largest-margin finished fixture; null when no fixture data. */
+    val biggestWin: String?,
     val goalsByMinuteBand: List<GoalBand>,
     val bestAttack: Pair<String, Int>,
     val bestDefense: Pair<String, Int>,
@@ -104,6 +109,48 @@ data class SeasonStatsUiModel(
 data class GoalBand(
     val label: String,
     val count: Int
+)
+
+/** One team of the Monte Carlo season projection (10k sims, run daily). */
+data class ProjectionRowUiModel(
+    val rank: Int,
+    val team: TeamUiModel,
+    val pointsNow: Int,
+    val played: Int,
+    val meanPoints: Float?,
+    val p10Points: Int?,
+    val p90Points: Int?,
+    val titlePct: Float?,
+    val top4Pct: Float?,
+    val relegationPct: Float?
+)
+
+data class ProjectionUiModel(
+    val rows: List<ProjectionRowUiModel>,
+    val nSims: Int?,
+    val seasonLabel: String?,
+    val expectedRemaining: Int?,
+    val partialSchedule: Boolean
+)
+
+/** One team of the luck table (FC /table/?view=luck — expected vs actual performance). */
+data class LuckRowUiModel(
+    val position: Int,
+    val team: TeamUiModel,
+    val points: Int,
+    val played: Int,
+    val expectedPoints: Float?,
+    val expectedPosition: Int?,
+    val luckDifference: Float?,
+    val luckCategory: String?,
+    val luckiestResult: String?,
+    val unluckiestResult: String?
+)
+
+data class LuckUiModel(
+    val rows: List<LuckRowUiModel>,
+    val seasonState: String?,
+    val updatedAt: String?
 )
 
 data class FormTableData(

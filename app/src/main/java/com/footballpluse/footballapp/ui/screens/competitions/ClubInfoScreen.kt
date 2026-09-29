@@ -82,6 +82,7 @@ fun ClubInfoScreen(
     val coaches by viewModel.coach.collectAsStateWithLifecycle()
     val recentFixtures by viewModel.recentFixtures.collectAsStateWithLifecycle()
     val topScorers by viewModel.topScorers.collectAsStateWithLifecycle()
+    val advancedStats by viewModel.advancedStats.collectAsStateWithLifecycle()
 
     LaunchedEffect(teamId, leagueId) {
         viewModel.loadClubData(teamId, leagueId)
@@ -110,6 +111,14 @@ fun ClubInfoScreen(
                 is UiState.Loading -> SectionLoading(height = 92.dp)
                 is UiState.Error -> SectionError(text = "Could not load data")
                 is UiState.Success -> SeasonStatsRow(stats = state.data)
+            }
+        }
+
+        item {
+            when (val state = advancedStats) {
+                is UiState.Loading -> SectionLoading(height = 140.dp)
+                is UiState.Error -> {} // silent: section hides when the club isn't covered
+                is UiState.Success -> AdvancedStatsSection(state.data)
             }
         }
 
@@ -143,7 +152,7 @@ fun ClubInfoScreen(
         }
 
         item {
-            SectionTitle(text = "Top Scorers — ${seasonLabel(2025)}")
+            SectionTitle(text = "Top Scorers — ${seasonLabel(com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear())}")
             when (val state = topScorers) {
                 is UiState.Loading -> SectionLoading(height = 240.dp)
                 is UiState.Error -> SectionError(text = "Could not load data")
@@ -393,10 +402,14 @@ private fun SquadPlayerCard(player: SquadPlayer) {
             )
             Spacer(modifier = Modifier.height(4.dp))
 
-            val (badgeColor, posLabel) = when (player.position) {
-                "Goalkeeper" -> Color(0xFFF59E0B) to "GK"
-                "Defender" -> Color(0xFF3B82F6) to "DEF"
-                "Midfielder" -> Color(0xFF10B981) to "MID"
+            // v3 API player_type is plural: "Goalkeepers", "Defenders", ...
+            val pos = player.position?.lowercase() ?: ""
+            val (badgeColor, posLabel) = when {
+                pos.startsWith("goal") -> Color(0xFFF59E0B) to "GK"
+                pos.startsWith("defend") -> Color(0xFF3B82F6) to "DEF"
+                pos.startsWith("midfield") -> Color(0xFF10B981) to "MID"
+                pos.startsWith("forward") || pos.startsWith("attack") -> Color(0xFFEF4444) to "ATT"
+                pos.isBlank() -> Color(0xFF94A3B8) to "—"
                 else -> Color(0xFFEF4444) to "ATT"
             }
             Box(
@@ -582,6 +595,77 @@ private fun TopScorerRow(
     }
 }
 
+/**
+ * Real FC team-page deep stats: shooting, possession, xG and goal-timing,
+ * rendered from the verified live /leagues/{l}/teams/{team}/ payload.
+ */
+@Composable
+private fun AdvancedStatsSection(s: com.footballpluse.footballapp.viewmodel.TeamAdvancedStatsUi) {
+    SectionTitle(text = "Advanced Stats${s.seasonLabel?.let { " \u2014 $it" } ?: ""}")
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+            .background(Color(0xFF10251D), RoundedCornerShape(14.dp))
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            AdvCell("xG For", s.xgAvg?.let { "%.2f".format(it) } ?: "\u2014")
+            AdvCell("xG Against", s.xgAgainstAvg?.let { "%.2f".format(it) } ?: "\u2014")
+            AdvCell("Possession", s.possessionAvg?.let { "%.0f%%".format(it) } ?: "\u2014")
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            AdvCell("Shots", s.shotsAvg?.let { "%.1f".format(it) } ?: "\u2014")
+            AdvCell("On Target", s.shotsOnTargetAvg?.let { "%.1f".format(it) } ?: "\u2014")
+            AdvCell("Corners", s.cornersAvg?.let { "%.1f".format(it) } ?: "\u2014")
+        }
+
+        // Goals-per-period mini bars (real goal_bins from the team page).
+        if (s.goalBins.isNotEmpty() && s.timeBins.size == s.goalBins.size) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "Goals by period" + (s.matchesWithStats?.let { " (last $it tracked matches)" } ?: ""),
+                color = SecondaryText,
+                fontSize = 11.sp
+            )
+            val maxBin = s.goalBins.maxOrNull() ?: 0
+            s.timeBins.indices.forEach { i ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(s.timeBins[i], color = SecondaryText, fontSize = 10.sp, modifier = Modifier.width(44.dp))
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .height(6.dp)
+                            .background(Color(0xFF1E293B), RoundedCornerShape(3.dp))
+                    ) {
+                        val frac = if (maxBin > 0) s.goalBins[i].toFloat() / maxBin else 0f
+                        Box(
+                            Modifier
+                                .fillMaxWidth(frac.coerceIn(0f, 1f))
+                                .height(6.dp)
+                                .background(Color(0xFF4ADE80), RoundedCornerShape(3.dp))
+                        )
+                    }
+                    Text(
+                        "${s.goalBins[i]}",
+                        color = PrimaryText, fontSize = 10.sp, fontWeight = FontWeight.Medium,
+                        modifier = Modifier.width(24.dp), textAlign = TextAlign.End
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AdvCell(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, color = Color(0xFF4ADE80), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        Text(label, color = SecondaryText, fontSize = 10.sp)
+    }
+}
+
 @Composable
 private fun SectionTitle(text: String) {
     Text(
@@ -627,12 +711,20 @@ private fun seasonLabel(season: Int): String {
 
 private fun formatShortDate(iso: String?): String {
     if (iso.isNullOrBlank()) return ""
+    val formatter = SimpleDateFormat("dd MMM", Locale.getDefault())
 
+    // v3 API match_date is "yyyy-MM-dd"; tolerate full ISO timestamps too
+    if (iso.length == 10) {
+        val d = runCatching {
+            SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(iso)
+        }.getOrNull() ?: return ""
+        return formatter.format(d)
+    }
     val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault()).apply {
         timeZone = TimeZone.getTimeZone("UTC")
     }
-    val formatter = SimpleDateFormat("dd MMM", Locale.getDefault())
-
-    val date: Date = runCatching { parser.parse(iso) }.getOrNull() ?: return ""
+    val date: Date = runCatching { parser.parse(iso) }.getOrNull()
+        ?: runCatching { SimpleDateFormat("yyyy-MM-dd", Locale.US).parse(iso.take(10)) }.getOrNull()
+        ?: return ""
     return formatter.format(date)
 }

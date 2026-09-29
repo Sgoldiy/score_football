@@ -468,7 +468,7 @@ private fun EventTimelineRow(event: MatchEvent, isHome: Boolean, isLast: Boolean
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "${event.time}'",
+                    text = if (event.extraTime != null) "${event.time}+${event.extraTime}'" else "${event.time}'",
                     color = LiveGreen,
                     fontWeight = FontWeight.Bold,
                     fontSize = 11.sp
@@ -823,7 +823,8 @@ private fun PredictionsSection(prediction: MatchPrediction) {
                 
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text(
-                        text = prediction.advice?.split(" ").orEmpty().take(3).joinToString(" ").uppercase(),
+                        text = prediction.advice?.takeIf { it.isNotBlank() }?.split(" ")?.take(3)?.joinToString(" ")?.uppercase()
+                            ?: "WIN\nPROBABILITY",
                         color = Color.White,
                         fontWeight = FontWeight.Black,
                         fontSize = 11.sp,
@@ -842,6 +843,17 @@ private fun PredictionsSection(prediction: MatchPrediction) {
                 ProbabilityItem(label = "Home", value = prediction.homePercent ?: "33%", color = LiveGreen)
                 ProbabilityItem(label = "Draw", value = prediction.drawPercent ?: "33%", color = Color(0xFFFFC107))
                 ProbabilityItem(label = "Away", value = prediction.awayPercent ?: "33%", color = IceBlue)
+            }
+
+            prediction.extras?.let { extras ->
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = extras,
+                    color = TextSecondary,
+                    fontSize = 10.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
         }
     }
@@ -1256,15 +1268,12 @@ private fun MatchAttackMomentumGraph(events: List<MatchEvent>, homeTeamId: Int) 
             }
         }
     }
-}
-
-@Composable
+}@Composable
 private fun WhoWillWinPoll(
     viewModel: FixtureDetailViewModel
 ) {
     val userVote by viewModel.userVote.collectAsState()
-    val percentages by viewModel.pollPercentages.collectAsState()
-    
+
     Card(
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
@@ -1275,11 +1284,11 @@ private fun WhoWillWinPoll(
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Rounded.EmojiPeople, contentDescription = null, tint = LiveGreen, modifier = Modifier.size(20.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Who Will Win?", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
+                Text("Your Prediction", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
             }
-            
+
             Spacer(Modifier.height(14.dp))
-            
+
             if (userVote == null) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1291,9 +1300,9 @@ private fun WhoWillWinPoll(
                 }
             } else {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                    PollResultRow(label = "Home Win", percent = percentages.first, color = LiveGreen, isSelected = userVote == 0)
-                    PollResultRow(label = "Draw", percent = percentages.second, color = Color(0xFFFFC107), isSelected = userVote == 1)
-                    PollResultRow(label = "Away Win", percent = percentages.third, color = IceBlue, isSelected = userVote == 2)
+                    PredictionResultRow(label = "Home Win", isSelected = userVote == 0, isCorrect = null, color = LiveGreen)
+                    PredictionResultRow(label = "Draw", isSelected = userVote == 1, isCorrect = null, color = Color(0xFFFFC107))
+                    PredictionResultRow(label = "Away Win", isSelected = userVote == 2, isCorrect = null, color = IceBlue)
                 }
             }
         }
@@ -1316,7 +1325,7 @@ private fun VoteButton(label: String, onClick: () -> Unit, modifier: Modifier = 
 }
 
 @Composable
-private fun PollResultRow(label: String, percent: Int, color: Color, isSelected: Boolean) {
+private fun PredictionResultRow(label: String, isSelected: Boolean, isCorrect: Boolean?, color: Color) {
     val bgGlow = if (isSelected) color.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.02f)
     val border = if (isSelected) color.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.06f)
     Column(
@@ -1336,25 +1345,17 @@ private fun PollResultRow(label: String, percent: Int, color: Color, isSelected:
                 Text(label, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 if (isSelected) {
                     Spacer(Modifier.width(6.dp))
-                    Text("• Voted", color = color, fontSize = 10.sp, fontWeight = FontWeight.Black)
+                    Text("• Your pick", color = color, fontSize = 10.sp, fontWeight = FontWeight.Black)
                 }
             }
-            Text("$percent%", color = color, fontWeight = FontWeight.Black, fontSize = 12.sp)
-        }
-        Spacer(Modifier.height(6.dp))
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(6.dp)
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.06f))
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxHeight()
-                    .fillMaxWidth(percent / 100f)
-                    .background(color)
-            )
+            if (isCorrect != null) {
+                Text(
+                    text = if (isCorrect) "✓ Correct" else "✗ Missed",
+                    color = if (isCorrect) LiveGreen else Color(0xFFF44336),
+                    fontWeight = FontWeight.Black,
+                    fontSize = 12.sp
+                )
+            }
         }
     }
 }

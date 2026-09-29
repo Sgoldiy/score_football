@@ -73,17 +73,14 @@ import com.footballpluse.footballapp.data.model.StandingRecord
 import com.footballpluse.footballapp.ui.components.HeaderIcon
 import com.footballpluse.footballapp.ui.components.MatchRowShimmer
 import com.footballpluse.footballapp.viewmodel.ClubAttackDefence
-import com.footballpluse.footballapp.viewmodel.ClubBigChanceConversion
 import com.footballpluse.footballapp.viewmodel.ClubCleanSheet
-import com.footballpluse.footballapp.viewmodel.ClubXgPerformance
+import com.footballpluse.footballapp.viewmodel.ClubSeasonRow
 import com.footballpluse.footballapp.viewmodel.ClubsStatsUiState
 import com.footballpluse.footballapp.viewmodel.DisciplineUiState
 import com.footballpluse.footballapp.viewmodel.FirstGoalAdvantageData
 import com.footballpluse.footballapp.viewmodel.GoalTimingUiState
 import com.footballpluse.footballapp.viewmodel.PlayerCardsStat
-import com.footballpluse.footballapp.viewmodel.PlayerFoulsStat
-import com.footballpluse.footballapp.viewmodel.PlayerShotAccuracy
-import com.footballpluse.footballapp.viewmodel.PlayerXgPerformance
+import com.footballpluse.footballapp.viewmodel.PlayerShotsStat
 import com.footballpluse.footballapp.viewmodel.PlayersStatsUiState
 import com.footballpluse.footballapp.viewmodel.StatsTab
 import com.footballpluse.footballapp.viewmodel.StatsViewModel
@@ -113,6 +110,7 @@ fun StatsScreen(
     val xgState by viewModel.xgState.collectAsState()
     val timingState by viewModel.timingState.collectAsState()
     val disciplineState by viewModel.disciplineState.collectAsState()
+    val modelState by viewModel.modelState.collectAsState()
 
     var showLeagueSheet by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -174,6 +172,7 @@ fun StatsScreen(
                     StatsTab.XG_ADVANCED -> "xG & Advanced"
                     StatsTab.GOAL_TIMING -> "Goal Timing"
                     StatsTab.DISCIPLINE -> "Discipline"
+                    StatsTab.MODEL -> "Model"
                 }
 
                 Row(
@@ -249,9 +248,10 @@ fun StatsScreen(
                 )
 
                 StatsTab.CLUBS -> ClubsTabContent(clubsState, onNavigateToClubInfo, viewModel)
-                StatsTab.XG_ADVANCED -> XGAdvancedTabContent(xgState, viewModel)
+                StatsTab.XG_ADVANCED -> XGAdvancedTabContent(xgState, viewModel, onNavigateToPlayerProfile)
                 StatsTab.GOAL_TIMING -> GoalTimingTabContent(timingState, viewModel)
                 StatsTab.DISCIPLINE -> DisciplineTabContent(disciplineState, viewModel)
+                StatsTab.MODEL -> ModelTabContent(modelState)
             }
         }
     }
@@ -578,7 +578,12 @@ fun TopScorerHeroCard(
                     val goals = stats?.goals?.total ?: 0
                     val assists = stats?.goals?.assists ?: 0
                     val rating = stats?.games?.rating ?: "0.0"
-                    val xg = 0.94f //Kane simulated goals/xg ratio or similar
+                    // Real per-90 scoring rate from the API (goals ÷ appearances),
+                    // replaces the old hardcoded fake "xG/90" constant.
+                    val goalsPer90 = run {
+                        val apps = stats?.games?.appearances ?: 0
+                        if (apps > 0) String.format("%.2f", goals.toFloat() / apps) else "-"
+                    }
 
                     MiniStatBox(
                         label = "Goals",
@@ -599,8 +604,8 @@ fun TopScorerHeroCard(
                         modifier = Modifier.weight(1f)
                     )
                     MiniStatBox(
-                        label = "xG/90",
-                        value = "$xg",
+                        label = "Goals/90",
+                        value = goalsPer90,
                         color = Color(0xFFFF6B35),
                         modifier = Modifier.weight(1f)
                     )
@@ -889,23 +894,22 @@ fun SeasonHighlightsGrid(
         Row(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             modifier = Modifier.fillMaxWidth()
-        ) {
-            HighlightStatCard(
-                icon = Icons.Rounded.Scoreboard,
-                value = String.format("%.0f%%", penaltyGoalsPct),
-                label = "Goals from penalties %",
-                trend = "-3% vs last season",
-                trendPositive = false,
-                modifier = Modifier.weight(1f)
-            )
-            HighlightStatCard(
-                icon = Icons.Rounded.QueryStats,
-                value = String.format("%.2f", avgXgPerMatch),
-                label = "Avg xG per match",
-                trend = "+0.06 vs last season",
-                trendPositive = true,
-                modifier = Modifier.weight(1f)
-            )
+        ) {                    HighlightStatCard(
+                        icon = Icons.Rounded.Scoreboard,
+                        value = String.format("%.0f%%", penaltyGoalsPct),
+                        label = "Goals from penalties %",
+                        trend = "from top scorers",
+                        trendPositive = true,
+                        modifier = Modifier.weight(1f)
+                    )
+                    HighlightStatCard(
+                        icon = Icons.Rounded.QueryStats,
+                        value = String.format("%.2f", avgXgPerMatch),
+                        label = "Avg goals per match",
+                        trend = "from finished fixtures",
+                        trendPositive = true,
+                        modifier = Modifier.weight(1f)
+                    )
         }
     }
 }
@@ -1960,7 +1964,8 @@ fun BiggestWinsList(wins: List<FixtureResponse>) {
 @Composable
 fun XGAdvancedTabContent(
     state: XGStatsUiState,
-    viewModel: StatsViewModel
+    viewModel: StatsViewModel,
+    onPlayerClick: (Int) -> Unit = {}
 ) {
     when (state) {
         is XGStatsUiState.Idle, is XGStatsUiState.Loading -> {
@@ -1979,51 +1984,55 @@ fun XGAdvancedTabContent(
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 16.dp)
             ) {
-                // Section A — Clinical Finishers Leaderboard
+                // Section A — Top Scorers (real goals + real ratings)
                 Text(
-                    text = "Clinical Finishers Leaderboard (Goals vs xG)",
+                    text = "Top Scorers",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF555555),
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
-                ClinicalFinishersLeaderboard(state.playerXgPerformers)
+                TopScorersAdvancedCard(state.topScorers, onPlayerClick)
 
                 Spacer(Modifier.height(20.dp))
 
-                // Section B — Club xG Table
+                // Section B — Real season table from standings
                 Text(
-                    text = "Club xG Table (Goals vs xG)",
+                    text = "Season Table",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color(0xFF555555),
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
-                ClubXgPerformanceTable(state.clubXgTable)
+                ClubSeasonTable(state.clubTable)
 
                 Spacer(Modifier.height(20.dp))
 
-                // Section C — Big Chance Conversion
-                Text(
-                    text = "Big Chance Conversion Rate",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF555555),
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                BigChanceConversionList(state.bigChanceConversion)
+                // Section C — Real shot conversion from get_players season stats
+                // (only shown when the API actually provides shots data)
+                if (state.goalConversionLeaders.isNotEmpty()) {
+                    Text(
+                        text = "Best Shot Conversion",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF555555),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    GoalConversionList(state.goalConversionLeaders)
+                    Spacer(Modifier.height(20.dp))
+                }
 
-                Spacer(Modifier.height(20.dp))
-
-                // Section D — Shot Accuracy
-                Text(
-                    text = "Shot Accuracy Leaders (Goals / SoT %)",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF555555),
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                ShotAccuracyList(state.shotAccuracyLeaders)
+                // Section D — Real API ratings only
+                if (state.topRated.isNotEmpty()) {
+                    Text(
+                        text = "Highest Rated Players",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF555555),
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    TopRatedList(state.topRated, onPlayerClick)
+                }
 
                 Spacer(Modifier.height(30.dp))
             }
@@ -2038,9 +2047,16 @@ fun XGAdvancedTabContent(
     }
 }
 
+// ==========================================
+// ADVANCED TAB SECTIONS — real API data only
+// ==========================================
 
 @Composable
-fun ClubXgPerformanceTable(clubs: List<ClubXgPerformance>) {
+fun TopScorersAdvancedCard(
+    scorers: List<PlayerProfileStatisticsResponse>,
+    onPlayerClick: (Int) -> Unit
+) {
+    if (scorers.isEmpty()) return
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -2048,48 +2064,112 @@ fun ClubXgPerformanceTable(clubs: List<ClubXgPerformance>) {
         colors = CardDefaults.cardColors(containerColor = Color(0xFF131620))
     ) {
         Column(modifier = Modifier.padding(vertical = 8.dp)) {
-            // Table Header
+            scorers.forEachIndexed { index, item ->
+                val player = item.player
+                val stats = item.statistics?.firstOrNull()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { player?.id?.let(onPlayerClick) }
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${index + 1}",
+                        color = Color(0xFF555555),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(20.dp)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF1E2433)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        AsyncImage(
+                            model = player?.photo,
+                            contentDescription = player?.name,
+                            modifier = Modifier.fillMaxSize(),
+                            placeholder = painterResource(R.drawable.ic_placeholder),
+                            error = painterResource(R.drawable.ic_placeholder)
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = player?.name ?: "Player",
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            if (!stats?.team?.logo.isNullOrEmpty()) {
+                                AsyncImage(
+                                    model = stats?.team?.logo,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(10.dp)
+                                )
+                            }
+                            Text(
+                                text = stats?.team?.name ?: "",
+                                color = Color(0xFF555555),
+                                fontSize = 9.sp
+                            )
+                        }
+                    }
+                    val rating = stats?.games?.rating
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = "${stats?.goals?.total ?: 0} G",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        if (rating != null) {
+                            Text(
+                                text = "★ ${rating.take(4)}",
+                                color = Color(0xFFF0A500),
+                                fontSize = 9.sp
+                            )
+                        }
+                    }
+                }
+                if (index < scorers.size - 1) {
+                    HorizontalDivider(color = Color(0xFF1A1E2A), thickness = 0.5.dp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ClubSeasonTable(clubs: List<ClubSeasonRow>) {
+    if (clubs.isEmpty()) return
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(0.5.dp, Color(0xFF1A1E2A)),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF131620))
+    ) {
+        Column(modifier = Modifier.padding(vertical = 8.dp)) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 14.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    "Team",
-                    color = Color(0xFF555555),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
-                )
-                Text(
-                    "Goals",
-                    color = Color(0xFF555555),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.width(44.dp),
-                    textAlign = TextAlign.Center
-                )
-                Text(
-                    "xG",
-                    color = Color(0xFF555555),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.width(44.dp),
-                    textAlign = TextAlign.Center
-                )
-                Text(
-                    "Diff",
-                    color = Color(0xFF555555),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.width(48.dp),
-                    textAlign = TextAlign.End
-                )
+                Text("Team", color = Color(0xFF555555), fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text("P", color = Color(0xFF555555), fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(28.dp), textAlign = TextAlign.Center)
+                Text("W-D-L", color = Color(0xFF555555), fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(64.dp), textAlign = TextAlign.Center)
+                Text("GF", color = Color(0xFF555555), fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(32.dp), textAlign = TextAlign.Center)
+                Text("GA", color = Color(0xFF555555), fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(32.dp), textAlign = TextAlign.Center)
+                Text("PTS", color = Color(0xFF555555), fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.width(36.dp), textAlign = TextAlign.End)
             }
-
             HorizontalDivider(color = Color(0xFF1A1E2A), thickness = 0.5.dp)
-
             clubs.forEachIndexed { index, item ->
                 Row(
                     modifier = Modifier
@@ -2097,10 +2177,14 @@ fun ClubXgPerformanceTable(clubs: List<ClubXgPerformance>) {
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
-                    ) {
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "${item.rank}",
+                            color = Color(0xFF555555),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.width(18.dp)
+                        )
                         AsyncImage(
                             model = item.teamLogo,
                             contentDescription = null,
@@ -2111,39 +2195,21 @@ fun ClubXgPerformanceTable(clubs: List<ClubXgPerformance>) {
                             text = item.teamName,
                             color = Color.White,
                             fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
-
+                    Text("${item.played}", color = Color.White, fontSize = 11.sp, modifier = Modifier.width(28.dp), textAlign = TextAlign.Center)
+                    Text("${item.wins}-${item.draws}-${item.losses}", color = Color.White.copy(alpha = 0.7f), fontSize = 11.sp, modifier = Modifier.width(64.dp), textAlign = TextAlign.Center)
+                    Text("${item.goalsFor}", color = Color.White, fontSize = 11.sp, modifier = Modifier.width(32.dp), textAlign = TextAlign.Center)
+                    Text("${item.goalsAgainst}", color = Color.White, fontSize = 11.sp, modifier = Modifier.width(32.dp), textAlign = TextAlign.Center)
                     Text(
-                        "${item.goals}",
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        modifier = Modifier.width(44.dp),
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        String.format("%.1f", item.xg),
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 11.sp,
-                        modifier = Modifier.width(44.dp),
-                        textAlign = TextAlign.Center
-                    )
-
-                    val diffText = if (item.diff >= 0) "+${
-                        String.format(
-                            "%.1f",
-                            item.diff
-                        )
-                    }" else String.format("%.1f", item.diff)
-                    val diffColor = if (item.diff >= 0) Color(0xFF00E676) else Color(0xFF5B8DE8)
-
-                    Text(
-                        diffText,
-                        color = diffColor,
+                        "${item.points}",
+                        color = Color(0xFF00E676),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.width(48.dp),
+                        modifier = Modifier.width(36.dp),
                         textAlign = TextAlign.End
                     )
                 }
@@ -2156,75 +2222,8 @@ fun ClubXgPerformanceTable(clubs: List<ClubXgPerformance>) {
 }
 
 @Composable
-fun BigChanceConversionList(conversion: List<ClubBigChanceConversion>) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(0.5.dp, Color(0xFF1A1E2A)),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF131620))
-    ) {
-        Column(modifier = Modifier.padding(vertical = 8.dp)) {
-            conversion.forEachIndexed { index, item ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        AsyncImage(
-                            model = item.teamLogo,
-                            contentDescription = null,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            text = item.teamName,
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-
-                    Text(
-                        text = "${item.converted}/${item.created} converted",
-                        color = Color(0xFF555555),
-                        fontSize = 10.sp,
-                        modifier = Modifier.padding(end = 12.dp)
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(Color(0xFF00E676).copy(alpha = 0.15f))
-                            .border(
-                                0.5.dp,
-                                Color(0xFF00E676).copy(alpha = 0.3f),
-                                RoundedCornerShape(6.dp)
-                            )
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Text(
-                            text = String.format("%.1f%%", item.pct),
-                            color = Color(0xFF00E676),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-                if (index < conversion.size - 1) {
-                    HorizontalDivider(color = Color(0xFF1A1E2A), thickness = 0.5.dp)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun ShotAccuracyList(leaders: List<PlayerShotAccuracy>) {
+fun GoalConversionList(leaders: List<PlayerShotsStat>) {
+    if (leaders.isEmpty()) return
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -2239,7 +2238,6 @@ fun ShotAccuracyList(leaders: List<PlayerShotAccuracy>) {
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Rank number
                     Text(
                         text = "${index + 1}",
                         color = Color(0xFF555555),
@@ -2247,8 +2245,6 @@ fun ShotAccuracyList(leaders: List<PlayerShotAccuracy>) {
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.width(20.dp)
                     )
-
-                    // Player photo
                     Box(
                         modifier = Modifier
                             .size(36.dp)
@@ -2265,10 +2261,7 @@ fun ShotAccuracyList(leaders: List<PlayerShotAccuracy>) {
                             error = painterResource(R.drawable.ic_placeholder)
                         )
                     }
-
                     Spacer(Modifier.width(10.dp))
-
-                    // Name + team
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = item.name,
@@ -2278,39 +2271,21 @@ fun ShotAccuracyList(leaders: List<PlayerShotAccuracy>) {
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            AsyncImage(
-                                model = item.teamLogo,
-                                contentDescription = null,
-                                modifier = Modifier.size(10.dp),
-                                placeholder = painterResource(R.drawable.ic_placeholder),
-                                error = painterResource(R.drawable.ic_placeholder)
-                            )
-                            Text(
-                                text = "${item.goals}G / ${item.shotsOnTarget} SoT",
-                                color = Color(0xFF555555),
-                                fontSize = 9.sp
-                            )
-                        }
+                        Text(
+                            text = "${item.goals} goals from ${item.shotsTotal} shots",
+                            color = Color(0xFF555555),
+                            fontSize = 9.sp
+                        )
                     }
-
-                    // Accuracy badge
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(6.dp))
                             .background(Color(0xFF5B8DE8).copy(alpha = 0.15f))
-                            .border(
-                                0.5.dp,
-                                Color(0xFF5B8DE8).copy(alpha = 0.3f),
-                                RoundedCornerShape(6.dp)
-                            )
+                            .border(0.5.dp, Color(0xFF5B8DE8).copy(alpha = 0.3f), RoundedCornerShape(6.dp))
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            text = String.format("%.1f%%", item.ratio),
+                            text = String.format("%.1f%%", item.conversionPct),
                             color = Color(0xFF5B8DE8),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
@@ -2318,6 +2293,78 @@ fun ShotAccuracyList(leaders: List<PlayerShotAccuracy>) {
                     }
                 }
                 if (index < leaders.size - 1) {
+                    HorizontalDivider(color = Color(0xFF1A1E2A), thickness = 0.5.dp)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun TopRatedList(players: List<PlayerProfileStatisticsResponse>, onPlayerClick: (Int) -> Unit) {
+    if (players.isEmpty()) return
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(0.5.dp, Color(0xFF1A1E2A)),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF131620))
+    ) {
+        Column(modifier = Modifier.padding(vertical = 8.dp)) {
+            players.forEachIndexed { index, item ->
+                val stats = item.statistics?.firstOrNull()
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { item.player?.id?.let(onPlayerClick) }
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${index + 1}",
+                        color = Color(0xFF555555),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.width(20.dp)
+                    )
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF1E2433)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        AsyncImage(
+                            model = item.player?.photo,
+                            contentDescription = item.player?.name,
+                            modifier = Modifier.fillMaxSize(),
+                            placeholder = painterResource(R.drawable.ic_placeholder),
+                            error = painterResource(R.drawable.ic_placeholder)
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = item.player?.name ?: "Player",
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = stats?.team?.name ?: "",
+                            color = Color(0xFF555555),
+                            fontSize = 9.sp
+                        )
+                    }
+                    Text(
+                        text = (stats?.games?.rating ?: "-").take(4),
+                        color = Color(0xFFF0A500),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                if (index < players.size - 1) {
                     HorizontalDivider(color = Color(0xFF1A1E2A), thickness = 0.5.dp)
                 }
             }
@@ -2860,34 +2907,8 @@ fun DisciplineTabContent(
                 )
                 DirtiestTeamsChart(state.dirtiestTeams)
 
-                Spacer(Modifier.height(20.dp))
-
-                // Section C — Foul leaders vs Most Fouled
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Fouls Committed",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF555555),
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        )
-                        FoulsStatList(state.foulLeaders, Color(0xFFFF4444))
-                    }
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Fouls Suffered / Drawn",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF555555),
-                            modifier = Modifier.padding(bottom = 6.dp)
-                        )
-                        FoulsStatList(state.mostFouledPlayers, Color(0xFF00E676))
-                    }
-                }
+                // Fouls data is not provided by this API — sections removed rather
+                // than showing invented numbers.
 
                 Spacer(Modifier.height(30.dp))
             }
@@ -3211,108 +3232,6 @@ fun DirtiestTeamsChart(teams: List<TeamCardsStat>) {
     }
 }
 
-
-@Composable
-fun FoulsStatList(
-    players: List<PlayerFoulsStat>,
-    barColor: Color
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(0.5.dp, Color(0xFF1A1E2A)),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF131620))
-    ) {
-        Column(modifier = Modifier.padding(vertical = 8.dp)) {
-            players.forEachIndexed { index, item ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        // Player photo
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF1E2433))
-                                .border(1.dp, barColor.copy(alpha = 0.4f), CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            AsyncImage(
-                                model = item.playerPhoto,
-                                contentDescription = item.name,
-                                modifier = Modifier.fillMaxSize(),
-                                placeholder = painterResource(R.drawable.ic_placeholder),
-                                error = painterResource(R.drawable.ic_placeholder)
-                            )
-                        }
-                        Spacer(Modifier.width(10.dp))
-                        // Name + team logo
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = item.name,
-                                color = Color.White,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.SemiBold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                modifier = Modifier.padding(top = 2.dp)
-                            ) {
-                                AsyncImage(
-                                    model = item.teamLogo,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(10.dp)
-                                )
-                                Text(
-                                    text = item.teamName ?: "",
-                                    color = Color(0xFF555555),
-                                    fontSize = 9.sp,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                        }
-                        Text(
-                            text = "${item.count}",
-                            color = Color.White,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    Spacer(Modifier.height(6.dp))
-
-                    // Progress bar
-                    val maxVal = players.firstOrNull()?.count ?: 1
-                    val ratio = item.count.toFloat() / maxVal.coerceAtLeast(1)
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(ratio)
-                            .height(4.dp)
-                            .clip(CircleShape)
-                            .background(barColor)
-                    )
-                }
-                if (index < players.size - 1) {
-                    HorizontalDivider(
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                        color = Color(0xFF1A1E2A),
-                        thickness = 0.5.dp
-                    )
-                }
-            }
-        }
-    }
-}
-
 @Composable
 fun TopThreePodium(
     players: List<PlayerProfileStatisticsResponse>,
@@ -3460,172 +3379,3 @@ fun PodiumCol(
     }
 }
 
-@Composable
-fun ClinicalFinishersLeaderboard(performers: List<PlayerXgPerformance>) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(0.5.dp, Color(0xFF1A1E2A)),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF131620))
-    ) {
-        Column(modifier = Modifier.padding(vertical = 8.dp)) {
-            // Header explanation
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = "Player",
-                    color = Color(0xFF555555),
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(20.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Goals / xG",
-                        color = Color(0xFF555555),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Diff",
-                        color = Color(0xFF555555),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.width(48.dp),
-                        textAlign = TextAlign.End
-                    )
-                }
-            }
-
-            HorizontalDivider(color = Color(0xFF1A1E2A), thickness = 0.5.dp)
-
-            performers.forEachIndexed { index, item ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Rank
-                    Text(
-                        text = "${index + 1}",
-                        color = if (item.diff >= 0) Color(0xFF00E676) else Color(0xFFFF4444),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.width(20.dp)
-                    )
-
-                    // Photo
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF1E2433)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        AsyncImage(
-                            model = item.playerPhoto,
-                            contentDescription = item.name,
-                            modifier = Modifier.fillMaxSize(),
-                            placeholder = painterResource(R.drawable.ic_placeholder),
-                            error = painterResource(R.drawable.ic_placeholder)
-                        )
-                    }
-
-                    Spacer(Modifier.width(12.dp))
-
-                    // Player Meta
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = item.name,
-                            color = Color.White,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            if (item.teamLogo != null) {
-                                AsyncImage(
-                                    model = item.teamLogo,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(10.dp)
-                                )
-                            }
-                            Text(
-                                text = if (item.diff >= 0) "Outperforming xG" else "Underperforming xG",
-                                color = if (item.diff >= 0) Color(0xFF00E676).copy(alpha = 0.6f) else Color(
-                                    0xFFFF4444
-                                ).copy(alpha = 0.6f),
-                                fontSize = 9.sp
-                            )
-                        }
-                    }
-
-                    // Goals / xG
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.padding(end = 16.dp)
-                    ) {
-                        Text(
-                            text = "${item.goals}",
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Text(
-                            text = String.format("%.2f xG", item.xg),
-                            color = Color(0xFF888888),
-                            fontSize = 9.sp
-                        )
-                    }
-
-                    // Difference Badge
-                    val diffText = if (item.diff >= 0) "+${
-                        String.format(
-                            "%.2f",
-                            item.diff
-                        )
-                    }" else String.format("%.2f", item.diff)
-                    val diffBg =
-                        if (item.diff >= 0) Color(0xFF00E676).copy(alpha = 0.15f) else Color(
-                            0xFFFF4444
-                        ).copy(alpha = 0.15f)
-                    val diffColor = if (item.diff >= 0) Color(0xFF00E676) else Color(0xFFFF4444)
-                    val diffBorder =
-                        if (item.diff >= 0) Color(0xFF00E676).copy(alpha = 0.3f) else Color(
-                            0xFFFF4444
-                        ).copy(alpha = 0.3f)
-
-                    Box(
-                        modifier = Modifier
-                            .width(54.dp)
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(diffBg)
-                            .border(0.5.dp, diffBorder, RoundedCornerShape(6.dp))
-                            .padding(vertical = 4.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = diffText,
-                            color = diffColor,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-                if (index < performers.size - 1) {
-                    HorizontalDivider(color = Color(0xFF1A1E2A), thickness = 0.5.dp)
-                }
-            }
-        }
-    }
-}

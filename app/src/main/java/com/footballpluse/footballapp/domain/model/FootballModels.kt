@@ -73,7 +73,9 @@ data class MatchPrediction(
     val winnerName: String?,
     val homePercent: String?,
     val drawPercent: String?,
-    val awayPercent: String?
+    val awayPercent: String?,
+    /** FC model extras: over/under ladder, xG, model freshness. */
+    val extras: String? = null
 )
 
 data class MatchOdd(
@@ -158,7 +160,9 @@ data class PlayerInfo(
     val nationality: String?,
     val height: String?,
     val weight: String?,
-    val photo: String?
+    val photo: String?,
+    /** v3 get_players "player_type" (e.g. "Goalkeepers", "Defenders"). Null when unavailable. */
+    val type: String? = null
 )
 
 data class PlayerStatDetail(

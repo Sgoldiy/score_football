@@ -95,6 +95,11 @@ class LeaguesViewModel @Inject constructor(
 
     private val _triggerDetailsUpdate = MutableStateFlow(0L)
 
+    /** Serializes per-row detail fetches so they don't stampede the API. */
+    private val detailSemaphore = java.util.concurrent.Semaphore(1, true)
+    private val failedDetailLeagues = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<Int, Boolean>())
+    @Volatile private var lastDetailRequestAt = 0L
+
     private val _tempSortOrder = MutableStateFlow(LeagueSortOrder.ALPHABETICAL)
     val tempSortOrder: StateFlow<LeagueSortOrder> = _tempSortOrder.asStateFlow()
 
@@ -142,7 +147,9 @@ class LeaguesViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val popularLeagues: StateFlow<List<League>> = allLeagues.map { list ->
-        val topCompetitionsIds = setOf(152, 302, 207, 175, 168, 3, 4, 683, 1, 28)
+        // FootballCharts-covered headline competitions (old UCL/World Cup ids
+        // resolved to unrelated FC leagues, so they are dropped).
+        val topCompetitionsIds = setOf(152, 302, 207, 175, 168, 88, 94, 203, 144, 187)
         list.filter { it.id in topCompetitionsIds || it.isFavorited }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -179,24 +186,22 @@ class LeaguesViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    // Compatibility flow for LeaguesScreen loading/error states
+    // Compatibility flow for LeaguesScreen loading/error states.
+    // Emits Success as soon as we have leagues (even without counts), and only
+    // surfaces an Error when we have NOTHING to show — so tab content renders
+    // with real data instead of being blocked behind a perpetual Loading.
     val leaguesState: StateFlow<ApiResult<LeaguesData>> = combine(
         _rawLeagues,
         _isLoading,
         _errorMessage
     ) { rawLeagues, loading, error ->
-        if (error != null) {
-            ApiResult.Error(error)
-        } else if (loading) {
-            ApiResult.Loading
-        } else {
-            ApiResult.Success(
-                LeaguesData(
-                    leagues = rawLeagues,
-                    countries = emptyList(),
-                    seasons = emptyList()
-                )
+        when {
+            rawLeagues.isNotEmpty() -> ApiResult.Success(
+                LeaguesData(leagues = rawLeagues, countries = emptyList(), seasons = emptyList())
             )
+            loading -> ApiResult.Loading
+            error != null -> ApiResult.Error(error)
+            else -> ApiResult.Loading
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ApiResult.Loading)
 
@@ -257,21 +262,34 @@ class LeaguesViewModel @Inject constructor(
     fun loadExtraDetails(leagueId: Int) {
         if (stageAndTeamCache.containsKey(leagueId)) return
         if (activeJobs.containsKey(leagueId)) return
+        // Never re-request a league that already failed this session — with a BASIC
+        // plan quota, one standings call per visible league row drained the quota and
+        // starved every other screen.
+        if (failedDetailLeagues.contains(leagueId)) return
 
         val job = viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
             try {
-                val teamCount = try {
-                    val standingsRes = apiService.getStandings(leagueId.toString())
-                    standingsRes.size
-                } catch (e: Exception) {
-                    try {
-                        val teamsRes = apiService.getTeams(leagueId = leagueId.toString())
-                        teamsRes.size
-                    } catch (_: Exception) { 20 }
+                // Serialize + throttle: one standings request at a time, ≥1.2s apart
+                detailSemaphore.acquire()
+                try {
+                    val sinceLast = System.currentTimeMillis() - lastDetailRequestAt
+                    if (sinceLast < 1_200L) kotlinx.coroutines.delay(1_200L - sinceLast)
+                    lastDetailRequestAt = System.currentTimeMillis()
+                    val teamCount = try {
+                        val standingsRes = apiService.getStandings(leagueId.toString())
+                        standingsRes.size
+                    } catch (e: Exception) {
+                        0
+                    }
+                    if (teamCount > 0) {
+                        stageAndTeamCache[leagueId] = Pair("Regular Season", teamCount)
+                        _triggerDetailsUpdate.update { it + 1 }
+                    } else {
+                        failedDetailLeagues.add(leagueId)
+                    }
+                } finally {
+                    detailSemaphore.release()
                 }
-
-                stageAndTeamCache[leagueId] = Pair("Regular Season", teamCount)
-                _triggerDetailsUpdate.update { it + 1 }
             } catch (e: Exception) {
                 // Ignore background errors
             } finally {
@@ -284,13 +302,15 @@ class LeaguesViewModel @Inject constructor(
     private fun startLiveRefreshLoop() {
         viewModelScope.launch {
             while (true) {
-                kotlinx.coroutines.delay(60_000)
-                refreshFixtureCountsOnly()
+                val ok = refreshFixtureCountsOnly()
+                // Success → refresh every 5 min. Failure (e.g. quota exhausted) → back off
+                // 15 min so we don't burn the remaining hourly requests.
+                kotlinx.coroutines.delay(if (ok) 300_000L else 900_000L)
             }
         }
     }
 
-    private suspend fun refreshFixtureCountsOnly() = coroutineScope {
+    private suspend fun refreshFixtureCountsOnly(): Boolean = coroutineScope {
         try {
             val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
             val liveDeferred = async(kotlinx.coroutines.Dispatchers.IO) {
@@ -316,8 +336,9 @@ class LeaguesViewModel @Inject constructor(
             _liveCountMap.value = liveCounts
             _todayCountMap.value = todayCounts
             _totalLiveCount.value = liveFixtures.size
+            liveFixtures.isNotEmpty() || todayFixtures.isNotEmpty()
         } catch (e: Exception) {
-            // Ignore background refresh errors
+            false
         }
     }
 

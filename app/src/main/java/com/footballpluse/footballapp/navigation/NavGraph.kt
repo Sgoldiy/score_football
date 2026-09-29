@@ -285,12 +285,11 @@ fun SetupNavGraph(
         composable(Screen.Leagues.route) {
             LeaguesScreen(
                 onNavigateToLeagueDetail = { leagueId ->
+                    // Special-calendar competitions; domestic leagues use the current season
                     val season = when (leagueId) {
                         28 -> 2026
-                        15 -> 2025
                         1 -> 2024
-                        4 -> 2025
-                        else -> 2025
+                        else -> com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()
                     }
                     navController.navigate(Screen.LeagueDetail.createRoute(leagueId, season))
                 },
