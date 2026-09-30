@@ -255,17 +255,17 @@ object UitslagenMapper {
 
     fun topScorers(block: UitslagenFixturesBlock?): List<ApiTopScorer> =
         block?.topscorers?.tournaments.orEmpty()
-            .flatMap { it.topscorers.orEmpty() }
+            .flatMap { t -> t.players.orEmpty().ifEmpty { t.topscorers.orEmpty() } }
             .mapIndexed { idx, s ->
                 ApiTopScorer(
                     player_name = s.name,
                     team_name = s.team,
                     goals = s.goals,
                     assists = s.assists,
-                    penalty_goals = s.penalty,
+                    penalty_goals = s.penalty_goals ?: s.penalty,
                     player_id = s.id?.toLongOrNull(),
-                    team_id = s.teamid,
-                    player_place = (idx + 1).toString()
+                    team_id = s.team_id_gs ?: s.teamid,
+                    player_place = s.pos ?: (idx + 1).toString()
                 )
             }
 

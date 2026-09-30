@@ -88,7 +88,7 @@ Coverage per legacy call:
 | `getEvents` | league block fixtures / team-page fixtures / day feed (window-filtered) |
 | `getEventById` | `matches/{id}.json` — incl. goals, cards, venue, formations |
 | `getStandings` | league block `table` (real positions, points, form) |
-| `getTopScorers` | league block `topscorers` (empty in capture; lenient) |
+| `getTopScorers` | league block `topscorers.tournaments[].players` — **populated** (verified live 2026-09-30: EPL/LaLiga carry 50 players each); the older `topscorers.tournaments[].topscorers` list key remains a lenient fallback |
 | `getLineups` / `getMatchStatistics` | match detail `lineups` / `stats` |
 | `getHeadToHead` | team-page fixtures; mutual meetings matched by numeric team ids first (name-normalized fallback) |
 | `getTeams` / `getPlayers` | league block / `team_gs` / `players` / `search_v3` |
@@ -113,7 +113,7 @@ Removed features (no upstream data): season projection, luck/xPts, model track-r
 | Search + team page | player search hits (e.g. Lamine Yamal); team page w/ name, venue, badge |
 | H2H | both last-10 lists + 1 mutual meeting found |
 | Countries/leagues | 38 countries discovered from the day feed |
-| Top scorers | **0 — upstream block genuinely empty in-season** (payload lenient; will fill when the upstream populates it) |
+| Top scorers | **0 — upstream block genuinely empty in-season** (payload lenient; will fill when the upstream populates it) — superseded 2026-09-30: the block *is* populated under `players`, a DTO key mismatch hid it; fixed + pinned by `UitslagenMapperTest` |
 
 Bugs this run caught and fixed: garbage logo URLs for blank/`_a`-suffixed team ids (now null → UI placeholder); H2H mutual meetings = 0 under name-only matching (now id-first matching); match-detail referee never surfaced (now `Referee #<id>` from `refereeId`).
 

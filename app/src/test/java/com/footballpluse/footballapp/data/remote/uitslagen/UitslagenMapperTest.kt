@@ -191,6 +191,40 @@ class UitslagenMapperTest {
         assertTrue(UitslagenMapper.inRangeUtc("29/09/2026", null, null))
     }
 
+    @Test
+    fun `top scorers parse from the populated EPL block`() {
+        val block = moshi.adapter(UitslagenFixturesBlock::class.java)
+            .fromJson(resource("fixtures_v2_small_topscorers.json"))!!
+        // The same full block still maps table + fixtures correctly.
+        assertEquals(20, UitslagenMapper.tableToStandings(block.table, "152", block.table?.leaguename).size)
+        // Populated payload nests the scorer list under `players` (verified live 2026-09-30).
+        val scorers = UitslagenMapper.topScorers(block)
+        assertEquals(50, scorers.size)
+        val top = scorers.first()
+        assertEquals("Erling Haaland", top.player_name)
+        assertEquals("Manchester City", top.team_name)
+        assertEquals("5", top.goals)
+        assertEquals("1", top.player_place)
+        assertNotNull(top.player_id)
+        assertTrue(!top.team_id.isNullOrBlank())
+        // Every row carries the fields the screen renders.
+        assertTrue(scorers.all { !it.player_name.isNullOrBlank() })
+        assertTrue(scorers.all { !it.goals.isNullOrBlank() })
+    }
+
+    @Test
+    fun `top scorers fallback for the legacy topscorers list key`() {
+        val json = "{\"topscorers\":{\"tournaments\":[{\"name\":\"X\",\"topscorers\":[" +
+            "{\"id\":\"7\",\"name\":\"Legacy Player\",\"goals\":\"3\",\"team\":\"Old FC\",\"teamid\":\"42\",\"penalty\":\"1\"}]}]}}"
+        val block = moshi.adapter(UitslagenFixturesBlock::class.java).fromJson(json)!!
+        val scorers = UitslagenMapper.topScorers(block)
+        assertEquals(1, scorers.size)
+        assertEquals("Legacy Player", scorers[0].player_name)
+        assertEquals("3", scorers[0].goals)
+        assertEquals("1", scorers[0].penalty_goals)
+        assertEquals("42", scorers[0].team_id)
+    }
+
     private fun assertFalse2(v: Boolean) {
         if (v) throw AssertionError("expected false")
     }
