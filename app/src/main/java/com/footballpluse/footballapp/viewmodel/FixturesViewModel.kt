@@ -10,6 +10,7 @@ import com.footballpluse.footballapp.data.repository.FavouriteRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
@@ -71,15 +72,23 @@ class FixturesViewModel @Inject constructor(
             }
             _dateMatchCounts.value = initialCounts
 
-            // Pre-fetch from network if cache is empty, with a delay to avoid rate limits
+            // Pre-fetch from network if cache is empty, with a delay to avoid
+            // rate limits. Each fetch is bounded: getFixturesByDate's flow
+            // never completes on its own, so collecting it directly would
+            // hang this loop on the first date and starve the rest of the rail.
             datesToFetch.forEach { dateStr ->
                 val cachedCount = repository.getFixtureCountByDate(dateStr)
                 if (cachedCount == 0) {
-                    repository.getFixturesByDate(dateStr).collect { result ->
-                        if (result is ApiResult.Success) {
-                            val count = result.data.size
-                            _dateMatchCounts.update { it + (dateStr to count) }
+                    try {
+                        withTimeoutOrNull(6_000) {
+                            repository.getFixturesByDate(dateStr).collect { result ->
+                                if (result is ApiResult.Success) {
+                                    val count = result.data.size
+                                    _dateMatchCounts.update { it + (dateStr to count) }
+                                }
+                            }
                         }
+                    } catch (_: Exception) {
                     }
                     delay(500) // Small delay to avoid hammering the API
                 }
