@@ -11,7 +11,10 @@ data class Match(
     val awayTeam: TeamInfo,
     val homeScore: Int?,
     val awayScore: Int?,
-    val isLive: Boolean
+    val isLive: Boolean,
+    /** Score at half-time; null when unknown (fresh live rows only). */
+    val homeHalftimeScore: Int? = null,
+    val awayHalftimeScore: Int? = null
 )
 
 data class MatchStatus(

@@ -241,13 +241,46 @@ private fun BottomActionRow(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
+        // Real match facts instead of a static placeholder. During a live
+        // game the half-time score is the most valuable context; HT data is
+        // absent on first live sightings, so fall back to kickoff time.
+        val contextLine = if (match.isLive) {
+            val ht = match.homeHalftimeScore
+            val at = match.awayHalftimeScore
+            if (ht != null && at != null) "HT $ht-$at" else kickoffLabel(match)
+        } else {
+            kickoffLabel(match)
+        }
         Text(
-            if (match.isLive) "Live action in progress" else "Match Center",
+            contextLine,
             color = Color.White.copy(alpha = 0.7f),
             style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f)
         )
+        Text(
+            "Match Center →",
+            color = LiveGreen,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+/** "Today 20:00" / "Sat 14/03 15:30" in the device timezone. */
+private fun kickoffLabel(match: Match): String {
+    if (match.timestamp <= 0L) return match.date
+    val now = java.util.Calendar.getInstance()
+    val cal = java.util.Calendar.getInstance().apply { timeInMillis = match.timestamp * 1000L }
+    val sameDay = now.get(java.util.Calendar.YEAR) == cal.get(java.util.Calendar.YEAR) &&
+        now.get(java.util.Calendar.DAY_OF_YEAR) == cal.get(java.util.Calendar.DAY_OF_YEAR)
+    val time = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+        .format(java.util.Date(match.timestamp * 1000L))
+    return if (sameDay) "Today $time" else {
+        val day = java.text.SimpleDateFormat("EEE dd/MM", java.util.Locale.getDefault())
+            .format(java.util.Date(match.timestamp * 1000L))
+        "$day $time"
     }
 }

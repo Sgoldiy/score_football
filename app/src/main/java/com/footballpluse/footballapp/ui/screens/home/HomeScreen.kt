@@ -10,6 +10,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -35,6 +36,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.footballpluse.footballapp.R
+import com.footballpluse.footballapp.data.model.PlayerProfileStatisticsResponse
 import com.footballpluse.footballapp.data.util.SeasonUtils
 import com.footballpluse.footballapp.domain.model.LeagueInfo
 import com.footballpluse.footballapp.domain.model.Match
@@ -386,6 +388,37 @@ private fun HomeContent(
                 }
             }
 
+            if (state.topScorers.isNotEmpty()) {
+                item(key = "top_scorers_header") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Top Scorers", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            "Across top leagues",
+                            color = Color.White.copy(alpha = 0.5f),
+                            fontSize = 12.sp
+                        )
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        itemsIndexed(
+                            state.topScorers.take(10),
+                            key = { idx, s -> "scorer_${s.player?.id ?: idx}" }
+                        ) { _, scorer ->
+                            TopScorerCard(scorer)
+                        }
+                    }
+                    Spacer(Modifier.height(24.dp))
+                }
+            }
+
             item(key = "my_teams") {
                 MyTeamsStrip(onEditFavorites = onFavourites, onClubClick = onClubClick)
                 Text(
@@ -444,6 +477,79 @@ private fun HomeContent(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+/** Compact scorer chip for the home carousel: rank, photo, name, team, goals. */
+@Composable
+private fun TopScorerCard(scorer: PlayerProfileStatisticsResponse) {
+    val stats = scorer.statistics?.firstOrNull()
+    val goals = stats?.goals?.total ?: 0
+    val assists = stats?.goals?.assists ?: 0
+    Column(
+        modifier = Modifier
+            .width(150.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xFF131620))
+            .border(1.dp, Color(0xFF1A1E2A), RoundedCornerShape(14.dp))
+            .padding(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(contentAlignment = Alignment.BottomEnd) {
+            AsyncImage(
+                model = scorer.player?.photo,
+                contentDescription = scorer.player?.name,
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF1E2430)),
+                placeholder = painterResource(R.drawable.ic_placeholder),
+                error = painterResource(R.drawable.ic_placeholder)
+            )
+            Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(Color(0xFF00E676))
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+            text = scorer.player?.name ?: "",
+            color = Color.White,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Text(
+            text = stats?.team?.name ?: "",
+            color = Color.White.copy(alpha = 0.5f),
+            fontSize = 11.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(Modifier.height(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = "$goals",
+                color = Color(0xFF00E676),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Black
+            )
+            Text(
+                text = " goals",
+                color = Color.White.copy(alpha = 0.6f),
+                fontSize = 11.sp
+            )
+            if (assists > 0) {
+                Text(
+                    text = " · $assists ast",
+                    color = Color.White.copy(alpha = 0.6f),
+                    fontSize = 11.sp
+                )
             }
         }
     }
