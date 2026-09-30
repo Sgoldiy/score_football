@@ -28,7 +28,9 @@ private fun mapStatus(status: String?, matchLive: String?, elapsed: Int? = null)
     status == "Suspended" -> "SUS"
     status == "Interrupted" -> "INT"
     status == "After Extra Time" || status == "After ET" -> "AET"
-    status == "After Penalties" || status == "After Pen." -> "AP"
+    // "PEN" is what every finished-filter in the UI expects; "AP" is kept
+    // as an accepted legacy value in HomeScreen's row check.
+    status == "After Penalties" || status == "After Pen." -> "PEN"
     status == "Awarded" -> "AW"
     status == "In Play" -> "LIVE"
     matchLive == "1" -> "LIVE"
@@ -46,14 +48,14 @@ internal fun String?.seasonToStartYear(): Int? =
     this?.takeWhile { it.isDigit() }?.toIntOrNull()
 
 /**
- * Match timestamp from v3 API. match_date is "yyyy-MM-dd" and match_time is the
- * kickoff in Europe/Berlin local time. Combining them gives a correct UTC instant
- * (CET = UTC+1, CEST = UTC+2, DST handled automatically by the Europe/Berlin zone).
+ * Match timestamp from v3 API. match_date is "yyyy-MM-dd" and match_time is
+ * the kickoff in **UTC** (the uitslagen upstream serves UTC — see
+ * docs/LIVE_FEED.md). Combining them gives the correct UTC instant.
  */
 internal fun eventTimestamp(date: String?, time: String?): Long {
     if (date.isNullOrBlank()) return 0L
     return try {
-        val zone = java.time.ZoneId.of("Europe/Berlin")
+        val zone = java.time.ZoneId.of("UTC")
         val d = java.time.LocalDate.parse(date.take(10))
         val (h, m) = if (time != null && time.contains(":")) {
             val parts = time.split(":")
