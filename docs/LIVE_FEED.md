@@ -24,7 +24,7 @@ All times/dates in payloads are **GMT/UTC**. Dates are `dd/MM/yyyy`, times `HH:M
 | `GET players/{playerId}.json` | Player page | 2026-09-29 (92076 via search id_gs) |
 | `GET images/teams_gs/{teamId}.png` | Team logo | source-verified; not probed this step |
 
-League keys look like `CountryNameLeagueName` without spaces (e.g. `IndiaIFAShield`, `ArgentinaPrimCMetro`, `NetherlandsEredivisie`) and come from search results / feed rows (`leagueKey`).
+League keys look like `CountryNameLeagueName` without spaces (e.g. `IndiaIFAShield`, `ArgentinaPrimCMetro`, `NetherlandsEredivisie`). The reliable discovery source is `search_v3`: query a famous club of the league and read the `leagueKey` embedded in its team result (feed rows also carry `leagueKey`, but their numeric `leagueid` is **not** the app's legacy id and must never be used for resolution).
 
 ### Match id quirk
 League-fixture rows can carry a **`_f` suffix** (e.g. `3949779_f`). The detail endpoint accepts the suffixed form; `UitslagenStatus.baseId()` strips it when a numeric id is needed.
@@ -97,4 +97,4 @@ Coverage per legacy call:
 
 Removed features (no upstream data): season projection, luck/xPts, model track-record tab, club advanced stats (xG/possession), odds, FC goal-timing bands (Stats tab bands are zeros).
 
-League-key map: `UitslagenLeagues.BY_ID` — `EnglandPremierLeague`, `ItalySerieA`, `GermanyBundesliga`, `FranceLigue1`, `SwitzerlandSuperLeague` were each verified live (200 OK with full payloads); the remaining entries follow the capture-proven `CountryNameLeagueName` construction and are covered by runtime discovery: every feed row carries `leagueid` + `leagueKey`, and seen pairs self-register in `UitslagenLeagues`.
+League-key map: `UitslagenLeagues.BY_ID` is a **static, hand-maintained table** — every entry was verified live on 2026-09-29 (via `fixtures_v2/{key}_small.json` or the `leagueKey` embedded in `search_v3` team results): `EnglandPremierLeague`, `SpainPrimeraDivision`, `ItalySerieA`, `GermanyBundesliga`, `FranceLigue1`, `NetherlandsEredivisie`, `PortugalPrimeiraLiga`, `SaudiArabiaProLeague`, `BelgiumProLeague`, `SwitzerlandSuperLeague`. An earlier runtime-discovery idea (self-registering `leagueid`→`leagueKey` pairs from feed rows) was removed as unworkable: footapi's numeric `leagueid` is a different numbering system from the app's legacy ids (1079, 1203, 1272… vs 152, 302, 207…) and is not unique (1201 spans four leagues), so such a bridge can never fire. A legacy id missing from the table resolves to null and the adapter honestly serves an empty league block — extend `BY_ID` (after verifying the key live) rather than expecting self-healing.

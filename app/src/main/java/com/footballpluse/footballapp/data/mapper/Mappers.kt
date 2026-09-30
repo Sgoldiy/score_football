@@ -437,8 +437,7 @@ fun ApiPrediction.toPrediction(): Prediction {
         predictions = PredictionDetail(
             winner = null, win_or_draw = null, under_over = null, goals = null,
             advice = advice,
-            percent = PredictionPercent(home = homeWin, draw = draw, away = awayWin),
-            extras = listOfNotNull(overLadder, xgSummary, modelNote).joinToString(" \u00b7 ").ifBlank { null }
+            percent = PredictionPercent(home = homeWin, draw = draw, away = awayWin)
         ),
         league = null, teams = null, comparison = null, h2h = null
     )
@@ -649,8 +648,7 @@ fun Prediction.toMatchPrediction(): MatchPrediction {
         winnerName = predictions?.winner?.name,
         homePercent = predictions?.percent?.home,
         drawPercent = predictions?.percent?.draw,
-        awayPercent = predictions?.percent?.away,
-        extras = predictions?.extras
+        awayPercent = predictions?.percent?.away
     )
 }
 

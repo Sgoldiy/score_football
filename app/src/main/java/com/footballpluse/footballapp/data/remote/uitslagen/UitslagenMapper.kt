@@ -94,7 +94,7 @@ object UitslagenMapper {
         )
     }
 
-    /** Map every row of every league of a country feed, registering league keys. */
+    /** Map every row of every league of a country feed. */
     fun flattenFeeds(
         feeds: List<UitslagenCountryFeed>,
         nowUtcMs: Long = System.currentTimeMillis()
@@ -103,7 +103,6 @@ object UitslagenMapper {
         for (country in feeds) {
             for (lg in country.leagues.orEmpty()) {
                 for (row in lg.matches.orEmpty()) {
-                    UitslagenLeagues.register(UitslagenLeagues.leagueIdOf(row), lg.key ?: row.leagueKey)
                     out += rowToApiEvent(row, nowUtcMs = nowUtcMs)
                 }
             }
