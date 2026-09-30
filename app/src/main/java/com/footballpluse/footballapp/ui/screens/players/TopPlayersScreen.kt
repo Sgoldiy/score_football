@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -414,13 +415,13 @@ private fun PlayerSection(
             TopPlayersPodium(players = players, mode = mode, onPlayerClick = onPlayerClick)
             Spacer(Modifier.height(12.dp))
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(players.drop(3), key = { "${mode}_${it.player?.id ?: it.hashCode()}" }) { player ->
+                itemsIndexed(players.drop(3), key = { idx, p -> "${mode}_${p.player?.id ?: idx}" }) { _, player ->
                     PlayerRankCard(player, mode, onPlayerClick)
                 }
             }
         } else {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                items(players, key = { "${mode}_${it.player?.id ?: it.hashCode()}" }) { player ->
+                itemsIndexed(players, key = { idx, p -> "${mode}_${p.player?.id ?: idx}" }) { _, player ->
                     PlayerRankCard(player, mode, onPlayerClick)
                 }
             }
