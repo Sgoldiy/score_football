@@ -381,7 +381,12 @@ fun FixturesList(
     ) {
         grouped.forEach { (league, leagueMatches) ->
             val isExpanded = expandedLeagues[league.id] ?: true
-            item(key = league.id) {
+            // Key by the group's first match id: the upstream reuses numeric
+            // league ids across different competitions (e.g. 1201 spans four
+            // English non-league divisions), so league.id collides across
+            // groups and crashes Compose's keyed LazyColumn with
+            // "Key ... was already used" when more leagues load in.
+            item(key = "fx_${leagueMatches.first().id}") {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
