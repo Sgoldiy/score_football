@@ -54,6 +54,7 @@ fun ClubsScreen(
     onClubToggled: (Club) -> Unit,
     onContinue: () -> Unit,
     getClubsForLeague: (String) -> List<Club>,
+    onLeagueTabSelected: (String) -> Unit = {},
     mode: String = "first",
     modifier: Modifier = Modifier
 ) {
@@ -88,7 +89,14 @@ fun ClubsScreen(
         }
     }
 
+    // Current-season teams load from the upstream when a league tab is
+    // first shown (initial screen or tab switch).
+    LaunchedEffect(selectedTabLeagueId) {
+        onLeagueTabSelected(selectedTabLeagueId)
+    }
+
     val allClubsForTab = getClubsForLeague(selectedTabLeagueId)
+    val isTabLoading = selectedTabLeagueId in state.loadingLeagues
     val filteredClubs = if (searchQuery.isBlank()) {
         allClubsForTab
     } else {
@@ -251,10 +259,11 @@ fun ClubsScreen(
                             )
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
-                                text = if (searchQuery.isNotEmpty()) 
-                                    "No clubs match \"$searchQuery\"" 
-                                else 
-                                    "No clubs found for this league",
+                                text = when {
+                                    searchQuery.isNotEmpty() -> "No clubs match \"$searchQuery\""
+                                    isTabLoading -> "Loading teams..."
+                                    else -> "Teams unavailable right now — check your connection"
+                                },
                                 color = textSecondary,
                                 fontSize = 16.sp,
                                 textAlign = TextAlign.Center
