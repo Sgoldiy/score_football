@@ -173,7 +173,9 @@ class TeamRepository @Inject constructor(private val apiService: ApiService) {
                 )
             }
             val perTeam = mutableMapOf<Int, MutableList<Triple<Long, Int, Int>>>() // teamId -> (timestamp, goalsFor, goalsAgainst)
-            events.filter { it.match_status == "Finished" }.forEach { e ->
+            // Upstream finished status is "FT" (mapped via mapStatus; the raw
+            // feed also carries literal "Finished" in some payloads).
+            events.filter { it.match_status == "FT" || it.match_status == "Finished" }.forEach { e ->
                 val hId = e.match_hometeam_id?.toIntOrNull() ?: return@forEach
                 val aId = e.match_awayteam_id?.toIntOrNull() ?: return@forEach
                 val hG = e.match_hometeam_score?.trim()?.toIntOrNull() ?: return@forEach

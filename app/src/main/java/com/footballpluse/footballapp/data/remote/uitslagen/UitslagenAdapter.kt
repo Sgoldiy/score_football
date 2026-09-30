@@ -178,11 +178,36 @@ class UitslagenAdapter @Inject constructor(
     }
 
     private suspend fun popularEvents(from: String, to: String): List<ApiEvent> {
-        val day = dayFeedEvents()
         val live = try { liveFeedEvents() } catch (_: Exception) { emptyList() }
+        // The upstream's day feed accepts any date (verified live: past days
+        // return full results with scores, future days the scheduled slate).
+        // Fetch one day feed per date for short windows (the app's date rail
+        // and Home both request single days); cap to stay polite.
+        val dates = dateRangeIso(from, to)
+        val day = dates.take(3).flatMap { date ->
+            try { dayFeedEvents(date) } catch (_: Exception) { emptyList() }
+        }
         return (live + day)
             .filter { UitslagenMapper.inRangeUtc(it.match_date, from, to) }
             .distinctBy { it.match_id }
+    }
+
+    /** Inclusive ISO date range, empty when the range is invalid. */
+    private fun dateRangeIso(from: String, to: String): List<String> {
+        if (from.isBlank()) return emptyList()
+        return try {
+            val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
+            val start = fmt.parse(from) ?: return emptyList()
+            val days = if (to.isBlank()) 0 else {
+                val end = fmt.parse(to) ?: return listOf(from)
+                ((end.time - start.time) / 86_400_000L).coerceIn(0, 2).toInt()
+            }
+            (0..days).map { d ->
+                fmt.format(java.util.Date(start.time + d * 86_400_000L))
+            }
+        } catch (_: Exception) {
+            emptyList()
+        }
     }
 
     // ─── Livescore (real live rows from feed_livenow) ─────────────────────────
@@ -287,11 +312,11 @@ class UitslagenAdapter @Inject constructor(
     private suspend fun liveFeedEvents(): List<ApiEvent> =
         UitslagenMapper.flattenFeeds(liveFeed())
 
-    private suspend fun dayFeed(): List<UitslagenCountryFeed> =
-        cached("day|${todayUtc()}", DAY_TTL_MS) { api.feedAggregated(todayUtc()) }
+    private suspend fun dayFeed(dateUtc: String = todayUtc()): List<UitslagenCountryFeed> =
+        cached("day|$dateUtc", DAY_TTL_MS) { api.feedAggregated(dateUtc) }
 
-    private suspend fun dayFeedEvents(): List<ApiEvent> =
-        UitslagenMapper.flattenFeeds(dayFeed())
+    private suspend fun dayFeedEvents(dateUtc: String = todayUtc()): List<ApiEvent> =
+        UitslagenMapper.flattenFeeds(dayFeed(dateUtc))
 
     private fun todayUtc(): String =
         SimpleDateFormat("dd/MM/yyyy", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
