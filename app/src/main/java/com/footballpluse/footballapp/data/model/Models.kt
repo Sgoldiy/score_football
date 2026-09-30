@@ -359,15 +359,7 @@ data class ApiPrediction(
     val ht_over_05: String? = null,
     val ht_over_15: String? = null,
     val expected_home_goals: Double? = null,
-    val expected_away_goals: Double? = null,
-    /** Pre-formatted extras for the prediction card: "O0.5 85% O1.5 58% ..." */
-    val overLadder: String? = null,
-    val htLines: String? = null,
-    val xgSummary: String? = null,
-    /** Model freshness: staleness + effective sample sizes. */
-    val modelNote: String? = null,
-    /** Compact goals summary: "O2.5 35.6% · BTTS 20%" */
-    val goalsSummary: String? = null
+    val expected_away_goals: Double? = null
 )
 
 // Keep existing wrapper types needed by domain
@@ -1026,9 +1018,7 @@ data class PredictionDetail(
     val under_over: String?,
     val goals: PredictionGoals?,
     val advice: String?,
-    val percent: PredictionPercent?,
-    /** FC model extras: over/under ladder, xG, model freshness (not parsed from JSON). */
-    val extras: String? = null
+    val percent: PredictionPercent?
 )
 
 @JsonClass(generateAdapter = true)

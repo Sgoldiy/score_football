@@ -73,9 +73,7 @@ data class MatchPrediction(
     val winnerName: String?,
     val homePercent: String?,
     val drawPercent: String?,
-    val awayPercent: String?,
-    /** FC model extras: over/under ladder, xG, model freshness. */
-    val extras: String? = null
+    val awayPercent: String?
 )
 
 data class MatchOdd(

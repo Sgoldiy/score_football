@@ -844,17 +844,6 @@ private fun PredictionsSection(prediction: MatchPrediction) {
                 ProbabilityItem(label = "Draw", value = prediction.drawPercent ?: "33%", color = Color(0xFFFFC107))
                 ProbabilityItem(label = "Away", value = prediction.awayPercent ?: "33%", color = IceBlue)
             }
-
-            prediction.extras?.let { extras ->
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text = extras,
-                    color = TextSecondary,
-                    fontSize = 10.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
         }
     }
 }
