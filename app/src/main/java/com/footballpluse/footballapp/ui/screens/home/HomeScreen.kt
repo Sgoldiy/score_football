@@ -54,6 +54,28 @@ private val currentSeason = SeasonUtils.currentSeasonStartYear()
 private fun leagueBadgeUrl(leagueId: Int, leagueName: String): String =
     "https://apiv3.apifootball.com/badges/logo_leagues/${leagueId}_${leagueName.lowercase().replace(' ', '-')}.png"
 
+/* Top competitions (cups & international tournaments). The upstream covers
+ * these (verified keys + live league ids), but its payloads carry no logo
+ * fields and the badge CDN only hosts domestic leagues, so these cards use
+ * emoji marks. Tapping one opens the league detail for its verified key. */
+private data class TopCompetition(
+    val key: String,
+    val name: String,
+    val emoji: String,
+    val country: String
+)
+
+private val topCompetitions = listOf(
+    TopCompetition("EurocupsUEFAChampionsLeague", "Champions League", "\uD83C\uDDFE\uD83C\uDDF7", "Europe"),
+    TopCompetition("EurocupsUEFAEuropaLeague", "Europa League", "\uD83C\uDDFE\uD83C\uDDF7", "Europe"),
+    TopCompetition("EurocupsUEFAEuropaConferenceLeague", "Conference League", "\uD83C\uDDFE\uD83C\uDDF7", "Europe"),
+    TopCompetition("EurocupsUEFANationsLeagueLeagueA", "Nations League", "\uD83C\uDDEA\uD83C\uDDFA", "Europe"),
+    TopCompetition("InternationalWorldWorldCup", "World Cup", "\uD83C\uDF0D", "World"),
+    TopCompetition("InternationalEuroEuroChampionship", "EURO", "\uD83C\uDDEA\uD83C\uDDF8", "Europe"),
+    TopCompetition("InternationalAmericaCopaAmerica", "Copa América", "\uD83C\uDDF8\uD83C\uDDF4", "S. America"),
+    TopCompetition("InternationalAsiaAFCAsianCup", "Asian Cup", "\uD83C\uDDE6\uD83C\uDDF8", "Asia")
+)
+
 /* Skeleton of FC-covered leagues, used as merge fallback until the live list
  * arrives. Names/countries match the uitslagen adapter league map so byName matching
  * works; ids are the legacy ids those leagues are persisted under. */
@@ -253,7 +275,7 @@ private fun HomeContent(
         }
     }
 
-    val internationalLeagues: List<LeagueInfo> = emptyList()
+    val internationalLeagues: List<LeagueInfo> = emptyList()  // superseded by topCompetitions rail
 
     val listState = rememberLazyListState()
 
@@ -326,27 +348,27 @@ private fun HomeContent(
                 }
             }
 
-            if (internationalLeagues.isNotEmpty()) {
-                item(key = "international_header") {
-                    LeagueSectionHeader("International & Cups")
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        items(internationalLeagues, key = { "int_lg_${it.id}" }) { league ->
-                            CompetitionCard(
-                                leagueId = league.id,
-                                leagueName = league.name,
-                                logoUrl = league.logo ?: leagueBadgeUrl(league.id, league.name),
-                                season = league.season ?: currentSeason,
-                                hasLiveMatches = state.liveMatches.any { it.league.id == league.id },
-                                onClick = { onNavigateToLeagueDetail?.invoke(league.id, league.season ?: currentSeason) ?: onNavigateToLeagues() }
-                            )
-                        }
+            item(key = "top_competitions") {
+                LeagueSectionHeader("Top Competitions")
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    items(topCompetitions, key = { "comp_${it.key}" }) { comp ->
+                        CompetitionCard(
+                            leagueId = 0,
+                            leagueName = comp.name,
+                            logoUrl = null,
+                            season = currentSeason,
+                            hasLiveMatches = false,
+                            emojiOverride = comp.emoji,
+                            subtitleOverride = comp.country,
+                            onClick = { onNavigateToLeagues() }
+                        )
                     }
-                    Spacer(Modifier.height(24.dp))
                 }
+                Spacer(Modifier.height(24.dp))
             }
 
             if (state.liveMatches.isNotEmpty()) {
@@ -382,37 +404,6 @@ private fun HomeContent(
                                 homeForm = formMap[match.homeTeam.id] ?: "",
                                 awayForm = formMap[match.awayTeam.id] ?: ""
                             )
-                        }
-                    }
-                    Spacer(Modifier.height(24.dp))
-                }
-            }
-
-            if (state.topScorers.isNotEmpty()) {
-                item(key = "top_scorers_header") {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Top Scorers", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                        Text(
-                            "Across top leagues",
-                            color = Color.White.copy(alpha = 0.5f),
-                            fontSize = 12.sp
-                        )
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        itemsIndexed(
-                            state.topScorers.take(10),
-                            key = { idx, s -> "scorer_${s.player?.id ?: idx}" }
-                        ) { _, scorer ->
-                            TopScorerCard(scorer)
                         }
                     }
                     Spacer(Modifier.height(24.dp))
@@ -482,79 +473,6 @@ private fun HomeContent(
     }
 }
 
-/** Compact scorer chip for the home carousel: rank, photo, name, team, goals. */
-@Composable
-private fun TopScorerCard(scorer: PlayerProfileStatisticsResponse) {
-    val stats = scorer.statistics?.firstOrNull()
-    val goals = stats?.goals?.total ?: 0
-    val assists = stats?.goals?.assists ?: 0
-    Column(
-        modifier = Modifier
-            .width(150.dp)
-            .clip(RoundedCornerShape(14.dp))
-            .background(Color(0xFF131620))
-            .border(1.dp, Color(0xFF1A1E2A), RoundedCornerShape(14.dp))
-            .padding(12.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(contentAlignment = Alignment.BottomEnd) {
-            AsyncImage(
-                model = scorer.player?.photo,
-                contentDescription = scorer.player?.name,
-                modifier = Modifier
-                    .size(44.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF1E2430)),
-                placeholder = painterResource(R.drawable.ic_placeholder),
-                error = painterResource(R.drawable.ic_placeholder)
-            )
-            Box(
-                modifier = Modifier
-                    .size(20.dp)
-                    .clip(CircleShape)
-                    .background(Color(0xFF00E676))
-            )
-        }
-        Spacer(Modifier.height(8.dp))
-        Text(
-            text = scorer.player?.name ?: "",
-            color = Color.White,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(
-            text = stats?.team?.name ?: "",
-            color = Color.White.copy(alpha = 0.5f),
-            fontSize = 11.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Spacer(Modifier.height(6.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = "$goals",
-                color = Color(0xFF00E676),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Black
-            )
-            Text(
-                text = " goals",
-                color = Color.White.copy(alpha = 0.6f),
-                fontSize = 11.sp
-            )
-            if (assists > 0) {
-                Text(
-                    text = " · $assists ast",
-                    color = Color.White.copy(alpha = 0.6f),
-                    fontSize = 11.sp
-                )
-            }
-        }
-    }
-}
-
 @Composable
 private fun LeagueSectionHeader(title: String) {
     Row(
@@ -596,7 +514,11 @@ private fun CompetitionCard(
     logoUrl: String?,
     season: Int,
     hasLiveMatches: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    /** Emoji mark shown when no logo url exists (competitions). */
+    emojiOverride: String? = null,
+    /** Replaces the season line when set (e.g. competition region). */
+    subtitleOverride: String? = null
 ) {
     Card(
         modifier = Modifier.width(130.dp).height(88.dp).clickable(
@@ -621,13 +543,17 @@ private fun CompetitionCard(
                     modifier = Modifier.size(28.dp).clip(CircleShape).background(Color.White).padding(4.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    AsyncImage(
-                        model = logoUrl,
-                        contentDescription = leagueName,
-                        modifier = Modifier.size(20.dp),
-                        placeholder = painterResource(R.drawable.ic_placeholder),
-                        error = painterResource(R.drawable.ic_placeholder)
-                    )
+                    if (logoUrl != null) {
+                        AsyncImage(
+                            model = logoUrl,
+                            contentDescription = leagueName,
+                            modifier = Modifier.size(20.dp),
+                            placeholder = painterResource(R.drawable.ic_placeholder),
+                            error = painterResource(R.drawable.ic_placeholder)
+                        )
+                    } else {
+                        Text(text = emojiOverride ?: "", fontSize = 14.sp)
+                    }
                 }
                 if (hasLiveMatches) {
                     Box(
@@ -639,7 +565,11 @@ private fun CompetitionCard(
             }
             Column {
                 Text(leagueName, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("$season/${(season + 1) % 100}", color = Color.White.copy(alpha = 0.5f), fontSize = 9.sp)
+                Text(
+                    subtitleOverride ?: "$season/${(season + 1) % 100}",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 9.sp
+                )
             }
         }
     }
