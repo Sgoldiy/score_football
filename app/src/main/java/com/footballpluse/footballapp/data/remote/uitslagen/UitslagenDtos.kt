@@ -170,7 +170,12 @@ data class UitslagenTableRow(
     val group: String? = null
 )
 
-/** Empty in the capture; kept ultra-lenient so a populated payload still parses. */
+/**
+ * League block top scorers. The populated payload (verified live 2026-09-30,
+ * e.g. EnglandPremierLeague_small: 50 players, Haaland first) nests the
+ * scorer list under `players`; the older `topscorers` list key from the
+ * Step-1 capture is kept as a lenient alternative.
+ */
 @JsonClass(generateAdapter = false)
 data class UitslagenTopScorers(
     val country: String? = null,
@@ -181,7 +186,9 @@ data class UitslagenTopScorers(
 @JsonClass(generateAdapter = false)
 data class UitslagenTopScorerTournament(
     val name: String? = null,
-    val topscorers: List<UitslagenScorer>? = null
+    val topscorers: List<UitslagenScorer>? = null,
+    /** Key used by the populated payloads. */
+    val players: List<UitslagenScorer>? = null
 )
 
 @JsonClass(generateAdapter = false)
@@ -192,7 +199,14 @@ data class UitslagenScorer(
     val assists: String? = null,
     val team: String? = null,
     val teamid: String? = null,
-    val penalty: String? = null
+    /** Team id in the populated payload (same value as `teamid`). */
+    val team_id_gs: String? = null,
+    /** Rank position in the populated payload ("pos"). */
+    val pos: String? = null,
+    val nationality: String? = null,
+    val penalty: String? = null,
+    /** Penalty goals in the populated payload (same value as `penalty`). */
+    val penalty_goals: String? = null
 )
 
 @JsonClass(generateAdapter = false)
