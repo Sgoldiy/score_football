@@ -43,7 +43,14 @@ interface UitslagenApiService {
 
     companion object {
         const val TEAM_LOGO_URL = "https://uitslagen.live/footapi/images/teams_gs/%s.png"
+
+        /**
+         * Logo URL for a numeric team id, or null when the id is not a usable
+         * number — the upstream serves a broken image for blank/garbage ids,
+         * so the UI falls back to its placeholder instead.
+         */
         fun teamLogoUrl(teamId: String?): String? =
-            teamId?.takeIf { it.isNotBlank() }?.let { TEAM_LOGO_URL.format(it) }
+            teamId?.takeIf { it.isNotBlank() && it.all { c -> c.isDigit() } }
+                ?.let { TEAM_LOGO_URL.format(it) }
     }
 }

@@ -90,11 +90,31 @@ Coverage per legacy call:
 | `getStandings` | league block `table` (real positions, points, form) |
 | `getTopScorers` | league block `topscorers` (empty in capture; lenient) |
 | `getLineups` / `getMatchStatistics` | match detail `lineups` / `stats` |
-| `getHeadToHead` | team-page fixtures + name-matched mutual meetings |
+| `getHeadToHead` | team-page fixtures; mutual meetings matched by numeric team ids first (name-normalized fallback) |
 | `getTeams` / `getPlayers` | league block / `team_gs` / `players` / `search_v3` |
 | `getCountries` / `getLeagues` | discovered live from the day feed |
 | `getOdds` / `getPredictions` | empty — no upstream equivalent; UI removed |
 
 Removed features (no upstream data): season projection, luck/xPts, model track-record tab, club advanced stats (xG/possession), odds, FC goal-timing bands (Stats tab bands are zeros).
+
+---
+
+## Live verification of the whole adapter (2026-09-30)
+
+`LiveAdapterBehaviorTest` (ignored by default; run with `--tests "*.LiveAdapterBehaviorTest"`) drives the real `UitslagenAdapter` — production Retrofit/Moshi/interceptors — through all nine app flows against the live upstream. All 9 green, with field-completeness assertions:
+
+| Flow | Evidence |
+|---|---|
+| Home feed (live + day, ±1 day) | 210 rows; 0 missing ids/teams/date/status/country/league/badges |
+| Live scores | rows flagged `match_live=1` with scores + minute |
+| LaLiga standings (id 302) | 20/20 rows, position 1 first, every field incl. badge present |
+| LaLiga events (±200 d) | 320 rows, core fields complete |
+| Match detail (finished FT match) | status FT, score, stadium; lineups 11 v 11 with names/numbers; H2H stats mapped |
+| Search + team page | player search hits (e.g. Lamine Yamal); team page w/ name, venue, badge |
+| H2H | both last-10 lists + 1 mutual meeting found |
+| Countries/leagues | 38 countries discovered from the day feed |
+| Top scorers | **0 — upstream block genuinely empty in-season** (payload lenient; will fill when the upstream populates it) |
+
+Bugs this run caught and fixed: garbage logo URLs for blank/`_a`-suffixed team ids (now null → UI placeholder); H2H mutual meetings = 0 under name-only matching (now id-first matching); match-detail referee never surfaced (now `Referee #<id>` from `refereeId`).
 
 League-key map: `UitslagenLeagues.BY_ID` is a **static, hand-maintained table** — every entry was verified live on 2026-09-29 (via `fixtures_v2/{key}_small.json` or the `leagueKey` embedded in `search_v3` team results): `EnglandPremierLeague`, `SpainPrimeraDivision`, `ItalySerieA`, `GermanyBundesliga`, `FranceLigue1`, `NetherlandsEredivisie`, `PortugalPrimeiraLiga`, `SaudiArabiaProLeague`, `BelgiumProLeague`, `SwitzerlandSuperLeague`. An earlier runtime-discovery idea (self-registering `leagueid`→`leagueKey` pairs from feed rows) was removed as unworkable: footapi's numeric `leagueid` is a different numbering system from the app's legacy ids (1079, 1203, 1272… vs 152, 302, 207…) and is not unique (1201 spans four leagues), so such a bridge can never fire. A legacy id missing from the table resolves to null and the adapter honestly serves an empty league block — extend `BY_ID` (after verifying the key live) rather than expecting self-healing.

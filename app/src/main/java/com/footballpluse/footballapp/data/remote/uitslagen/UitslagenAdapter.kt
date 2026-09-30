@@ -208,13 +208,18 @@ class UitslagenAdapter @Inject constructor(
             val bDeferred = async { cached("team|$secondTeamId", BLOCK_TTL_MS) { api.teamPage(secondTeamId) } }
             val a = aDeferred.await()
             val b = bDeferred.await()
-            val aName = a.teamname
             val bName = b.teamname
+            val bId = b.id_gs
             val aRows = a.fixtures.orEmpty().map { UitslagenMapper.rowToApiEvent(it) }
             val bRows = b.fixtures.orEmpty().map { UitslagenMapper.rowToApiEvent(it) }
-            val mutual = aRows.filter {
-                UitslagenMapper.normalize(it.match_hometeam_name) == UitslagenMapper.normalize(bName) ||
-                    UitslagenMapper.normalize(it.match_awayteam_name) == UitslagenMapper.normalize(bName)
+            val mutual = aRows.filter { ev ->
+                // Authoritative: numeric team ids come from the same payload
+                // family, so equal ids are a certain mutual meeting.
+                (ev.match_hometeam_id != null && ev.match_hometeam_id == bId) ||
+                    (ev.match_awayteam_id != null && ev.match_awayteam_id == bId) ||
+                    // Fallback for rows without ids: normalized display name.
+                    UitslagenMapper.normalize(ev.match_hometeam_name) == UitslagenMapper.normalize(bName) ||
+                    UitslagenMapper.normalize(ev.match_awayteam_name) == UitslagenMapper.normalize(bName)
             }
             ApiH2HResponse(
                 firstTeam_lastResults = aRows.distinctBy { it.match_id }.take(10),

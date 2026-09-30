@@ -131,6 +131,7 @@ object UitslagenMapper {
         val cards = detail.events.orEmpty().filter { it.type.equals("card", true) }
         return base.copy(
             match_stadium = detail.venue,
+            match_referee = detail.refereeId?.toIntOrNull()?.takeIf { it > 0 }?.let { "Referee #$it" },
             match_hometeam_system = detail.localteamshape,
             match_awayteam_system = detail.visitorteamshape,
             goalscorer = goals.map { e ->
