@@ -560,7 +560,9 @@ fun FixtureResponse.toMatch(): Match {
         ),
         homeScore = goals?.home,
         awayScore = goals?.away,
-        isLive = fixture?.status?.short in listOf("1H", "2H", "HT", "ET", "BT", "P", "INT", "LIVE")
+        isLive = fixture?.status?.short in listOf("1H", "2H", "HT", "ET", "BT", "P", "INT", "LIVE"),
+        homeHalftimeScore = score?.halftime?.home,
+        awayHalftimeScore = score?.halftime?.away
     )
 }
 
@@ -598,6 +600,8 @@ fun FixtureEntity.toMatch(): Match {
         awayTeam = TeamInfo(id = awayTeamId, name = awayTeamName, logo = awayTeamLogo),
         homeScore = homeScore,
         awayScore = awayScore,
+        // Half-time scores are not persisted in FixtureEntity (avoids a Room
+        // migration); live cards get them from the in-memory live flow.
         isLive = isLive
     )
 }
