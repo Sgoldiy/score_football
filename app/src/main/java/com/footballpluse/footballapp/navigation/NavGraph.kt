@@ -34,12 +34,10 @@ import com.footballpluse.footballapp.ui.screens.leagues.LeagueDetailScreen
 import com.footballpluse.footballapp.ui.screens.competitions.ClubInfoScreen
 import com.footballpluse.footballapp.ui.screens.onboarding.OnboardingEvent
 import com.footballpluse.footballapp.ui.screens.onboarding.OnboardingViewModel
-import com.footballpluse.footballapp.ui.screens.onboarding.flow.WelcomeScreen
 import com.footballpluse.footballapp.ui.screens.onboarding.flow.UsernameScreen
 import com.footballpluse.footballapp.ui.screens.onboarding.flow.LeagueScreen
 import com.footballpluse.footballapp.ui.screens.onboarding.flow.ClubsScreen
 
-const val ROUTE_WELCOME = "welcome"
 const val ROUTE_USERNAME = "username"
 const val ROUTE_LEAGUE = "league"
 const val ROUTE_CLUBS = "clubs"
@@ -47,7 +45,6 @@ const val ROUTE_HOME = "home"
 
 sealed class Screen(val route: String) {
     data object Onboarding : Screen("onboarding")
-    data object OnboardingWelcome : Screen(ROUTE_WELCOME)
     data object OnboardingUsername : Screen(ROUTE_USERNAME)
     data object OnboardingLeague : Screen(ROUTE_LEAGUE)
     object OnboardingClubs : Screen("$ROUTE_CLUBS/{mode}") {
@@ -87,23 +84,12 @@ fun SetupNavGraph(
         startDestination = startDestination
     ) {
         navigation(
-            startDestination = Screen.OnboardingWelcome.route,
+            // The old static welcome screen was removed: the animated splash
+            // now plays once, then onboarding starts directly at the username
+            // step.
+            startDestination = Screen.OnboardingUsername.route,
             route = Screen.Onboarding.route
         ) {
-            composable(
-                route = Screen.OnboardingWelcome.route,
-                enterTransition = {
-                    slideInHorizontally(tween(280)) { it } + fadeIn(tween(280))
-                },
-                exitTransition = {
-                    slideOutHorizontally(tween(280)) { -it / 3 } + fadeOut(tween(280))
-                }
-            ) {
-                WelcomeScreen(
-                    onGetStarted = { navController.navigate(Screen.OnboardingUsername.route) }
-                )
-            }
-
             composable(
                 route = Screen.OnboardingUsername.route,
                 enterTransition = {
