@@ -276,47 +276,6 @@ class HomeViewModel @Inject constructor(
             .launchIn(viewModelScope)
     }
 
-    private fun enrichWithImages(
-        scorers: List<PlayerProfileStatisticsResponse>,
-        teams: List<ApiTeam>
-    ): List<PlayerProfileStatisticsResponse> {
-        val teamBadgeMap = mutableMapOf<String, String>()
-        val playerImageMap = mutableMapOf<String, String>()
-
-        teams.forEach { team ->
-            team.team_name?.let { name ->
-                team.team_badge?.let { badge -> teamBadgeMap[name] = badge }
-            }
-            team.players?.forEach { player ->
-                player.player_name?.let { name ->
-                    player.player_image?.let { image -> playerImageMap[name] = image }
-                }
-            }
-        }
-
-        if (teamBadgeMap.isEmpty() && playerImageMap.isEmpty()) return scorers
-
-        return scorers.map { scorer ->
-            val stats = scorer.statistics?.firstOrNull()
-            val needsPhoto = scorer.player?.photo == null
-            val needsLogo = stats?.team?.logo == null
-            if (!needsPhoto && !needsLogo) return@map scorer
-
-            scorer.copy(
-                player = if (needsPhoto) scorer.player?.copy(
-                    photo = playerImageMap[scorer.player?.name]
-                        ?: scorer.player?.photo
-                ) else scorer.player,
-                statistics = if (needsLogo) scorer.statistics?.map { s ->
-                    s.copy(
-                        team = s.team?.copy(
-                            logo = teamBadgeMap[s.team?.name]
-                                ?: s.team?.logo
-                        )
-                    )
-                } else scorer.statistics
-            )
-        }
-    }
 }
+
 
