@@ -219,7 +219,10 @@ private fun HomeContent(
         (state.liveMatches + state.upcomingMatches.sortedBy { it.timestamp } + state.finishedMatches).distinctBy { it.id }
     }
     val groupedMatches = remember(allToday, favouriteLeagueId) {
-        allToday.groupBy { it.league.id }
+        // Group by league identity (id + name): the upstream reuses numeric
+        // league ids across DIFFERENT competitions (e.g. 1201 = four English
+        // non-league divisions), so id-only grouping merges unrelated leagues.
+        allToday.groupBy { "${it.league.id}|${it.league.name}" }
             .map { (_, matches) -> matches }
             .sortedWith(
                 compareByDescending<List<Match>> { group -> group.first().league.id == favouriteLeagueId }
@@ -400,7 +403,10 @@ private fun HomeContent(
             } else {
                 groupedMatches.forEach { group ->
                     val league = group.first().league
-                    item(key = "lg_${league.id}") {
+                    // Key by the group's first match id: unique per group (match
+                    // ids are unique), unlike league.id which the upstream shares
+                    // across different competitions.
+                    item(key = "lg_${group.first().id}") {
                         var isExpanded by remember { mutableStateOf(true) }
                         val isMyLeague = league.id == favouriteLeagueId
                         Card(
