@@ -235,6 +235,7 @@ fun SetupNavGraph(
                         }
                     },
                     getClubsForLeague = viewModel::getClubsForLeague,
+                    onLeagueTabSelected = viewModel::ensureLeagueTeams,
                     mode = mode
                 )
             }

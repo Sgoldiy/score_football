@@ -28,7 +28,11 @@ data class OnboardingUiState(
     val selectedLeague: League? = null,
     val selectedClubs: List<Club> = emptyList(),
     val isLoading: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    /** Live teams per league id, fetched from the current-season standings. */
+    val clubsByLeague: Map<String, List<Club>> = emptyMap(),
+    /** League ids whose team list is currently being fetched. */
+    val loadingLeagues: Set<String> = emptySet()
 )
 
 sealed class UsernameStatus {
