@@ -64,13 +64,22 @@ class ApiCacheInterceptor(
         private const val DAY_FEED = "feed_matches_aggregated"
 
         /**
-         * TTL per endpoint class. Live: 45 s — below the politeness window so the
-         * app's pollers (Home 60 s flow + Leagues tab) coalesce to at most one
-         * upstream hit per minute while scores stay at most ~45 s behind.
+         * TTL per endpoint class. The live feed adapts: 20 s while matches are
+         * in play (so goals surface in ~25 s), relaxing to 60 s when nothing is
+         * live — either way inside the 45–60 s politeness window, with all
+         * pollers coalescing onto the single cached copy.
          */
-        private const val TTL_LIVE_MS = 45_000L
+        private const val TTL_LIVE_IDLE_MS = 60_000L
+        private const val TTL_LIVE_ACTIVE_MS = 20_000L
         private const val TTL_DAY_FEED_MS = 60_000L
         private const val TTL_DEFAULT_MS = 120_000L
+
+        /**
+         * The upstream marks in-play matches with a bare numeric `status`
+         * (`"status":"43"`); finished/scheduled rows use literal words
+         * ("FT", "Not Started") — see docs/LIVE_FEED.md and UitslagenStatus.
+         */
+        private val LIVE_MATCH = Regex("\"status\"\\s*:\\s*\"\\d+\"")
 
         /** Back-off after an observed rate limit before that URL is allowed upstream again. */
         private const val RATE_LIMIT_COOLDOWN_MS = 60_000L
@@ -100,10 +109,10 @@ class ApiCacheInterceptor(
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
         val key = request.url.toString()
-        val ttl = ttlFor(key)
         val now = Instant.now(clock)
 
         val cached = get(key, now)
+        val ttl = ttlFor(key, cached)
 
         // 1. Fresh in cache → serve it, no network.
         if (cached != null && now.toEpochMilli() - cached.storedAt.toEpochMilli() < ttl) {
@@ -250,8 +259,9 @@ class ApiCacheInterceptor(
         LOG.warning("Rate limited: ${urlForLog(key)} — serving cache for ${RATE_LIMIT_COOLDOWN_MS / 1000}s")
     }
 
-    private fun ttlFor(url: String): Long = when {
-        url.contains(LIVE_FEED) -> TTL_LIVE_MS
+    private fun ttlFor(url: String, entry: CacheEntry?): Long = when {
+        url.contains(LIVE_FEED) ->
+            if (entry != null && LIVE_MATCH.containsMatchIn(entry.body)) TTL_LIVE_ACTIVE_MS else TTL_LIVE_IDLE_MS
         url.contains(DAY_FEED) -> TTL_DAY_FEED_MS
         else -> TTL_DEFAULT_MS
     }
