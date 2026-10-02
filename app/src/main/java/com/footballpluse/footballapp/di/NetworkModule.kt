@@ -7,6 +7,9 @@ import com.footballpluse.footballapp.data.remote.uitslagen.UitslagenAdapter
 import com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -51,14 +54,23 @@ object NetworkModule {
         }
     }
 
+    /** Disk-backed store for the response cache; survives app restarts. */
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient {
+    fun provideHttpCacheDir(@ApplicationContext context: Context): File {
+        return File(context.filesDir, "http_cache").also { it.mkdirs() }
+    }
+
+    @Provides
+    @Singleton
+    fun provideOkHttpClient(cacheDir: File): OkHttpClient {
         return OkHttpClient.Builder()
-            // Resilience: serves the last known response when the upstream
-            // rate-limits or hiccups instead of letting every screen go blank.
-            .addInterceptor(ApiCacheInterceptor())
+            // Params first so the cache keys on the FINAL upstream URL; the cache
+            // then serves fresh entries without a network call, revalidates stale
+            // ones in the background, coalesces duplicate requests and backs off
+            // on rate limits — cutting upstream calls dramatically.
             .addInterceptor(UitslagenParamsInterceptor())
+            .addInterceptor(ApiCacheInterceptor(dir = cacheDir))
             .addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC })
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(15, TimeUnit.SECONDS)
@@ -84,7 +96,7 @@ object NetworkModule {
     /**
      * The whole app consumes the legacy [ApiService] interface; the adapter
      * serves every call from the open uitslagen.live/footapi upstream with
-     * real values only.
+     * real values only, filtered through the response cache.
      */
     @Provides
     @Singleton
