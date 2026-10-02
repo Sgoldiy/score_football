@@ -59,15 +59,19 @@ fun MatchRow(
                             .clip(RoundedCornerShape(4.dp))
                             .background(Color(0xFF1A0A0A))
                             .border(0.5.dp, Color(0xFF3A1212), RoundedCornerShape(4.dp))
-                            .padding(horizontal = 5.dp, vertical = 2.dp),
+                            .padding(horizontal = 4.dp, vertical = 2.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text(
-                            text = "${match.elapsed ?: 0}'",
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.W600,
-                            color = Color(0xFFFF4444)
-                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            LivePulse(color = Color(0xFFFF4444), dotSize = 5.dp)
+                            Spacer(Modifier.width(3.dp))
+                            Text(
+                                text = "${match.elapsed ?: 0}'",
+                                fontSize = 9.sp,
+                                fontWeight = FontWeight.W600,
+                                color = Color(0xFFFF4444)
+                            )
+                        }
                     }
                 }
                 match.status.short == "FT" -> {

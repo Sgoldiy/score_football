@@ -1,5 +1,6 @@
 package com.footballpluse.footballapp.ui.components
 
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -25,9 +26,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -73,20 +76,32 @@ fun PremiumCard(
 @Composable
 fun LivePulse(
     modifier: Modifier = Modifier,
-    color: Color = LiveGreen
+    color: Color = LiveGreen,
+    dotSize: Dp = 9.dp
 ) {
     val transition = rememberInfiniteTransition(label = "live-pulse")
-    val alpha by transition.animateFloat(
-        initialValue = 0.35f,
+    val pulseAlpha by transition.animateFloat(
+        initialValue = 0.4f,
         targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(780), RepeatMode.Reverse),
+        animationSpec = infiniteRepeatable(tween(1000, easing = LinearEasing), RepeatMode.Reverse),
         label = "live-pulse-alpha"
+    )
+    val pulseScale by transition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.2f,
+        animationSpec = infiniteRepeatable(tween(1000, easing = LinearEasing), RepeatMode.Reverse),
+        label = "live-pulse-scale"
     )
     Box(
         modifier = modifier
-            .size(9.dp)
+            .size(dotSize)
+            .graphicsLayer {
+                scaleX = pulseScale
+                scaleY = pulseScale
+                this.alpha = pulseAlpha
+            }
             .clip(CircleShape)
-            .background(color.copy(alpha = alpha))
+            .background(color)
     )
 }
 

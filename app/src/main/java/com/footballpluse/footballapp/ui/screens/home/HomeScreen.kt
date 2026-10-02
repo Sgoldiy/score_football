@@ -559,7 +559,11 @@ private fun CompetitionCard(
                     Box(
                         modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFFFF4444)).padding(horizontal = 5.dp, vertical = 2.dp)
                     ) {
-                        Text("LIVE", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Black)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            LivePulse(color = Color.White, dotSize = 4.dp)
+                            Spacer(Modifier.width(3.dp))
+                            Text("LIVE", color = Color.White, fontSize = 8.sp, fontWeight = FontWeight.Black)
+                        }
                     }
                 }
             }

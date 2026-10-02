@@ -192,11 +192,7 @@ fun FeaturedLiveCard(match: Match) {
                 modifier = Modifier.align(Alignment.TopStart),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .background(Color(0xFFEF4444), CircleShape)
-                )
+                LivePulse(color = Color(0xFFEF4444))
                 Spacer(Modifier.width(6.dp))
                 Text(
                     "LIVE  ${minute}'",
