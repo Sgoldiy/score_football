@@ -1,13 +1,11 @@
 package com.footballpluse.footballapp.ui.components
 
-import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -18,16 +16,6 @@ import androidx.compose.ui.unit.sp
 
 @Composable
 fun LiveBadge(minute: String) {
-    val alpha by rememberInfiniteTransition(label = "live_pulse").animateFloat(
-        initialValue = 1f,
-        targetValue = 0.3f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(900),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "alpha"
-    )
-    
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -35,12 +23,7 @@ fun LiveBadge(minute: String) {
             .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
             .padding(horizontal = 8.dp, vertical = 4.dp)
     ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary.copy(alpha = alpha))
-        )
+        LivePulse(color = MaterialTheme.colorScheme.primary, dotSize = 8.dp)
         Spacer(modifier = Modifier.width(4.dp))
         Text(
             text = "$minute'",
