@@ -78,7 +78,20 @@ Mapper tests: `UitslagenMapperTest.kt` parses the captured payloads and verifies
 
 ## Integration status (mission-uitslagen)
 
-The app's single data source is now `UitslagenAdapter` (`data/remote/uitslagen/`), which implements the legacy `ApiService` interface over this upstream. Hilt wiring is in `di/NetworkModule.kt` (global `lang`/`version` params + `User-Agent: FootballPulse/1.0` via interceptor; 15 s timeouts; `ApiCacheInterceptor` still serves stale responses on failure). The FootballCharts layer, its Bearer auth and the apiv3 badge-CDN fallback were deleted.
+The app's single data source is now `UitslagenAdapter` (`data/remote/uitslagen/`), which implements the legacy `ApiService` interface over this upstream. Hilt wiring is in `di/NetworkModule.kt` (global `lang`/`version` params + `User-Agent: FootballPulse/1.0` via interceptor; 15 s timeouts).
+
+### Request-reducing cache (`ApiCacheInterceptor`, 2026-10-02)
+
+The upstream is unofficial with no published quota, so every response passes through a request-reducing cache (added **after** the params interceptor so keys are final URLs, and unit-pinned by `ApiCacheInterceptorTest` — 12 tests):
+
+1. **Fresh serve** — responses younger than their TTL are answered without a network call. TTLs per endpoint class: live feed 45 s (below the 60 s politeness window, so the app's pollers coalesce to ≤1 upstream hit/min), day feeds 60 s, everything else 120 s.
+2. **Stale-while-revalidate** — past the TTL the cached copy is served immediately while a single-threaded daemon executor refreshes it once in the background; concurrent callers share that one refresh.
+3. **Coalescing** — simultaneous cold callers of the same URL share one network response.
+4. **Rate-limit cooldown** — an observed 429 (or a rate-limit error body) puts that URL on a 60 s cooldown during which only cache answers.
+5. **Failure fallback** — a network error serves the last known copy instead of a blank screen.
+6. **Disk persistence** — entries are written under `filesDir/http_cache/` (atomic tmp→rename, MD5-named files, newest-256 prune, 24 h stale horizon) so a cold app start serves from disk instead of re-fetching.
+
+Error envelopes (`{"error":{...}}`) and non-JSON bodies are never cached. The cache is Android-import-free and takes an injectable `Clock`, which is why its whole behavior is JVM-tested. The FootballCharts layer, its Bearer auth and the apiv3 badge-CDN fallback were deleted.
 
 Coverage per legacy call:
 
