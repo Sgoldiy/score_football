@@ -37,6 +37,13 @@ class FootballRepositoryImpl @Inject constructor(
             return sdf.format(cal.time)
         }
 
+        /** Live poll cadence: quick while matches are in play, polite when idle. */
+        const val LIVE_POLL_ACTIVE_MS = 25_000L
+        const val LIVE_POLL_IDLE_MS = 60_000L
+
+        fun livePollDelayMs(hasLive: Boolean): Long =
+            if (hasLive) LIVE_POLL_ACTIVE_MS else LIVE_POLL_IDLE_MS
+
         /** Leagues scanned to build the searchable team pool. */
         private val SEARCH_POOL_LEAGUES = listOf(152, 302, 207, 175, 168, 88, 94, 203, 144, 187, 188, 169)
 
@@ -88,12 +95,14 @@ class FootballRepositoryImpl @Inject constructor(
     }
 
     override fun getLiveMatches(): Flow<ApiResult<List<Match>>> = flow {
+        var inPlay = false
         while (true) {
             try {
                 val events = apiService.getLivescore()
                 val liveFixtures = events.toFixtureResponseList()
                 val liveMatches = liveFixtures.map { it.toMatch() }
                     .filter { it.isLive || (it.elapsed ?: 0) > 0 && it.homeScore != null }
+                inPlay = liveMatches.isNotEmpty()
                 emit(ApiResult.Success(liveMatches))
             } catch (e: Exception) {
                 val isNoDataError = e.message?.contains("404") == true ||
@@ -106,7 +115,7 @@ class FootballRepositoryImpl @Inject constructor(
                     emit(ApiResult.Error(e.message ?: "Failed to refresh live matches"))
                 }
             }
-            delay(60000)
+            delay(livePollDelayMs(inPlay))
         }
     }
 

@@ -294,20 +294,38 @@ class ApiCacheInterceptorTest {
     // ── 8. Per-endpoint TTL classes ──────────────────────────────────────────
 
     @Test
-    fun `live feed uses the short TTL window`() {
-        bodySequence = listOf("{\"v\":1}", "[{\"v\":2}]")
+    fun `live feed refreshes every ~20s while a match is in play`() {
+        // Numeric status = the upstream's in-play marker (see docs/LIVE_FEED.md).
+        bodySequence = listOf(
+            "[{\"matches\":[{\"id\":1,\"status\":\"43\"}]}]",
+            "[{\"matches\":[{\"id\":1,\"status\":\"44\"}]}]",
+        )
         val path = "/footapi/fixtures/feed_livenow.json"
-        assertEquals("{\"v\":1}", get(path).body!!.string())
-        nowMs += 30_000 // inside 45 s live TTL
-        assertEquals("{\"v\":1}", get(path).body!!.string())
-        assertEquals(1, upstreamHits.get())
-        nowMs += 20_000 // 50 s total → past live TTL
-        // Stale served instantly, SWR refresh triggered by this call.
-        assertEquals("{\"v\":1}", get(path).body!!.string())
+        assertEquals("[{\"matches\":[{\"id\":1,\"status\":\"43\"}]}]", get(path).body!!.string())
+        nowMs += 25_000 // past the 20 s in-play TTL
+        // Stale served instantly, SWR refresh triggered.
+        assertEquals("[{\"matches\":[{\"id\":1,\"status\":\"43\"}]}]", get(path).body!!.string())
         val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
         while (upstreamHits.get() < 2 && System.nanoTime() < deadline) Thread.sleep(20)
         assertEquals(2, upstreamHits.get())
-        assertEquals("[{\"v\":2}]", get(path).body!!.string())
+        assertEquals("[{\"matches\":[{\"id\":1,\"status\":\"44\"}]}]", get(path).body!!.string())
+    }
+
+    @Test
+    fun `live feed stays on the relaxed TTL when nothing is in play`() {
+        // Literal statuses (Not Started / FT) = no live matches → 60 s idle TTL.
+        val idleBody = "[{\"matches\":[{\"id\":1,\"status\":\"Not Started\"},{\"id\":2,\"status\":\"FT\"}]}]"
+        bodySequence = listOf(idleBody)
+        val path = "/footapi/fixtures/feed_livenow.json"
+        assertEquals(idleBody, get(path).body!!.string())
+        nowMs += 45_000 // past the old fixed mark, still inside the 60 s idle TTL
+        assertEquals(idleBody, get(path).body!!.string())
+        assertEquals(1, upstreamHits.get())
+        nowMs += 20_000 // 65 s total → past idle TTL → SWR fires on this call
+        get(path).close()
+        val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10)
+        while (upstreamHits.get() < 2 && System.nanoTime() < deadline) Thread.sleep(20)
+        assertEquals(2, upstreamHits.get())
     }
 
     @Test
