@@ -244,11 +244,14 @@ private fun TeamRow(
                 isLoser -> FontWeight.W400
                 else -> FontWeight.W500 // Draw score
             }
-            Text(
+            // Flashes briefly toward the live accent when a background
+            // refresh brings a different score (goal companion to the
+            // pulsing minute chip).
+            ScoreFlashText(
                 text = scoreText,
                 fontSize = 13.sp,
                 fontWeight = scoreWeight,
-                color = scoreColor,
+                baseColor = scoreColor,
                 textAlign = TextAlign.End
             )
         }

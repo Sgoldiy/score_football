@@ -44,6 +44,7 @@ import com.footballpluse.footballapp.ui.components.BroadcastMatchCard
 import com.footballpluse.footballapp.ui.components.FormDotsRow
 import com.footballpluse.footballapp.ui.components.HeaderIcon
 import com.footballpluse.footballapp.ui.components.LivePulse
+import com.footballpluse.footballapp.ui.components.ScoreFlashText
 import com.footballpluse.footballapp.viewmodel.HomeUiState
 import com.footballpluse.footballapp.viewmodel.HomeViewModel
 import java.text.SimpleDateFormat
@@ -732,11 +733,11 @@ private fun TeamRowItem(
             )
         }
         if (showScore) {
-            Text(
-                score?.toString() ?: "0",
+            // Goal-change flash on background refresh, matching the live list rows.
+            ScoreFlashText(
+                text = score?.toString() ?: "0",
                 fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = Color.White
+                baseColor = Color.White
             )
         }
     }
