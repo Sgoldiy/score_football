@@ -41,6 +41,9 @@ import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import android.content.Context
+import android.os.Vibrator
+import androidx.compose.ui.platform.LocalContext
 import com.footballpluse.footballapp.ui.theme.IceBlue
 import com.footballpluse.footballapp.ui.theme.LiveGreen
 import com.footballpluse.footballapp.ui.theme.PitchLine
@@ -143,6 +146,18 @@ fun ScoreFlashText(
             flash.snapTo(1f)
             flash.animateTo(0f, tween(durationMillis = 900, easing = LinearEasing))
         }
+    }
+
+    // Brief haptic buzz companion to the score flash: the score just
+    // changed after a background refresh, so a single short buzz confirms
+    // the update. Debounced so repeated changes don't stack, and only
+    // fires after the first real score change (never on first sight).
+    var lastBuzzMs by remember { mutableStateOf(0L) }
+    val nowMs = System.currentTimeMillis()
+    val vibrator = LocalContext.current.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+    if (flashKey > 0 && vibrator != null && nowMs - lastBuzzMs > 800L) {
+        lastBuzzMs = nowMs
+        vibrator.vibrate(20)
     }
 
     Text(
