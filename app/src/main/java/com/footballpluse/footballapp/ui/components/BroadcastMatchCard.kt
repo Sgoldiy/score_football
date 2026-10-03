@@ -145,9 +145,11 @@ private fun ScoreRow(match: Match, isLive: Boolean, scale: Float, homeForm: Stri
                     )
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
-                Text(
+                // Background-refresh goal feedback: digits tint toward the
+                // live accent and pop once when the refresh brings a new
+                // score, then settle back.
+                ScoreFlashText(
                     text = "${match.homeScore ?: "-"}",
-                    color = Color.White,
                     fontSize = 36.sp,
                     fontWeight = FontWeight.Black
                 )
@@ -158,9 +160,8 @@ private fun ScoreRow(match: Match, isLive: Boolean, scale: Float, homeForm: Stri
                     fontWeight = FontWeight.Black,
                     modifier = Modifier.padding(horizontal = 3.dp)
                 )
-                Text(
+                ScoreFlashText(
                     text = "${match.awayScore ?: "-"}",
-                    color = Color.White,
                     fontSize = 36.sp,
                     fontWeight = FontWeight.Black
                 )

@@ -1,5 +1,6 @@
 package com.footballpluse.footballapp.ui.components
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -18,8 +19,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,10 +31,13 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -102,6 +109,53 @@ fun LivePulse(
             }
             .clip(CircleShape)
             .background(color)
+    )
+}
+
+/**
+ * Score text that flashes when its value changes between recompositions — the
+ * visual "goal!" companion to the pulsing LIVE dot. The stale-while-revalidate
+ * cache and the adaptive poll loop emit new `Match` objects whenever an
+ * upstream refresh brings a different score; this then tints toward
+ * [flashColor], gives a single scale pop, and settles back to [baseColor].
+ * The first composition never flashes, so initial loads stay calm.
+ */
+@Composable
+fun ScoreFlashText(
+    text: String,
+    modifier: Modifier = Modifier,
+    fontSize: TextUnit = 13.sp,
+    fontWeight: FontWeight = FontWeight.Bold,
+    baseColor: Color = Color.White,
+    flashColor: Color = LiveGreen,
+    textAlign: TextAlign? = null
+) {
+    var lastText by remember { mutableStateOf(text) }
+    var flashKey by remember { mutableStateOf(0) }
+    if (text != lastText) {
+        lastText = text
+        flashKey++
+    }
+
+    val flash = remember { Animatable(0f) }
+    LaunchedEffect(flashKey) {
+        if (flashKey > 0) {
+            flash.snapTo(1f)
+            flash.animateTo(0f, tween(durationMillis = 900, easing = LinearEasing))
+        }
+    }
+
+    Text(
+        text = text,
+        color = lerp(baseColor, flashColor, flash.value),
+        fontSize = fontSize,
+        fontWeight = fontWeight,
+        textAlign = textAlign,
+        modifier = modifier.graphicsLayer {
+            val bump = 1f + 0.2f * flash.value
+            scaleX = bump
+            scaleY = bump
+        }
     )
 }
 

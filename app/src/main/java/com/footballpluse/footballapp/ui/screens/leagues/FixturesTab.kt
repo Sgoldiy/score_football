@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.footballpluse.footballapp.data.util.ApiResult
+import com.footballpluse.footballapp.ui.components.ScoreFlashText
 
 @Composable
 fun FixturesTab(
@@ -278,11 +279,11 @@ fun FixtureCard(
                             color = Color(0xFFA0A0A0)
                         )
                     } else {
-                        Text(
+                        // Score-change flash on live refresh, matching the other surfaces.
+                        ScoreFlashText(
                             text = "${fixture.homeScore ?: 0} - ${fixture.awayScore ?: 0}",
                             fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            baseColor = Color.White
                         )
                         if (isLive && fixture.minute != null) {
                             Text(
