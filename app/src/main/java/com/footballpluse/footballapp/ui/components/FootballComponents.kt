@@ -42,7 +42,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import android.content.Context
+import android.os.Build
+import android.os.VibrationEffect
 import android.os.Vibrator
+import android.os.VibratorManager
 import androidx.compose.ui.platform.LocalContext
 import com.footballpluse.footballapp.ui.theme.IceBlue
 import com.footballpluse.footballapp.ui.theme.LiveGreen
@@ -154,10 +157,19 @@ fun ScoreFlashText(
     // fires after the first real score change (never on first sight).
     var lastBuzzMs by remember { mutableStateOf(0L) }
     val nowMs = System.currentTimeMillis()
-    val vibrator = LocalContext.current.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+    val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        (LocalContext.current.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
+    } else {
+        @Suppress("DEPRECATION")
+        LocalContext.current.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+    }
     if (flashKey > 0 && vibrator != null && nowMs - lastBuzzMs > 800L) {
         lastBuzzMs = nowMs
-        vibrator.vibrate(20)
+        try {
+            vibrator.vibrate(VibrationEffect.createOneShot(20, VibrationEffect.DEFAULT_AMPLITUDE))
+        } catch (_: Exception) {
+            // Never crash over a haptic: permission or hardware may deny it.
+        }
     }
 
     Text(

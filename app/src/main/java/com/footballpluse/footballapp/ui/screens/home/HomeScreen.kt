@@ -262,6 +262,7 @@ private fun HomeContent(
     }
     val todayMatches = remember(allToday) { allToday.filter { isToday(it.timestamp * 1000L) } }
     val tomorrowMatches = remember(allToday) { allToday.filter { isTomorrow(it.timestamp * 1000L) } }
+    val todayCountByLeague = remember(todayMatches) { todayMatches.groupingBy { it.league.id }.eachCount() }
     val groupedMatches = remember(todayMatches, favouriteLeagueId) {
         // Group by league identity (id + name): the upstream reuses numeric
         // league ids across DIFFERENT competitions (e.g. 1201 = four English
@@ -360,7 +361,8 @@ private fun HomeContent(
                                 logoUrl = league.logo ?: leagueBadgeUrl(league.id, league.name),
                                 season = league.season ?: currentSeason,
                                 hasLiveMatches = state.liveMatches.any { it.league.id == league.id },
-                                onClick = { onNavigateToLeagueDetail?.invoke(league.id, league.season ?: currentSeason) ?: onNavigateToLeagues() }
+                                onClick = { onNavigateToLeagueDetail?.invoke(league.id, league.season ?: currentSeason) ?: onNavigateToLeagues() },
+                                todayCount = todayCountByLeague[league.id] ?: 0
                             )
                         }
                     }
@@ -384,7 +386,8 @@ private fun HomeContent(
                             hasLiveMatches = false,
                             emojiOverride = comp.emoji,
                             subtitleOverride = comp.country,
-                            onClick = { onNavigateToLeagues() }
+                            onClick = { onNavigateToLeagues() },
+                            todayCount = todayMatches.count { it.league.name.contains(comp.name, ignoreCase = true) }
                         )
                     }
                 }
@@ -570,7 +573,9 @@ private fun CompetitionCard(
     /** Emoji mark shown when no logo url exists (competitions). */
     emojiOverride: String? = null,
     /** Replaces the season line when set (e.g. competition region). */
-    subtitleOverride: String? = null
+    subtitleOverride: String? = null,
+    /** Today's fixture count shown as a small badge on the card. */
+    todayCount: Int = 0
 ) {
     Card(
         modifier = Modifier.width(130.dp).height(88.dp).clickable(
@@ -621,11 +626,21 @@ private fun CompetitionCard(
             }
             Column {
                 Text(leagueName, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    subtitleOverride ?: "$season/${(season + 1) % 100}",
-                    color = Color.White.copy(alpha = 0.5f),
-                    fontSize = 9.sp
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        subtitleOverride ?: "$season/${(season + 1) % 100}",
+                        color = Color.White.copy(alpha = 0.5f),
+                        fontSize = 9.sp
+                    )
+                    if (todayCount > 0) {
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Color(0xFF00E676).copy(alpha = 0.18f)).padding(horizontal = 5.dp, vertical = 1.dp)
+                        ) {
+                            Text("$todayCount", color = Color(0xFF00E676), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
             }
         }
     }
