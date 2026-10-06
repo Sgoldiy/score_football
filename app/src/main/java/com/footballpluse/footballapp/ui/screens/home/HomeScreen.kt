@@ -96,6 +96,23 @@ private val hardcodedDomesticLeagues = listOf(
 /* International competitions (UCL, World Cup, ...) are not covered by the
  * FootballCharts source, so there is no fallback rail for them anymore. */
 
+private fun isToday(timestampMs: Long): Boolean {
+    val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    val cal = Calendar.getInstance()
+    val today = fmt.format(cal.time)
+    val day = fmt.format(Date(timestampMs))
+    return day == today
+}
+
+private fun isTomorrow(timestampMs: Long): Boolean {
+    val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    val cal = Calendar.getInstance()
+    cal.add(Calendar.DAY_OF_YEAR, 1)
+    val tomorrow = fmt.format(cal.time)
+    val day = fmt.format(Date(timestampMs))
+    return day == tomorrow
+}
+
 private fun getLeagueCardColor(leagueId: Int): Color {
     return when (leagueId) {
         28 -> Color(0xFF1A462B)
@@ -243,11 +260,13 @@ private fun HomeContent(
     val allToday = remember(state.liveMatches, state.upcomingMatches, state.finishedMatches) {
         (state.liveMatches + state.upcomingMatches.sortedBy { it.timestamp } + state.finishedMatches).distinctBy { it.id }
     }
-    val groupedMatches = remember(allToday, favouriteLeagueId) {
+    val todayMatches = remember(allToday) { allToday.filter { isToday(it.timestamp * 1000L) } }
+    val tomorrowMatches = remember(allToday) { allToday.filter { isTomorrow(it.timestamp * 1000L) } }
+    val groupedMatches = remember(todayMatches, favouriteLeagueId) {
         // Group by league identity (id + name): the upstream reuses numeric
         // league ids across DIFFERENT competitions (e.g. 1201 = four English
         // non-league divisions), so id-only grouping merges unrelated leagues.
-        allToday.groupBy { "${it.league.id}|${it.league.name}" }
+        todayMatches.groupBy { "${it.league.id}|${it.league.name}" }
             .map { (_, matches) -> matches }
             .sortedWith(
                 compareByDescending<List<Match>> { group -> group.first().league.id == favouriteLeagueId }
@@ -423,9 +442,20 @@ private fun HomeContent(
                 Spacer(Modifier.height(10.dp))
             }
 
-            if (groupedMatches.isEmpty()) {
+            if (todayMatches.isEmpty() && tomorrowMatches.isEmpty()) {
                 item(key = "empty") { EmptyMatchesState(onRetry = onRetry) }
             } else {
+                if (todayMatches.isNotEmpty()) {
+                    item(key = "today_header") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Today", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
                 groupedMatches.forEach { group ->
                     val league = group.first().league
                     // Key by the group's first match id: unique per group (match
@@ -466,6 +496,27 @@ private fun HomeContent(
                                     }
                                 }
                             }
+                        }
+                    }
+                }
+                if (tomorrowMatches.isNotEmpty()) {
+                    item(key = "tomorrow_header") {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Tomorrow", color = Color(0xFF00E676), fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    tomorrowMatches.forEach { match ->
+                        item(key = "tomorrow_match_${match.id}") {
+                            MatchRow(
+                                match = match,
+                                homeForm = formMap[match.homeTeam.id] ?: "",
+                                awayForm = formMap[match.awayTeam.id] ?: "",
+                                onMatchClick = onMatchClick
+                            )
                         }
                     }
                 }

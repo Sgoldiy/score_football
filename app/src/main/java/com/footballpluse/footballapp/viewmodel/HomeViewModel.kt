@@ -22,6 +22,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.*
 import javax.inject.Inject
 
@@ -114,7 +115,9 @@ class HomeViewModel @Inject constructor(
         refreshJob?.cancel()
         refreshJob = viewModelScope.launch {
             val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-            
+            val calendar = Calendar.getInstance()
+            val tomorrow = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(calendar.timeInMillis + 86_400_000L))
+
             // Launch background tasks for scorers in parallel
             launch {
                 try {
@@ -152,11 +155,12 @@ class HomeViewModel @Inject constructor(
                 ) { followed, favId, favName -> Triple(followed, favId, favName) }
 
                 combine(
+                    repository.getFixturesByDate(tomorrow),
                     repository.getFixturesByDate(today),
                     prefFlow,
                     _scorers,
                     _allLeagues
-                ) { result, pref, scorersList, allLeagues ->
+                ) { tomorrowResult, result, pref, scorersList, allLeagues ->
                     val (followed, onboardingFavId, onboardingFavName) = pref
                     when (result) {
                         is ApiResult.Loading -> {
@@ -165,10 +169,12 @@ class HomeViewModel @Inject constructor(
                             }
                         }
                         is ApiResult.Success -> {
-                            val matches = result.data
-                            val live = matches.filter { it.isLive }
-                            val upcoming = matches.filter { it.status.short == "NS" || it.status.short == "TBD" }
-                            val finished = matches.filter { it.status.short in listOf("FT", "AET", "PEN") }
+                            val todayMatches = result.data
+                            val tomorrowMatches = (tomorrowResult as? ApiResult.Success)?.data ?: emptyList()
+                            val allMatches = (todayMatches + tomorrowMatches).sortedWith(compareBy<Match> { !it.isLive }.thenBy { it.timestamp })
+                            val live = allMatches.filter { it.isLive }
+                            val upcoming = allMatches.filter { it.status.short == "NS" || it.status.short == "TBD" }
+                            val finished = allMatches.filter { it.status.short in listOf("FT", "AET", "PEN") }
 
                             val priorityLeagues = setOf(
                                 152, 302, 207, 175, 168,           // top 5 domestics
@@ -176,13 +182,13 @@ class HomeViewModel @Inject constructor(
                                 298435265, -2083694778, -1104376059, 1160697898,  // FC eras: Man City, Arsenal, Liverpool, Man Utd
                                 -1927616143                        // FC era: Tottenham
                             )
-                            val featured = matches.sortedWith(
+                            val featured = allMatches.sortedWith(
                                 compareByDescending<Match> { it.isLive }
                                     .thenByDescending { it.league.id in priorityLeagues }
                                     .thenBy { it.timestamp }
                             ).take(10)
 
-                            val topLeagues = matches.map { it.league }.distinctBy { it.id }
+                            val topLeagues = todayMatches.map { it.league }.distinctBy { it.id }
                                 .sortedByDescending { it.id in priorityLeagues }
 
                             val favLeagueIds = followed.ifEmpty { 
@@ -200,7 +206,7 @@ class HomeViewModel @Inject constructor(
                             _uiState.value = HomeUiState.Success(
                                 featuredMatches = featured,
                                 liveMatches = live,
-                                upcomingMatches = upcoming,
+                                upcomingMatches = upcoming.filter { it.timestamp * 1000L > System.currentTimeMillis() },
                                 finishedMatches = finished,
                                 topLeagues = finalTopLeagues,
                                 isLive = live.isNotEmpty(),
