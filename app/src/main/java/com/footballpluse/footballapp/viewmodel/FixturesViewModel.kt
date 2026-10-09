@@ -55,7 +55,7 @@ class FixturesViewModel @Inject constructor(
             }
         }
 
-        // Pre-fetch matches for all rail dates in the background to populate the match indicator
+        // Rail dates indicator: populate from local Room database counts immediately
         val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         val cal = Calendar.getInstance()
         cal.add(Calendar.DAY_OF_YEAR, -3)
@@ -66,33 +66,10 @@ class FixturesViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            // Load initial cached count
             val initialCounts = datesToFetch.associateWith { date ->
                 repository.getFixtureCountByDate(date)
             }
             _dateMatchCounts.value = initialCounts
-
-            // Pre-fetch from network if cache is empty, with a delay to avoid
-            // rate limits. Each fetch is bounded: getFixturesByDate's flow
-            // never completes on its own, so collecting it directly would
-            // hang this loop on the first date and starve the rest of the rail.
-            datesToFetch.forEach { dateStr ->
-                val cachedCount = repository.getFixtureCountByDate(dateStr)
-                if (cachedCount == 0) {
-                    try {
-                        withTimeoutOrNull(6_000) {
-                            repository.getFixturesByDate(dateStr).collect { result ->
-                                if (result is ApiResult.Success) {
-                                    val count = result.data.size
-                                    _dateMatchCounts.update { it + (dateStr to count) }
-                                }
-                            }
-                        }
-                    } catch (_: Exception) {
-                    }
-                    delay(500) // Small delay to avoid hammering the API
-                }
-            }
         }
     }
 

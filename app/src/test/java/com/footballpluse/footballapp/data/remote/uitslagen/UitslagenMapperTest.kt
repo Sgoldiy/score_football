@@ -1,5 +1,6 @@
 package com.footballpluse.footballapp.data.remote.uitslagen
 
+import com.footballpluse.footballapp.data.mapper.toTeamDetail
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 import org.junit.Assert.assertEquals
@@ -153,7 +154,7 @@ class UitslagenMapperTest {
     }
 
     @Test
-    fun `team page maps squad venue and coach`() {
+    fun `team page maps squad venue coach trophies and transfers`() {
         val page = moshi.adapter(UitslagenTeamPage::class.java).fromJson(resource("team_gs.json"))!!
         val team = UitslagenMapper.teamPageToApiTeam(page)
         assertEquals("Mohun Bagan", team.team_name)
@@ -162,6 +163,41 @@ class UitslagenMapperTest {
         assertTrue(team.players.orEmpty().isNotEmpty())
         assertEquals("Vishal Kaith", team.players!!.first().player_name)
         assertEquals("34291", team.team_key)
+
+        // Verify trophies
+        val trophies = team.trophies.orEmpty()
+        assertEquals(2, trophies.size)
+        assertEquals("Indian Super League", trophies[0].league)
+        assertEquals("Winner", trophies[0].status)
+        assertEquals(2, trophies[0].count)
+
+        // Verify transfers
+        val transfers = team.transfers.orEmpty()
+        assertTrue(transfers.isNotEmpty())
+        val arrivals = transfers.filter { it.teamIn == "Mohun Bagan" }
+        val departures = transfers.filter { it.teamOut == "Mohun Bagan" }
+        assertTrue(arrivals.isNotEmpty())
+        assertTrue(departures.isNotEmpty())
+        assertEquals("Lee Erwin", arrivals.first().player)
+
+        // Verify stats & detailedStats
+        val stats = team.teamStats
+        assertNotNull(stats)
+        assertEquals("LWDDW", stats!!.form)
+        assertEquals(7, stats.wins)
+        assertEquals(5, stats.draws)
+        assertEquals(1, stats.loses)
+
+        val detailed = team.detailedStats
+        assertNotNull(detailed)
+        assertEquals(16, detailed!!.cleanSheetTotal)
+        assertEquals("1.93", detailed.avgGoalsScored)
+
+        // Verify domain TeamDetail mapping
+        val detail = team.toTeamDetail()
+        assertEquals(2, detail.trophies.size)
+        assertTrue(detail.transfers.isNotEmpty())
+        assertEquals(16, detail.detailedStats?.cleanSheetTotal)
     }
 
     @Test
@@ -223,6 +259,18 @@ class UitslagenMapperTest {
         assertEquals("3", scorers[0].goals)
         assertEquals("1", scorers[0].penalty_goals)
         assertEquals("42", scorers[0].team_id)
+    }
+
+    @Test
+    fun `inRangeUtc supports both dd-MM-yyyy and yyyy-MM-dd cleanly`() {
+        // dd/MM/yyyy row date inside yyyy-MM-dd window
+        assertTrue(UitslagenMapper.inRangeUtc("06/10/2026", "2026-10-05", "2026-10-07"))
+        assertTrue(UitslagenMapper.inRangeUtc("06/10/2026", "2026-10-06", "2026-10-06"))
+        assertFalse2(UitslagenMapper.inRangeUtc("04/10/2026", "2026-10-05", "2026-10-07"))
+        assertFalse2(UitslagenMapper.inRangeUtc("08/10/2026", "2026-10-05", "2026-10-07"))
+
+        // ISO row date inside ISO window
+        assertTrue(UitslagenMapper.inRangeUtc("2026-10-06", "2026-10-06", "2026-10-06"))
     }
 
     private fun assertFalse2(v: Boolean) {

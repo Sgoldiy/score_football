@@ -41,14 +41,11 @@ class OnboardingViewModel @Inject constructor(
     private val restoredLeagueIds = mutableSetOf<String>()
 
     val defaultLeagues: List<League> = listOf(
-        // League ids are the app's legacy ids, mapped to the upstream in
-        // UitslagenLeagues. Badge urls come from the apiv3 image CDN, which
-        // is still live and serving league logos (verified 2026-09-30).
-        League("152", "Premier League", "England", "\uD83C\uDFF4\uD83C\uDFE6\uD83C\uDFFD\u200D\uD83C\uDFF3\uFE0F\u200D\uD83C\uDFF4", "https://apiv3.apifootball.com/badges/logo_leagues/152_premier-league.png"),
-        League("302", "La Liga", "Spain", "\uD83C\uDDEA\uD83C\uDDF8", "https://apiv3.apifootball.com/badges/logo_leagues/302_la-liga.png"),
-        League("207", "Serie A", "Italy", "\uD83C\uDDEE\uD83C\uDDF9", "https://apiv3.apifootball.com/badges/logo_leagues/207_serie-a.png"),
-        League("175", "Bundesliga", "Germany", "\uD83C\uDDE9\uD83C\uDDEA", "https://apiv3.apifootball.com/badges/logo_leagues/175_bundesliga.png"),
-        League("168", "Ligue 1", "France", "\uD83C\uDDEB\uD83C\uDDF7", "https://apiv3.apifootball.com/badges/logo_leagues/168_ligue-1.png"),
+        League("152", "Premier League", "England", "\uD83C\uDFF4\uD83C\uDFE6\uD83C\uDFFD\u200D\uD83C\uDFF3\uFE0F\u200D\uD83C\uDFF4", com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(152)),
+        League("302", "La Liga", "Spain", "\uD83C\uDDEA\uD83C\uDDF8", com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(302)),
+        League("207", "Serie A", "Italy", "\uD83C\uDDEE\uD83C\uDDF9", com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(207)),
+        League("175", "Bundesliga", "Germany", "\uD83C\uDDE9\uD83C\uDDEA", com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(175)),
+        League("168", "Ligue 1", "France", "\uD83C\uDDEB\uD83C\uDDF7", com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(168)),
     )
 
     init {

@@ -30,7 +30,11 @@ data class ApiTeam(
     val team_badge: String?,
     val venue: ApiVenue?,
     val players: List<ApiPlayer>?,
-    val coaches: List<ApiCoach>?
+    val coaches: List<ApiCoach>?,
+    val transfers: List<com.footballpluse.footballapp.domain.model.TransferRecord>? = null,
+    val trophies: List<com.footballpluse.footballapp.domain.model.ClubTrophy>? = null,
+    val teamStats: com.footballpluse.footballapp.domain.model.TeamStats? = null,
+    val detailedStats: com.footballpluse.footballapp.domain.model.TeamDetailedStats? = null
 )
 
 @JsonClass(generateAdapter = true)

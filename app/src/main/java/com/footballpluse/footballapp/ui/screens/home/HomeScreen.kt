@@ -55,26 +55,25 @@ private val currentSeason = SeasonUtils.currentSeasonStartYear()
 private fun leagueBadgeUrl(leagueId: Int, leagueName: String): String =
     "https://apiv3.apifootball.com/badges/logo_leagues/${leagueId}_${leagueName.lowercase().replace(' ', '-')}.png"
 
-/* Top competitions (cups & international tournaments). The upstream covers
- * these (verified keys + live league ids), but its payloads carry no logo
- * fields and the badge CDN only hosts domestic leagues, so these cards use
- * emoji marks. Tapping one opens the league detail for its verified key. */
+/* Top competitions (cups & international tournaments). Loaded directly from the
+ * upstream API icon endpoint (https://uitslagen.live/footapi/images/flags/...). */
 private data class TopCompetition(
+    val id: Int,
     val key: String,
     val name: String,
-    val emoji: String,
+    val logoUrl: String,
     val country: String
 )
 
 private val topCompetitions = listOf(
-    TopCompetition("EurocupsUEFAChampionsLeague", "Champions League", "\uD83C\uDDFE\uD83C\uDDF7", "Europe"),
-    TopCompetition("EurocupsUEFAEuropaLeague", "Europa League", "\uD83C\uDDFE\uD83C\uDDF7", "Europe"),
-    TopCompetition("EurocupsUEFAEuropaConferenceLeague", "Conference League", "\uD83C\uDDFE\uD83C\uDDF7", "Europe"),
-    TopCompetition("EurocupsUEFANationsLeagueLeagueA", "Nations League", "\uD83C\uDDEA\uD83C\uDDFA", "Europe"),
-    TopCompetition("InternationalWorldWorldCup", "World Cup", "\uD83C\uDF0D", "World"),
-    TopCompetition("InternationalEuroEuroChampionship", "EURO", "\uD83C\uDDEA\uD83C\uDDF8", "Europe"),
-    TopCompetition("InternationalAmericaCopaAmerica", "Copa América", "\uD83C\uDDF8\uD83C\uDDF4", "S. America"),
-    TopCompetition("InternationalAsiaAFCAsianCup", "Asian Cup", "\uD83C\uDDE6\uD83C\uDDF8", "Asia")
+    TopCompetition(28, "EurocupsUEFAChampionsLeague", "Champions League", "https://uitslagen.live/footapi/images/flags/eurocups.png", "Europe"),
+    TopCompetition(3, "EurocupsUEFAEuropaLeague", "Europa League", "https://uitslagen.live/footapi/images/flags/eurocups.png", "Europe"),
+    TopCompetition(848, "EurocupsUEFAEuropaConferenceLeague", "Conference League", "https://uitslagen.live/footapi/images/flags/eurocups.png", "Europe"),
+    TopCompetition(5, "EurocupsUEFANationsLeagueLeagueA", "Nations League", "https://uitslagen.live/footapi/images/flags/europe.png", "Europe"),
+    TopCompetition(1, "InternationalWorldWorldCup", "World Cup", "https://uitslagen.live/footapi/images/flags/world-cup.png", "World"),
+    TopCompetition(4, "InternationalEuroEuroChampionship", "EURO", "https://uitslagen.live/footapi/images/flags/euro2024.png", "Europe"),
+    TopCompetition(9, "InternationalAmericaCopaAmerica", "Copa América", "https://uitslagen.live/footapi/images/flags/south-america.png", "S. America"),
+    TopCompetition(17, "InternationalAsiaAFCAsianCup", "Asian Cup", "https://uitslagen.live/footapi/images/flags/asia.png", "Asia")
 )
 
 /* Skeleton of FC-covered leagues, used as merge fallback until the live list
@@ -97,6 +96,7 @@ private val hardcodedDomesticLeagues = listOf(
  * FootballCharts source, so there is no fallback rail for them anymore. */
 
 private fun isToday(timestampMs: Long): Boolean {
+    if (timestampMs <= 0L) return false
     val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     val cal = Calendar.getInstance()
     val today = fmt.format(cal.time)
@@ -105,6 +105,7 @@ private fun isToday(timestampMs: Long): Boolean {
 }
 
 private fun isTomorrow(timestampMs: Long): Boolean {
+    if (timestampMs <= 0L) return false
     val fmt = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
     val cal = Calendar.getInstance()
     cal.add(Calendar.DAY_OF_YEAR, 1)
@@ -282,8 +283,14 @@ private fun HomeContent(
             val api = apiMap[fallback.id]
             val match = matchMap[fallback.id]
             when {
-                api != null -> api.copy(season = api.season ?: fallback.season)
-                match != null -> match
+                api != null -> api.copy(
+                    season = api.season ?: fallback.season,
+                    logo = api.logo?.ifBlank { null } ?: fallback.logo
+                )
+                match != null -> match.copy(
+                    season = match.season ?: fallback.season,
+                    logo = match.logo?.ifBlank { null } ?: fallback.logo
+                )
                 else -> fallback
             }
         }.let { list ->
@@ -379,15 +386,15 @@ private fun HomeContent(
                 ) {
                     items(topCompetitions, key = { "comp_${it.key}" }) { comp ->
                         CompetitionCard(
-                            leagueId = 0,
+                            leagueId = comp.id,
                             leagueName = comp.name,
-                            logoUrl = null,
+                            logoUrl = comp.logoUrl,
                             season = currentSeason,
-                            hasLiveMatches = false,
-                            emojiOverride = comp.emoji,
+                            hasLiveMatches = state.liveMatches.any { it.league.id == comp.id || it.league.name.contains(comp.name, ignoreCase = true) },
+                            emojiOverride = null,
                             subtitleOverride = comp.country,
-                            onClick = { onNavigateToLeagues() },
-                            todayCount = todayMatches.count { it.league.name.contains(comp.name, ignoreCase = true) }
+                            onClick = { onNavigateToLeagueDetail?.invoke(comp.id, currentSeason) ?: onNavigateToLeagues() },
+                            todayCount = todayMatches.count { it.league.id == comp.id || it.league.name.contains(comp.name, ignoreCase = true) }
                         )
                     }
                 }
@@ -419,7 +426,7 @@ private fun HomeContent(
                         horizontalArrangement = Arrangement.spacedBy(12.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        items(state.liveMatches, key = { "live_${it.id}" }) { match ->
+                        itemsIndexed(state.liveMatches, key = { idx, match -> "live_${match.id}_$idx" }) { _, match ->
                             BroadcastMatchCard(
                                 match = match,
                                 modifier = Modifier.width(300.dp),
@@ -459,12 +466,10 @@ private fun HomeContent(
                         }
                     }
                 }
-                groupedMatches.forEach { group ->
+                groupedMatches.forEachIndexed { groupIdx, group ->
                     val league = group.first().league
-                    // Key by the group's first match id: unique per group (match
-                    // ids are unique), unlike league.id which the upstream shares
-                    // across different competitions.
-                    item(key = "lg_${group.first().id}") {
+                    // Key by league ID + first match ID + index: guaranteed unique
+                    item(key = "lg_${league.id}_${group.first().id}_$groupIdx") {
                         var isExpanded by remember { mutableStateOf(true) }
                         val isMyLeague = league.id == favouriteLeagueId
                         Card(
@@ -512,8 +517,8 @@ private fun HomeContent(
                             Text("Tomorrow", color = Color(0xFF00E676), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                         }
                     }
-                    tomorrowMatches.forEach { match ->
-                        item(key = "tomorrow_match_${match.id}") {
+                    tomorrowMatches.forEachIndexed { idx, match ->
+                        item(key = "tomorrow_match_${match.id}_$idx") {
                             MatchRow(
                                 match = match,
                                 homeForm = formMap[match.homeTeam.id] ?: "",
@@ -605,8 +610,8 @@ private fun CompetitionCard(
                             model = logoUrl,
                             contentDescription = leagueName,
                             modifier = Modifier.size(20.dp),
-                            placeholder = painterResource(R.drawable.ic_placeholder),
-                            error = painterResource(R.drawable.ic_placeholder)
+                            placeholder = painterResource(R.drawable.ic_league_placeholder),
+                            error = painterResource(R.drawable.ic_league_placeholder)
                         )
                     } else {
                         Text(text = emojiOverride ?: "", fontSize = 14.sp)
@@ -674,8 +679,8 @@ private fun LeagueGroupHeader(
             model = leagueLogo,
             contentDescription = null,
             modifier = Modifier.size(18.dp),
-            placeholder = painterResource(R.drawable.ic_placeholder),
-            error = painterResource(R.drawable.ic_placeholder)
+            placeholder = painterResource(R.drawable.ic_league_placeholder),
+            error = painterResource(R.drawable.ic_league_placeholder)
         )
         Spacer(Modifier.width(8.dp))
         Text(

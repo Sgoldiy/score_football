@@ -417,9 +417,11 @@ fun FixturesList(
                                 modifier = Modifier.weight(1f)
                             ) {
                                 AsyncImage(
-                                    model = league.logo,
+                                    model = league.logo ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(league.id, league.name, league.country),
                                     contentDescription = null,
-                                    modifier = Modifier.size(18.dp)
+                                    modifier = Modifier.size(18.dp),
+                                    placeholder = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_league_placeholder),
+                                    error = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_league_placeholder)
                                 )
                                 Spacer(Modifier.width(8.dp))
                                 Text(

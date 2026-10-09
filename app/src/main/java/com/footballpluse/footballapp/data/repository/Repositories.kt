@@ -318,12 +318,22 @@ class StandingsRepository @Inject constructor(private val apiService: ApiService
 
 @Singleton
 class LeagueRepository @Inject constructor(private val apiService: ApiService) {
+    @Volatile
+    private var leaguesCache: Pair<Long, List<LeagueResponse>>? = null
+
     suspend fun getLeagues(): ApiResult<List<LeagueResponse>> {
+        val cached = leaguesCache
+        if (cached != null && System.currentTimeMillis() - cached.first < 60 * 60 * 1000L) {
+            return ApiResult.Success(cached.second)
+        }
         return try {
             val leagues = apiService.getLeagues()
-            ApiResult.Success(leagues.map { it.toLeagueResponse() })
+            val mapped = leagues.map { it.toLeagueResponse() }
+            leaguesCache = Pair(System.currentTimeMillis(), mapped)
+            ApiResult.Success(mapped)
         } catch (e: Exception) {
-            ApiResult.Error(e.message ?: "Unknown error")
+            if (cached != null) ApiResult.Success(cached.second)
+            else ApiResult.Error(e.message ?: "Unknown error")
         }
     }
 

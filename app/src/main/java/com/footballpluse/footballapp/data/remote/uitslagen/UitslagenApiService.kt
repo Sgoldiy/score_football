@@ -43,6 +43,7 @@ interface UitslagenApiService {
 
     companion object {
         const val TEAM_LOGO_URL = "https://uitslagen.live/footapi/images/teams_gs/%s.png"
+        const val FLAG_URL = "https://uitslagen.live/footapi/images/flags/%s.png"
 
         /**
          * Logo URL for a numeric team id, or null when the id is not a usable
@@ -52,5 +53,12 @@ interface UitslagenApiService {
         fun teamLogoUrl(teamId: String?): String? =
             teamId?.takeIf { it.isNotBlank() && it.all { c -> c.isDigit() } }
                 ?.let { TEAM_LOGO_URL.format(it) }
+
+        /**
+         * Icon/Flag URL from the upstream API for a country or tournament slug.
+         */
+        fun flagUrl(countryOrSlug: String?): String? =
+            countryOrSlug?.takeIf { it.isNotBlank() }
+                ?.let { FLAG_URL.format(it.trim().replace(' ', '-').lowercase()) }
     }
 }

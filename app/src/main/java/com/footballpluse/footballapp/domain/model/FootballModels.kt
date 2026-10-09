@@ -37,7 +37,8 @@ data class TeamInfo(
     val name: String,
     val logo: String?,
     val winner: Boolean? = null,
-    val country: String? = null
+    val country: String? = null,
+    val founded: String? = null
 )
 
 data class StandingItem(
@@ -104,7 +105,42 @@ data class TeamDetail(
     val stats: TeamStats?,
     val squad: List<SquadMember>,
     val coaches: List<CoachInfo>,
-    val transfers: List<TransferRecord>
+    val transfers: List<TransferRecord>,
+    val trophies: List<ClubTrophy> = emptyList(),
+    val detailedStats: TeamDetailedStats? = null
+)
+
+data class ClubTrophy(
+    val league: String,
+    val country: String? = null,
+    val status: String = "Winner",
+    val count: Int = 1,
+    val seasons: String? = null
+)
+
+data class TeamDetailedStats(
+    val rank: String? = null,
+    val winTotal: Int = 0,
+    val winHome: Int = 0,
+    val winAway: Int = 0,
+    val drawTotal: Int = 0,
+    val drawHome: Int = 0,
+    val drawAway: Int = 0,
+    val lostTotal: Int = 0,
+    val lostHome: Int = 0,
+    val lostAway: Int = 0,
+    val goalsForTotal: Int = 0,
+    val goalsForHome: Int = 0,
+    val goalsForAway: Int = 0,
+    val goalsAgainstTotal: Int = 0,
+    val goalsAgainstHome: Int = 0,
+    val goalsAgainstAway: Int = 0,
+    val cleanSheetTotal: Int = 0,
+    val cleanSheetHome: Int = 0,
+    val cleanSheetAway: Int = 0,
+    val avgGoalsScored: String? = null,
+    val avgGoalsConceded: String? = null,
+    val failedToScore: Int = 0
 )
 
 data class VenueInfo(
@@ -112,7 +148,9 @@ data class VenueInfo(
     val name: String?,
     val city: String?,
     val capacity: Int?,
-    val image: String?
+    val image: String?,
+    val address: String? = null,
+    val surface: String? = null
 )
 
 data class TeamStats(

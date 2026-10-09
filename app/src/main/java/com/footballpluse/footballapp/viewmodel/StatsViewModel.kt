@@ -135,7 +135,7 @@ class StatsViewModel @Inject constructor(
     val selectedTab: StateFlow<StatsTab> = _selectedTab.asStateFlow()
 
     private val _selectedLeague = MutableStateFlow(
-        StatsLeague(152, "Premier League", "https://apiv3.apifootball.com/badges/logo_leagues/152_premier-league.png", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear())
+        StatsLeague(152, "Premier League", com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(152) ?: "", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear())
     )
     val selectedLeague: StateFlow<StatsLeague> = _selectedLeague.asStateFlow()
 
@@ -154,18 +154,15 @@ class StatsViewModel @Inject constructor(
     private val _disciplineState = MutableStateFlow<DisciplineUiState>(DisciplineUiState.Idle)
     val disciplineState: StateFlow<DisciplineUiState> = _disciplineState.asStateFlow()
 
-    // Default supported leagues for the selector sheet - FootballCharts covers
-    // domestic leagues only, so the old UCL/World Cup/etc. entries (whose ids now
-    // belong to unrelated FC leagues) are removed.
     val availableLeagues = listOf(
-        StatsLeague(152, "Premier League", "https://apiv3.apifootball.com/badges/logo_leagues/152_premier-league.png", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
-        StatsLeague(302, "La Liga", "https://apiv3.apifootball.com/badges/logo_leagues/302_la-liga.png", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
-        StatsLeague(207, "Serie A", "https://apiv3.apifootball.com/badges/logo_leagues/207_serie-a.png", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
-        StatsLeague(175, "Bundesliga", "https://apiv3.apifootball.com/badges/logo_leagues/175_bundesliga.png", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
-        StatsLeague(168, "Ligue 1", "https://apiv3.apifootball.com/badges/logo_leagues/168_ligue-1.png", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
-        StatsLeague(88, "Eredivisie", "https://apiv3.apifootball.com/badges/logo_leagues/88_eredivisie.png", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
-        StatsLeague(94, "Liga Portugal", "https://apiv3.apifootball.com/badges/logo_leagues/94_liga-portugal.png", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
-        StatsLeague(203, "Saudi Pro League", "https://apiv3.apifootball.com/badges/logo_leagues/203_saudi-professional-league.png", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear())
+        StatsLeague(152, "Premier League", com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(152) ?: "", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
+        StatsLeague(302, "La Liga", com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(302) ?: "", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
+        StatsLeague(207, "Serie A", com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(207) ?: "", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
+        StatsLeague(175, "Bundesliga", com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(175) ?: "", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
+        StatsLeague(168, "Ligue 1", com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(168) ?: "", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
+        StatsLeague(88, "Eredivisie", com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(88) ?: "", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
+        StatsLeague(94, "Liga Portugal", com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(94) ?: "", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()),
+        StatsLeague(203, "Saudi Pro League", com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(203) ?: "", com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear())
     )
 
     init {
@@ -403,14 +400,13 @@ class StatsViewModel @Inject constructor(
     }
 
     private fun buildPlayerImageUrl(playerId: Int): String? {
-        if (playerId <= 0) return null
-        return "https://apiv3.apifootball.com/badges/players/${playerId}.png"
+        // Player photos are served via player pool or player page DTOs; no separate player image endpoint exists
+        return null
     }
 
     private fun buildTeamBadgeUrl(teamName: String?, teamId: Int?): String? {
-        val name = teamName?.lowercase()?.replace(" ", "-")?.replace("'", "") ?: return null
         val id = teamId ?: return null
-        return "https://apiv3.apifootball.com/badges/logo_teams/${id}_${name}.png"
+        return com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.teamLogoUrl(id.toString())
     }
 
     // --- TAB 2: CLUBS ---

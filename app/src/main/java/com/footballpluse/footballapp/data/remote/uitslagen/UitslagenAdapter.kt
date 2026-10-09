@@ -15,7 +15,10 @@ import com.footballpluse.footballapp.data.model.ApiTopScorer
 import com.footballpluse.footballapp.data.model.ApiH2HResponse
 import com.footballpluse.footballapp.data.model.StatisticValue
 import com.footballpluse.footballapp.data.remote.ApiService
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -48,8 +51,9 @@ class UitslagenAdapter @Inject constructor(
         private val DETAIL_TTL_MS = 2 * 60_000L
     }
 
-    private val gate = Semaphore(4)
+    private val gate = Semaphore(8)
     private val cache = ConcurrentHashMap<String, Pair<Long, Any>>()
+    private val inFlight = ConcurrentHashMap<String, Deferred<Any>>()
 
     private suspend fun <T> gated(block: suspend () -> T): T = gate.withPermit { block() }
 
@@ -57,43 +61,115 @@ class UitslagenAdapter @Inject constructor(
     private suspend fun <T> cached(key: String, ttlMs: Long, fetch: suspend () -> T): T {
         val hit = cache[key]
         if (hit != null && System.currentTimeMillis() - hit.first < ttlMs) return hit.second as T
-        val fresh = gated { fetch() }
-        cache[key] = System.currentTimeMillis() to (fresh as Any)
-        return fresh
+
+        // In-flight coalescing: wait for active request if already fetching this key
+        val existing = inFlight[key]
+        if (existing != null) {
+            return try {
+                existing.await() as T
+            } catch (e: Throwable) {
+                hit?.second as? T ?: throw e
+            }
+        }
+
+        val deferred = CompletableDeferred<Any>()
+        val prior = inFlight.putIfAbsent(key, deferred)
+        if (prior != null) {
+            return try {
+                prior.await() as T
+            } catch (e: Throwable) {
+                hit?.second as? T ?: throw e
+            }
+        }
+
+        return try {
+            val recheck = cache[key]
+            if (recheck != null && System.currentTimeMillis() - recheck.first < ttlMs) {
+                deferred.complete(recheck.second)
+                return recheck.second as T
+            }
+            val fresh = gated { fetch() } as Any
+            cache[key] = System.currentTimeMillis() to fresh
+            deferred.complete(fresh)
+            fresh as T
+        } catch (e: Throwable) {
+            deferred.completeExceptionally(e)
+            val stale = cache[key]
+            if (stale != null) {
+                stale.second as T
+            } else {
+                throw e
+            }
+        } finally {
+            inFlight.remove(key, deferred)
+        }
     }
 
     private fun clearCache() = cache.clear()
 
-    // ─── Countries & leagues (discovered from the live day feed) ──────────────
+    // ─── Countries & leagues (discovered from canonical table + live day feed) ──────────────
 
     override suspend fun getCountries(): List<ApiCountry> = try {
-        dayFeed().mapNotNull { it.country }.distinct().sorted().map {
-            ApiCountry(country_id = it.lowercase().replace(" ", "-"), country_name = it, country_logo = null)
+        val canonicalCountries = UitslagenLeagues.BY_ID.keys.map { id ->
+            val cName = UitslagenLeagues.countryFor(id)
+            ApiCountry(
+                country_id = cName.lowercase(Locale.US).replace(" ", "-"),
+                country_name = cName,
+                country_logo = UitslagenApiService.flagUrl(cName)
+            )
         }
+        val feedCountries = dayFeed().mapNotNull { it.country }.map { raw ->
+            val cName = UitslagenLeagues.countryFor(null, null, raw)
+            ApiCountry(
+                country_id = cName.lowercase(Locale.US).replace(" ", "-"),
+                country_name = cName,
+                country_logo = UitslagenApiService.flagUrl(cName)
+            )
+        }
+        (canonicalCountries + feedCountries).distinctBy { it.country_name }.sortedBy { it.country_name }
     } catch (_: Exception) { emptyList() }
 
     override suspend fun getLeagues(countryId: String?): List<ApiLeague> = try {
-        val wanted = countryId?.let { c ->
-            dayFeed().firstOrNull {
-                it.country.equals(c, true) || it.country?.lowercase()?.replace(" ", "-") == c
-            }?.country
+        val canonical = UitslagenLeagues.BY_ID.map { (id, _) ->
+            val lName = UitslagenLeagues.leagueNameFor(id) ?: "League $id"
+            val cName = UitslagenLeagues.countryFor(id, lName)
+            ApiLeague(
+                country_id = cName.lowercase(Locale.US).replace(" ", "-"),
+                country_name = cName,
+                league_id = id.toString(),
+                league_name = lName,
+                league_season = "2025/2026",
+                league_logo = UitslagenLeagues.logoUrlFor(id, lName, cName),
+                country_logo = UitslagenApiService.flagUrl(cName)
+            )
         }
-        dayFeed().flatMap { c ->
+        val wanted = countryId?.trim()
+        val feedLeagues = dayFeed().flatMap { c ->
             c.leagues.orEmpty().mapNotNull { lg ->
                 val id = lg.matches?.firstOrNull()?.leagueid ?: return@mapNotNull null
-                val country = c.country
-                if (country == null || (wanted != null && country != wanted)) return@mapNotNull null
+                val rawCountry = c.country
+                val resolvedCountry = UitslagenLeagues.countryFor(id.toIntOrNull(), lg.league, rawCountry)
                 ApiLeague(
-                    country_id = country.lowercase().replace(" ", "-"),
-                    country_name = country,
+                    country_id = resolvedCountry.lowercase(Locale.US).replace(" ", "-"),
+                    country_name = resolvedCountry,
                     league_id = id,
                     league_name = lg.league,
                     league_season = lg.matches.firstOrNull()?.season,
-                    league_logo = null,
-                    country_logo = null
+                    league_logo = UitslagenLeagues.logoUrlFor(id.toIntOrNull(), lg.league, resolvedCountry),
+                    country_logo = UitslagenApiService.flagUrl(resolvedCountry)
                 )
             }
-        }.distinctBy { it.league_id }
+        }
+        val combined = (canonical + feedLeagues).distinctBy { it.league_id }
+        if (!wanted.isNullOrBlank()) {
+            val wantedNorm = wanted.lowercase(Locale.US).replace(" ", "-")
+            combined.filter {
+                it.country_name?.equals(wanted, true) == true ||
+                it.country_id?.equals(wantedNorm, true) == true
+            }
+        } else {
+            combined
+        }
     } catch (_: Exception) { emptyList() }
 
     // ─── Teams & players ──────────────────────────────────────────────────────
@@ -177,17 +253,23 @@ class UitslagenAdapter @Inject constructor(
             .filter { UitslagenMapper.inRangeUtc(it.match_date, from, to) }
     }
 
-    private suspend fun popularEvents(from: String, to: String): List<ApiEvent> {
-        val live = try { liveFeedEvents() } catch (_: Exception) { emptyList() }
-        // The upstream's day feed accepts any date (verified live: past days
-        // return full results with scores, future days the scheduled slate).
-        // Fetch one day feed per date for short windows (the app's date rail
-        // and Home both request single days); cap to stay polite.
-        val dates = dateRangeIso(from, to)
-        val day = dates.take(3).flatMap { date ->
-            try { dayFeedEvents(date) } catch (_: Exception) { emptyList() }
+    private suspend fun popularEvents(from: String, to: String): List<ApiEvent> = coroutineScope {
+        val todayStr = todayUtcIso()
+        val includesToday = (from.isBlank() && to.isBlank()) || (from <= todayStr && (to.isBlank() || to >= todayStr))
+
+        val liveDeferred: Deferred<List<ApiEvent>>? = if (includesToday) {
+            async { try { liveFeedEvents() } catch (_: Exception) { emptyList() } }
+        } else null
+
+        val dates = dateRangeIso(from, to).take(3)
+        val dayDeferreds = dates.map { date ->
+            async { try { dayFeedEvents(date) } catch (_: Exception) { emptyList() } }
         }
-        return (live + day)
+
+        val live = liveDeferred?.await().orEmpty()
+        val day = dayDeferreds.awaitAll().flatten()
+
+        (live + day)
             .filter { UitslagenMapper.inRangeUtc(it.match_date, from, to) }
             .distinctBy { it.match_id }
     }
@@ -312,13 +394,27 @@ class UitslagenAdapter @Inject constructor(
     private suspend fun liveFeedEvents(): List<ApiEvent> =
         UitslagenMapper.flattenFeeds(liveFeed())
 
+    private fun toDmyDate(date: String): String {
+        val trimmed = date.trim()
+        return if (trimmed.contains("-") && trimmed.length >= 10) {
+            val parts = trimmed.split("-")
+            "${parts[2].take(2)}/${parts[1]}/${parts[0]}"
+        } else {
+            trimmed
+        }
+    }
+
     private suspend fun dayFeed(dateUtc: String = todayUtc()): List<UitslagenCountryFeed> =
-        cached("day|$dateUtc", DAY_TTL_MS) { api.feedAggregated(dateUtc) }
+        cached("day|$dateUtc", DAY_TTL_MS) { api.feedAggregated(toDmyDate(dateUtc)) }
 
     private suspend fun dayFeedEvents(dateUtc: String = todayUtc()): List<ApiEvent> =
         UitslagenMapper.flattenFeeds(dayFeed(dateUtc))
 
     private fun todayUtc(): String =
         SimpleDateFormat("dd/MM/yyyy", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
+            .format(Date())
+
+    private fun todayUtcIso(): String =
+        SimpleDateFormat("yyyy-MM-dd", Locale.US).apply { timeZone = TimeZone.getTimeZone("UTC") }
             .format(Date())
 }

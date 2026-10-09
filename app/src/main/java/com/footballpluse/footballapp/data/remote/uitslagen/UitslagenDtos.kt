@@ -241,9 +241,75 @@ data class UitslagenTeamPage(
     val venueaddress: String? = null,
     val coach: String? = null,
     val coachnationality: String? = null,
+    val coachid: String? = null,
+    val coachbirthcountry: String? = null,
     val shape: String? = null,
+    val shape_fixtures: List<String>? = null,
     val squad: List<UitslagenSquadPlayer>? = null,
-    val fixtures: List<UitslagenMatchRow>? = null
+    val fixtures: List<UitslagenMatchRow>? = null,
+    val trophies: List<UitslagenTeamTrophy>? = null,
+    val transfers: UitslagenTeamTransfers? = null,
+    val stats: UitslagenTeamStats? = null
+)
+
+@JsonClass(generateAdapter = false)
+data class UitslagenTeamTrophy(
+    val country: String? = null,
+    val league: String? = null,
+    val status: String? = null,
+    val count: String? = null,
+    val seasons: String? = null
+)
+
+@JsonClass(generateAdapter = false)
+data class UitslagenTeamTransfers(
+    val `in`: List<UitslagenTeamTransferItem>? = null,
+    val out: List<UitslagenTeamTransferItem>? = null
+)
+
+@JsonClass(generateAdapter = false)
+data class UitslagenTeamTransferItem(
+    val id: String? = null,
+    val name: String? = null,
+    val date: String? = null,
+    val age: String? = null,
+    val position: String? = null,
+    val from: String? = null,
+    val to: String? = null,
+    val teamid: String? = null,
+    val type: String? = null
+)
+
+@JsonClass(generateAdapter = false)
+data class UitslagenTeamStats(
+    val rank: String? = null,
+    val winTotal: String? = null,
+    val winHome: String? = null,
+    val winAway: String? = null,
+    val drawTotal: String? = null,
+    val drawHome: String? = null,
+    val drawAway: String? = null,
+    val lostTotal: String? = null,
+    val lostHome: String? = null,
+    val lostAway: String? = null,
+    val goalsForTotal: String? = null,
+    val goalsForHome: String? = null,
+    val goalsForAway: String? = null,
+    val goalsAgainstTotal: String? = null,
+    val goalsAgainstHome: String? = null,
+    val goalsAgainstAway: String? = null,
+    val cleanSheetTotal: String? = null,
+    val cleanSheetHome: String? = null,
+    val cleanSheetAway: String? = null,
+    val avgGoalsPerGameScoredTotal: String? = null,
+    val avgGoalsPerGameScoredHome: String? = null,
+    val avgGoalsPerGameScoredAway: String? = null,
+    val avgGoalsPerGameConcededTotal: String? = null,
+    val avgGoalsPerGameConcededHome: String? = null,
+    val avgGoalsPerGameConcededAway: String? = null,
+    val failedToScoreTotal: String? = null,
+    val failedToScoreHome: String? = null,
+    val failedToScoreAway: String? = null
 )
 
 @JsonClass(generateAdapter = false)

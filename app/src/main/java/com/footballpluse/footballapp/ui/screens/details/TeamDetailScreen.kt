@@ -125,7 +125,13 @@ private fun TeamDetailContent(
                     .background(Color.White.copy(alpha = 0.08f)),
                 contentAlignment = Alignment.Center
             ) {
-                AsyncImage(model = detail.info.logo, contentDescription = detail.info.name, modifier = Modifier.size(48.dp))
+                AsyncImage(
+                    model = detail.info.logo,
+                    contentDescription = detail.info.name,
+                    modifier = Modifier.size(48.dp),
+                    placeholder = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_team_placeholder),
+                    error = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_team_placeholder)
+                )
             }
             Spacer(Modifier.width(16.dp))
             Column {
@@ -184,8 +190,10 @@ private fun TeamSquadTab(squad: List<SquadMember>, onPlayerClick: (Int) -> Unit)
         return
     }
 
-    val grouped = squad.groupBy { it.position ?: "Other" }
-    val order = listOf("Goalkeeper", "Defender", "Midfielder", "Attacker", "Other")
+    val grouped = squad.groupBy { com.footballpluse.footballapp.data.mapper.normalizeSquadPosition(it.position) }
+    val baseOrder = listOf("Goalkeeper", "Defender", "Midfielder", "Attacker")
+    val extraPositions = (grouped.keys - baseOrder.toSet() - "Other").sorted()
+    val order = baseOrder + extraPositions + if ("Other" in grouped) listOf("Other") else emptyList()
 
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
@@ -454,6 +462,89 @@ private fun TeamInfoTab(detail: TeamDetail) {
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
+        // Trophy Cabinet
+        if (detail.trophies.isNotEmpty()) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+                    shape = RoundedCornerShape(20.dp),
+                    border = BorderStroke(0.5.dp, Color(0xFFFFD700).copy(alpha = 0.25f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(18.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Rounded.EmojiEvents, contentDescription = null, tint = Color(0xFFFFD700), modifier = Modifier.size(24.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Column {
+                                Text("Trophy Cabinet & Honours", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                Text("Official titles and achievements", color = TextSecondary, fontSize = 11.sp)
+                            }
+                        }
+                        Spacer(Modifier.height(14.dp))
+                        detail.trophies.forEachIndexed { idx, trophy ->
+                            if (idx > 0) {
+                                HorizontalDivider(
+                                    modifier = Modifier.padding(vertical = 10.dp),
+                                    color = Color.White.copy(alpha = 0.06f)
+                                )
+                            }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = trophy.league,
+                                        color = Color.White,
+                                        fontWeight = FontWeight.SemiBold,
+                                        fontSize = 14.sp
+                                    )
+                                    trophy.seasons?.takeIf { it.isNotBlank() }?.let { seasons ->
+                                        Text(
+                                            text = seasons.trimEnd(','),
+                                            color = TextSecondary,
+                                            fontSize = 11.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                                Spacer(Modifier.width(8.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(
+                                            if (trophy.status.equals("Winner", ignoreCase = true))
+                                                Color(0xFFFFD700).copy(alpha = 0.15f)
+                                            else
+                                                Color.White.copy(alpha = 0.08f)
+                                        )
+                                        .border(
+                                            0.5.dp,
+                                            if (trophy.status.equals("Winner", ignoreCase = true))
+                                                Color(0xFFFFD700).copy(alpha = 0.40f)
+                                            else
+                                                Color.White.copy(alpha = 0.15f),
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .padding(horizontal = 10.dp, vertical = 5.dp)
+                                ) {
+                                    val badgeLabel = if (trophy.count > 1) "${trophy.status} x${trophy.count}" else trophy.status
+                                    Text(
+                                        text = badgeLabel,
+                                        color = if (trophy.status.equals("Winner", ignoreCase = true)) Color(0xFFFFD700) else Color.White.copy(alpha = 0.85f),
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // Stadium Card
         item {
             Card(
@@ -482,10 +573,24 @@ private fun TeamInfoTab(detail: TeamDetail) {
                         )
                         Spacer(Modifier.height(16.dp))
                     }
+                    detail.info.founded?.takeIf { it.isNotBlank() }?.let { founded ->
+                        DetailRow(icon = Icons.Rounded.CalendarToday, label = "Founded", value = "Est. $founded")
+                    }
+                    val teamCountry = detail.info.country?.takeIf { it.isNotBlank() }
+                        ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.countryFor(null, detail.info.name)
+                    DetailRow(icon = Icons.Rounded.Public, label = "Country", value = teamCountry)
                     DetailRow(icon = Icons.Rounded.Stadium, label = "Venue", value = detail.venue?.name ?: "-")
-                    DetailRow(icon = Icons.Rounded.Place, label = "City", value = detail.venue?.city ?: "-")
+                    detail.venue?.city?.takeIf { it.isNotBlank() }?.let { city ->
+                        DetailRow(icon = Icons.Rounded.Place, label = "City", value = city)
+                    }
+                    detail.venue?.address?.takeIf { it.isNotBlank() }?.let { address ->
+                        DetailRow(icon = Icons.Rounded.LocationOn, label = "Address", value = address)
+                    }
+                    detail.venue?.surface?.takeIf { it.isNotBlank() }?.let { surface ->
+                        DetailRow(icon = Icons.Rounded.Grass, label = "Surface", value = surface.replaceFirstChar { it.uppercase() })
+                    }
                     detail.venue?.capacity?.let { capacity ->
-                        DetailRow(icon = Icons.Rounded.Groups, label = "Capacity", value = String.format("%,d seats", capacity))
+                        DetailRow(icon = Icons.Rounded.Groups, label = "Capacity", value = String.format(java.util.Locale.US, "%,d seats", capacity))
                         Spacer(Modifier.height(12.dp))
                         Column(modifier = Modifier.fillMaxWidth()) {
                             Row(
@@ -548,6 +653,40 @@ private fun TeamInfoTab(detail: TeamDetail) {
                             value = if (td != null) (if (gd >= 0) "+$gd" else "$gd") else "-",
                             valueColor = if (gd >= 0) Color(0xFF4CAF50) else Color(0xFFF44336)
                         )
+                    }
+
+                    val dStats = detail.detailedStats
+                    if (dStats != null && (dStats.cleanSheetTotal > 0 || dStats.winHome > 0 || dStats.winAway > 0 || dStats.avgGoalsScored != null)) {
+                        Spacer(Modifier.height(16.dp))
+                        HorizontalDivider(color = Color.White.copy(alpha = 0.06f))
+                        Spacer(Modifier.height(14.dp))
+                        Text("Record & Efficiency Splits", color = Color.White.copy(alpha = 0.85f), fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+                        Spacer(Modifier.height(10.dp))
+
+                        DetailRow(
+                            icon = Icons.Rounded.Home,
+                            label = "Home Record",
+                            value = "${dStats.winHome}W • ${dStats.drawHome}D • ${dStats.lostHome}L"
+                        )
+                        DetailRow(
+                            icon = Icons.Rounded.FlightTakeoff,
+                            label = "Away Record",
+                            value = "${dStats.winAway}W • ${dStats.drawAway}D • ${dStats.lostAway}L"
+                        )
+                        if (dStats.cleanSheetTotal > 0) {
+                            DetailRow(
+                                icon = Icons.Rounded.Shield,
+                                label = "Clean Sheets",
+                                value = "${dStats.cleanSheetTotal} matches"
+                            )
+                        }
+                        dStats.avgGoalsScored?.let { avgScored ->
+                            DetailRow(
+                                icon = Icons.Rounded.SportsSoccer,
+                                label = "Avg Scored",
+                                value = "$avgScored / match"
+                            )
+                        }
                     }
                 }
             }

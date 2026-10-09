@@ -56,7 +56,28 @@ class LeagueDetailViewModel @Inject constructor(
                 is ApiResult.Success -> leaguesResult.data.find { it.id == leagueId }
                 else -> null
             }
-            _state.update { it.copy(leagueInfo = league) }
+            val resolvedLeague = if (league != null) {
+                val cName = com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.countryFor(league.id, league.name, league.country)
+                league.copy(
+                    country = cName,
+                    logo = league.logo ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(league.id, league.name, cName),
+                    flag = league.flag ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.flagUrl(cName)
+                )
+            } else {
+                val lName = com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.leagueNameFor(leagueId)
+                    ?: com.footballpluse.footballapp.domain.model.OnboardingDefaults.leagueName(leagueId.toString())
+                    ?: "League $leagueId"
+                val cName = com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.countryFor(leagueId, lName)
+                com.footballpluse.footballapp.domain.model.LeagueInfo(
+                    id = leagueId,
+                    name = lName,
+                    logo = com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(leagueId, lName, cName),
+                    country = cName,
+                    flag = com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.flagUrl(cName),
+                    season = season
+                )
+            }
+            _state.update { it.copy(leagueInfo = resolvedLeague) }
 
             launch { loadStandings(leagueId, season) }
             launch { loadFixtures(leagueId, season) }
@@ -160,24 +181,20 @@ class LeagueDetailViewModel @Inject constructor(
     }
 
     private suspend fun loadStandings(leagueId: Int, season: Int) {
-        repository.getStandings(leagueId, season).collectLatest { result ->
-            when (result) {
-                is ApiResult.Success -> {
-                    val rawRecords = try {
-                        apiService.getStandings(leagueId.toString())
-                            .toStanding().league?.standings?.firstOrNull() ?: emptyList()
-                    } catch (_: Exception) { emptyList() }
-
-                    val uiModels = result.data.map { standing ->
-                        val record = rawRecords.find { it.team?.id == standing.team.id }
-                        standing.toUiModel(record)
-                    }
-                    _state.update { it.copy(standings = ApiResult.Success(uiModels)) }
-                    computeSeasonStats(ApiResult.Success(uiModels), _state.value.fixtures)
-                }
-                is ApiResult.Error -> _state.update { it.copy(standings = result) }
-                is ApiResult.Loading -> _state.update { it.copy(standings = ApiResult.Loading) }
+        try {
+            _state.update { it.copy(standings = ApiResult.Loading) }
+            val rawStandings = apiService.getStandings(leagueId.toString())
+            val standing = rawStandings.toStanding()
+            val rawRecords = standing.league?.standings?.firstOrNull() ?: emptyList()
+            val standingItems = rawRecords.map { it.toStandingItem() }
+            val uiModels = standingItems.map { item ->
+                val record = rawRecords.find { it.team?.id == item.team.id }
+                item.toUiModel(record)
             }
+            _state.update { it.copy(standings = ApiResult.Success(uiModels)) }
+            computeSeasonStats(ApiResult.Success(uiModels), _state.value.fixtures)
+        } catch (e: Exception) {
+            _state.update { it.copy(standings = ApiResult.Error(e.message ?: "Failed to load standings")) }
         }
     }
 
@@ -314,14 +331,7 @@ class LeagueDetailViewModel @Inject constructor(
     private suspend fun loadTopScorers(leagueId: Int, season: Int) {
         try {
             val rawScorers = apiService.getTopScorers(leagueId.toString())
-            // v3 topscorers have no player_image: build badge-CDN URLs from player_key
             val response = rawScorers
-                .map { scorer ->
-                    val key = scorer.player_id
-                    if (scorer.player_image == null && key != null && key > 0) {
-                        scorer.copy(player_image = "https://apiv3.apifootball.com/badges/players/${key}.png")
-                    } else scorer
-                }
                 .map { it.toPlayerProfileStatisticsResponse() }
             val maxVal = response.maxOfOrNull { it.statistics?.firstOrNull()?.goals?.total ?: 0 } ?: 1
             val models = response.mapIndexed { idx, entry ->

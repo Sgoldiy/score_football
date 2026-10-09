@@ -6,6 +6,7 @@ import com.footballpluse.footballapp.data.local.db.StandingDao
 import com.footballpluse.footballapp.data.mapper.*
 import com.footballpluse.footballapp.data.model.*
 import com.footballpluse.footballapp.data.remote.ApiService
+import com.footballpluse.footballapp.data.remote.uitslagen.UitslagenMapper
 import com.footballpluse.footballapp.data.util.ApiResult
 import com.footballpluse.footballapp.domain.model.*
 import com.footballpluse.footballapp.domain.repository.FootballRepository
@@ -49,6 +50,10 @@ class FootballRepositoryImpl @Inject constructor(
 
         @Volatile
         private var teamPoolCache: List<ApiStanding>? = null
+
+        @Volatile
+        private var leaguesCache: Pair<Long, List<LeagueInfo>>? = null
+        private const val LEAGUES_CACHE_TTL_MS = 60 * 60 * 1000L // 1 hour
     }
 
     override fun getFixturesByDate(date: String): Flow<ApiResult<List<Match>>> = flow {
@@ -119,52 +124,56 @@ class FootballRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun getMatchDetail(fixtureId: Int): ApiResult<MatchDetail> {
-        return try {
-            val eventsResponse = apiService.getEventById(matchId = fixtureId.toString())
-            val apiEvent = eventsResponse.firstOrNull() ?: return ApiResult.Error("Match not found")
+    override suspend fun getMatchDetail(fixtureId: Int): ApiResult<MatchDetail> = kotlinx.coroutines.coroutineScope {
+        try {
+            val eventsDeferred = async { apiService.getEventById(matchId = fixtureId.toString()) }
+            val lineupsDeferred = async {
+                try {
+                    apiService.getLineups(matchId = fixtureId.toString()).values.firstOrNull()?.lineup
+                } catch (_: Exception) { null }
+            }
+            val statsDeferred = async {
+                try {
+                    apiService.getMatchStatistics(matchId = fixtureId.toString()).values.firstOrNull()
+                } catch (_: Exception) { null }
+            }
+
+            val eventsResponse = eventsDeferred.await()
+            val apiEvent = eventsResponse.firstOrNull() ?: return@coroutineScope ApiResult.Error("Match not found")
             val response = apiEvent.toFixtureResponse()
 
             val detailedEvents = response.events ?: emptyList()
 
-            var homeForm: String? = null
-            var awayForm: String? = null
-
-            try {
-                val leagueId = apiEvent.league_id
-                if (leagueId != null) {
-                    val standings = apiService.getStandings(leagueId = leagueId)
-                    homeForm = standings.find { it.team_id == apiEvent.match_hometeam_id }?.overall_form
-                    awayForm = standings.find { it.team_id == apiEvent.match_awayteam_id }?.overall_form
-                }
-            } catch (_: Exception) {}
-
-            val lineupWrapper = try {
-                apiService.getLineups(matchId = fixtureId.toString()).values.firstOrNull()?.lineup
-            } catch (_: Exception) { null }
-
-            val statsWrapper = try {
-                apiService.getMatchStatistics(matchId = fixtureId.toString()).values.firstOrNull()
-            } catch (_: Exception) { null }
-
-            val predictions = try {
-                apiService.getPredictions(matchId = fixtureId.toString())
-            } catch (_: Exception) { emptyList() }
-
-            val odds = try {
-                apiService.getOdds(matchId = fixtureId.toString())
-            } catch (_: Exception) { emptyList() }
-
             val homeId = response.teams?.home?.id
             val awayId = response.teams?.away?.id
-            val h2h = if (homeId != null && awayId != null && homeId != 0 && awayId != 0) {
-                try {
-                    apiService.getHeadToHead(
-                        firstTeamId = homeId.toString(),
-                        secondTeamId = awayId.toString()
-                    ).allEvents().toFixtureResponseList()
-                } catch (_: Exception) { emptyList() }
-            } else emptyList()
+            val h2hDeferred: kotlinx.coroutines.Deferred<List<com.footballpluse.footballapp.data.model.FixtureResponse>>? =
+                if (homeId != null && awayId != null && homeId != 0 && awayId != 0) {
+                    async {
+                        try {
+                            apiService.getHeadToHead(
+                                firstTeamId = homeId.toString(),
+                                secondTeamId = awayId.toString()
+                            ).allEvents().toFixtureResponseList()
+                        } catch (_: Exception) { emptyList() }
+                    }
+                } else null
+
+            val formDeferred: kotlinx.coroutines.Deferred<Pair<String?, String?>>? =
+                if (apiEvent.league_id != null) {
+                    async {
+                        try {
+                            val standings = apiService.getStandings(leagueId = apiEvent.league_id)
+                            val hf = standings.find { it.team_id == apiEvent.match_hometeam_id }?.overall_form
+                            val af = standings.find { it.team_id == apiEvent.match_awayteam_id }?.overall_form
+                            Pair(hf, af)
+                        } catch (_: Exception) { Pair(null, null) }
+                    }
+                } else null
+
+            val lineupWrapper = lineupsDeferred.await()
+            val statsWrapper = statsDeferred.await()
+            val (homeForm, awayForm) = formDeferred?.await() ?: Pair(null, null)
+            val h2h = h2hDeferred?.await().orEmpty()
 
             val lineups = if (lineupWrapper != null) {
                 val homeLineup = lineupWrapper.home?.toFixtureLineup(
@@ -214,8 +223,8 @@ class FootballRepositoryImpl @Inject constructor(
                     lineups = lineups,
                     stats = matchStats,
                     players = playerPerformances,
-                    prediction = predictions.firstOrNull()?.toPrediction()?.toMatchPrediction(),
-                    odds = odds.map { it.toOddsResponse().toMatchOdds() }.flatten(),
+                    prediction = null,
+                    odds = emptyList(),
                     injuries = emptyList(),
                     headToHead = h2h.map { it.toMatch() },
                     venue = response.fixture?.venue?.toVenueInfo(),
@@ -231,17 +240,61 @@ class FootballRepositoryImpl @Inject constructor(
 
     override suspend fun getTeamDetail(teamId: Int, leagueId: Int, season: Int): ApiResult<TeamDetail> {
         return try {
-            val teams = apiService.getTeams(teamId = teamId.toString())
-            val apiTeam = teams.firstOrNull() ?: return ApiResult.Error("Team not found")
-
-            val standings = try {
-                apiService.getStandings(leagueId = leagueId.toString())
+            var teams = try {
+                apiService.getTeams(teamId = teamId.toString())
             } catch (_: Exception) {
                 emptyList()
             }
-            val teamStanding = standings.find { it.team_id == teamId.toString() }
 
-            ApiResult.Success(apiTeam.toTeamDetail(teamStanding))
+            val standings = try {
+                if (leagueId > 0) apiService.getStandings(leagueId = leagueId.toString()) else emptyList()
+            } catch (_: Exception) {
+                emptyList()
+            }
+
+            // If teams was empty and leagueId is known, try finding the team in standings
+            if (teams.isEmpty() && leagueId > 0) {
+                val knownClubName = com.footballpluse.footballapp.domain.model.OnboardingDefaults.clubsByLeagueId[leagueId]?.find { it.clubId == teamId }?.clubName
+                val normClub = UitslagenMapper.normalize(knownClubName)
+                val standingMatch = standings.find {
+                    it.team_id == teamId.toString() ||
+                    (normClub.isNotBlank() && (
+                        UitslagenMapper.normalize(it.team_name) == normClub ||
+                        UitslagenMapper.normalize(it.team_name).contains(normClub) ||
+                        normClub.contains(UitslagenMapper.normalize(it.team_name))
+                    ))
+                }
+                if (standingMatch != null && !standingMatch.team_id.isNullOrBlank()) {
+                    teams = try {
+                        apiService.getTeams(teamId = standingMatch.team_id)
+                    } catch (_: Exception) {
+                        emptyList()
+                    }
+                }
+            }
+
+            val apiTeam = teams.firstOrNull()
+            val teamStanding = standings.find {
+                it.team_id == teamId.toString() || (apiTeam != null && it.team_id == apiTeam.team_key)
+            }
+
+            if (apiTeam != null) {
+                ApiResult.Success(apiTeam.toTeamDetail(teamStanding))
+            } else if (teamStanding != null) {
+                val fallbackTeam = ApiTeam(
+                    team_key = teamStanding.team_id,
+                    team_name = teamStanding.team_name,
+                    team_country = teamStanding.country_name,
+                    team_founded = null,
+                    team_badge = teamStanding.team_badge,
+                    venue = null,
+                    players = null,
+                    coaches = null
+                )
+                ApiResult.Success(fallbackTeam.toTeamDetail(teamStanding))
+            } else {
+                ApiResult.Error("Club details currently unavailable")
+            }
         } catch (e: Exception) {
             ApiResult.Error(e.message ?: "Failed to load team details")
         }
@@ -282,10 +335,14 @@ class FootballRepositoryImpl @Inject constructor(
     }
 
     override suspend fun getLeagues(): ApiResult<List<LeagueInfo>> {
+        val cached = leaguesCache
+        if (cached != null && System.currentTimeMillis() - cached.first < LEAGUES_CACHE_TTL_MS) {
+            return ApiResult.Success(cached.second)
+        }
         return try {
             val apiLeagues = apiService.getLeagues()
             val seen = mutableSetOf<String>()
-            ApiResult.Success(apiLeagues.mapNotNull { league ->
+            val result = apiLeagues.mapNotNull { league ->
                 val id = league.league_id ?: return@mapNotNull null
                 if (id in seen) return@mapNotNull null
                 seen.add(id)
@@ -296,9 +353,12 @@ class FootballRepositoryImpl @Inject constructor(
                         flag = lr.country?.flag, season = lr.league?.season
                     )
                 }
-            })
+            }
+            leaguesCache = Pair(System.currentTimeMillis(), result)
+            ApiResult.Success(result)
         } catch (e: Exception) {
-            ApiResult.Error(e.message ?: "Failed to load leagues")
+            if (cached != null) ApiResult.Success(cached.second)
+            else ApiResult.Error(e.message ?: "Failed to load leagues")
         }
     }
 
@@ -334,18 +394,62 @@ class FootballRepositoryImpl @Inject constructor(
 
     override suspend fun getFixturesByTeamSeasonLeague(teamId: Int, leagueId: Int, season: Int): ApiResult<List<Match>> {
         return try {
-            // get_events requires a date window (from/to). Use a 400-day window to cover a season.
-            val events = apiService.getEvents(
-                from = daysFromToday(-200),
-                to = daysFromToday(200),
-                teamId = teamId.toString()
-            )
-            val teamFixtures = events.filter {
-                it.match_hometeam_id == teamId.toString() || it.match_awayteam_id == teamId.toString()
+            val knownClub = com.footballpluse.footballapp.domain.model.OnboardingDefaults.clubsByLeagueId[leagueId]?.find { it.clubId == teamId }
+            val normClub = UitslagenMapper.normalize(knownClub?.clubName)
+
+            // 1. Try events by teamId directly
+            var events = try {
+                apiService.getEvents(
+                    from = daysFromToday(-200),
+                    to = daysFromToday(200),
+                    teamId = teamId.toString()
+                )
+            } catch (_: Exception) {
+                emptyList()
             }
-            val filtered = if (leagueId > 0) {
+
+            // 2. If empty and leagueId > 0, try resolving the team's footapi id from standings
+            if (events.isEmpty() && leagueId > 0) {
+                val standings = try { apiService.getStandings(leagueId = leagueId.toString()) } catch (_: Exception) { emptyList() }
+                val standingMatch = standings.find {
+                    it.team_id == teamId.toString() ||
+                    (normClub.isNotBlank() && (
+                        UitslagenMapper.normalize(it.team_name) == normClub ||
+                        UitslagenMapper.normalize(it.team_name).contains(normClub) ||
+                        normClub.contains(UitslagenMapper.normalize(it.team_name))
+                    ))
+                }
+                if (standingMatch?.team_id != null) {
+                    events = try {
+                        apiService.getEvents(
+                            from = daysFromToday(-200),
+                            to = daysFromToday(200),
+                            teamId = standingMatch.team_id
+                        )
+                    } catch (_: Exception) {
+                        emptyList()
+                    }
+                }
+            }
+
+            // 3. Filter for this team's matches
+            val teamFixtures = if (events.isNotEmpty()) {
+                val matched = events.filter {
+                    it.match_hometeam_id == teamId.toString() || it.match_awayteam_id == teamId.toString() ||
+                    (normClub.isNotBlank() && (
+                        UitslagenMapper.normalize(it.match_hometeam_name).contains(normClub) ||
+                        normClub.contains(UitslagenMapper.normalize(it.match_hometeam_name)) ||
+                        UitslagenMapper.normalize(it.match_awayteam_name).contains(normClub) ||
+                        normClub.contains(UitslagenMapper.normalize(it.match_awayteam_name))
+                    ))
+                }
+                if (matched.isNotEmpty()) matched else events
+            } else emptyList()
+
+            val filtered = if (leagueId > 0 && teamFixtures.any { it.league_id == leagueId.toString() }) {
                 teamFixtures.filter { it.league_id == leagueId.toString() }
             } else teamFixtures
+
             ApiResult.Success(filtered.toFixtureResponseList().map { it.toMatch() })
         } catch (e: Exception) {
             ApiResult.Error(e.message ?: "Failed to load team fixtures")

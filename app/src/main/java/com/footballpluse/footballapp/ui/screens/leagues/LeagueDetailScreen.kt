@@ -182,9 +182,11 @@ fun LeagueHeader(leagueInfo: com.footballpluse.footballapp.domain.model.LeagueIn
                 .background(Color.White.copy(alpha = 0.05f))
         ) {
             AsyncImage(
-                model = leagueInfo.logo,
+                model = leagueInfo.logo ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(leagueInfo.id, leagueInfo.name, leagueInfo.country),
                 contentDescription = leagueInfo.name,
-                modifier = Modifier.size(40.dp).align(Alignment.Center)
+                modifier = Modifier.size(40.dp).align(Alignment.Center),
+                placeholder = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_league_placeholder),
+                error = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_league_placeholder)
             )
         }
         Spacer(Modifier.height(6.dp))
@@ -358,7 +360,9 @@ fun StandingRow(
                             AsyncImage(
                                 model = item.team.logo,
                                 contentDescription = null,
-                                modifier = Modifier.size(16.dp)
+                                modifier = Modifier.size(16.dp),
+                                placeholder = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_team_placeholder),
+                                error = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_team_placeholder)
                             )
                         }
                         Spacer(Modifier.width(6.dp))

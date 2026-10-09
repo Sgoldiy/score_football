@@ -200,8 +200,8 @@ private fun HeroHeader(
                 model = team?.logo,
                 contentDescription = null,
                 modifier = Modifier.size(72.dp),
-                placeholder = painterResource(R.drawable.ic_launcher_foreground),
-                error = painterResource(R.drawable.ic_launcher_foreground)
+                placeholder = painterResource(R.drawable.ic_team_placeholder),
+                error = painterResource(R.drawable.ic_team_placeholder)
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
@@ -313,8 +313,8 @@ private fun CoachCard(coaches: List<Coach>) {
                 model = coach.photo,
                 contentDescription = null,
                 modifier = Modifier.size(56.dp).clip(CircleShape),
-                placeholder = painterResource(R.drawable.ic_launcher_foreground),
-                error = painterResource(R.drawable.ic_launcher_foreground)
+                placeholder = painterResource(R.drawable.ic_team_placeholder),
+                error = painterResource(R.drawable.ic_team_placeholder)
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
@@ -380,8 +380,8 @@ private fun SquadPlayerCard(player: SquadPlayer) {
                 model = player.photo,
                 contentDescription = null,
                 modifier = Modifier.size(48.dp).clip(CircleShape),
-                placeholder = painterResource(R.drawable.ic_launcher_foreground),
-                error = painterResource(R.drawable.ic_launcher_foreground)
+                placeholder = painterResource(R.drawable.ic_team_placeholder),
+                error = painterResource(R.drawable.ic_team_placeholder)
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
@@ -494,8 +494,8 @@ private fun RecentFixtureRow(
             model = oppLogo,
             contentDescription = null,
             modifier = Modifier.size(28.dp),
-            placeholder = painterResource(R.drawable.ic_launcher_foreground),
-            error = painterResource(R.drawable.ic_launcher_foreground)
+            placeholder = painterResource(R.drawable.ic_team_placeholder),
+            error = painterResource(R.drawable.ic_team_placeholder)
         )
         Spacer(modifier = Modifier.width(8.dp))
         Column(modifier = Modifier.weight(1f)) {

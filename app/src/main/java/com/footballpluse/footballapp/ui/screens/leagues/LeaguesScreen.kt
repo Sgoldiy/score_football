@@ -549,9 +549,6 @@ fun PopularTabContent(
                 SectionHeader("⭐ Your Favorites")
             }
             items(favorites, key = { "fav_${it.id}" }) { league ->
-                LaunchedEffect(league.id) {
-                    viewModel.loadExtraDetails(league.id)
-                }
                 LeagueItem(
                     league = league,
                     selectedTab = LeagueTab.POPULAR,
@@ -567,9 +564,6 @@ fun PopularTabContent(
                 SectionHeader("🌍 World & Cups")
             }
             items(worldCups, key = { "world_${it.id}" }) { league ->
-                LaunchedEffect(league.id) {
-                    viewModel.loadExtraDetails(league.id)
-                }
                 LeagueItem(
                     league = league,
                     selectedTab = LeagueTab.POPULAR,
@@ -585,9 +579,6 @@ fun PopularTabContent(
                 SectionHeader("🏴 Top Domestic")
             }
             items(topDomestic, key = { "dom_${it.id}" }) { league ->
-                LaunchedEffect(league.id) {
-                    viewModel.loadExtraDetails(league.id)
-                }
                 LeagueItem(
                     league = league,
                     selectedTab = LeagueTab.POPULAR,
@@ -658,9 +649,6 @@ fun FlatLeagueList(
         contentPadding = PaddingValues(vertical = 12.dp)
     ) {
         items(leagues, key = { "flat_${it.id}" }) { league ->
-            LaunchedEffect(league.id) {
-                viewModel.loadExtraDetails(league.id)
-            }
             LeagueItem(
                 league = league,
                 selectedTab = tab,

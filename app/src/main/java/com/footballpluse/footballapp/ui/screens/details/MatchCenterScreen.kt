@@ -1447,7 +1447,7 @@ private fun MatchChatSection(viewModel: FixtureDetailViewModel) {
                         .clip(CircleShape)
                         .background(Color.White.copy(alpha = 0.04f))
                         .clickable {
-                            viewModel.sendComment("$emoji Reaction!", "MyReaction")
+                            viewModel.sendComment("$emoji Reaction!", reactionType = emoji)
                         },
                     contentAlignment = Alignment.Center
                 ) {
@@ -1486,7 +1486,7 @@ private fun MatchChatSection(viewModel: FixtureDetailViewModel) {
                     .background(LiveGreen)
                     .clickable {
                         if (textVal.isNotBlank()) {
-                            viewModel.sendComment(textVal, "User_Guest")
+                            viewModel.sendComment(textVal)
                             textVal = ""
                         }
                     },

@@ -267,7 +267,9 @@ private fun SearchResultItem(
             AsyncImage(
                 model = logo,
                 contentDescription = null,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(32.dp),
+                placeholder = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_placeholder),
+                error = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_placeholder)
             )
         }
         Spacer(Modifier.width(12.dp))

@@ -171,7 +171,8 @@ class HomeViewModel @Inject constructor(
                         is ApiResult.Success -> {
                             val todayMatches = result.data
                             val tomorrowMatches = (tomorrowResult as? ApiResult.Success)?.data ?: emptyList()
-                            val allMatches = (todayMatches + tomorrowMatches).sortedWith(compareBy<Match> { !it.isLive }.thenBy { it.timestamp })
+                            val allMatches = (todayMatches + tomorrowMatches).distinctBy { it.id }
+                                .sortedWith(compareBy<Match> { !it.isLive }.thenBy { it.timestamp })
                             val live = allMatches.filter { it.isLive }
                             val upcoming = allMatches.filter { it.status.short == "NS" || it.status.short == "TBD" }
                             val finished = allMatches.filter { it.status.short in listOf("FT", "AET", "PEN") }
@@ -206,7 +207,7 @@ class HomeViewModel @Inject constructor(
                             _uiState.value = HomeUiState.Success(
                                 featuredMatches = featured,
                                 liveMatches = live,
-                                upcomingMatches = upcoming.filter { it.timestamp * 1000L > System.currentTimeMillis() },
+                                upcomingMatches = upcoming.filter { it.timestamp == 0L || it.timestamp * 1000L > System.currentTimeMillis() - 7200_000L },
                                 finishedMatches = finished,
                                 topLeagues = finalTopLeagues,
                                 isLive = live.isNotEmpty(),

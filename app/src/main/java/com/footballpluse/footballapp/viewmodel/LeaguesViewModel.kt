@@ -63,8 +63,18 @@ class LeaguesViewModel @Inject constructor(
 ) : ViewModel() {
 
     companion object {
+        private val KNOWN_TEAM_COUNTS = mapOf(
+            152 to 20, 302 to 20, 207 to 20, 175 to 18, 168 to 18,
+            88 to 18, 94 to 18, 203 to 18, 144 to 16, 187 to 12,
+            179 to 12, 2556 to 13, 253 to 29, 71 to 20,
+            28 to 36, 3 to 36, 848 to 36, 1 to 32
+        )
         // Shared process-level cache for league details (currentRound, teamCount)
-        private val stageAndTeamCache = java.util.concurrent.ConcurrentHashMap<Int, Pair<String, Int>>()
+        private val stageAndTeamCache = java.util.concurrent.ConcurrentHashMap<Int, Pair<String, Int>>().apply {
+            KNOWN_TEAM_COUNTS.forEach { (id, count) ->
+                put(id, Pair("Regular Season", count))
+            }
+        }
     }
 
     private val activeJobs = java.util.concurrent.ConcurrentHashMap<Int, Job>()
@@ -124,17 +134,17 @@ class LeaguesViewModel @Inject constructor(
             .map { item ->
                 val id = item.league?.id ?: 0
                 val cachedDetails = stageAndTeamCache[id]
-                val type = item.league?.type ?: "League"
-                val countryName = item.country?.name ?: "International"
-                val isInternational = item.league?.country == "World" || countryName == "World" || item.country?.code == null
+                val rawCountry = item.country?.name
+                val countryName = com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.countryFor(id, item.league?.name, rawCountry)
+                val isInternational = countryName == "World" || countryName == "Europe" || countryName == "International" || item.country?.code == null
 
                 League(
                     id = id,
                     name = item.league?.name ?: "Unknown League",
                     country = countryName,
-                    logoUrl = item.league?.logo ?: "",
+                    logoUrl = item.league?.logo?.takeIf { it.isNotBlank() } ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(id, item.league?.name, countryName).orEmpty(),
                     season = item.seasons?.find { it.current == true }?.year?.toString() ?: item.league?.season?.toString() ?: "2025",
-                    leagueType = type,
+                    leagueType = item.league?.type ?: "League",
                     isInternational = isInternational,
                     currentRound = cachedDetails?.first,
                     teamCount = cachedDetails?.second,
@@ -147,9 +157,11 @@ class LeaguesViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     val popularLeagues: StateFlow<List<League>> = allLeagues.map { list ->
-        // FootballCharts-covered headline competitions (old UCL/World Cup ids
-        // resolved to unrelated FC leagues, so they are dropped).
-        val topCompetitionsIds = setOf(152, 302, 207, 175, 168, 88, 94, 203, 144, 187)
+        // Top domestic leagues + European & World tournaments from the API
+        val topCompetitionsIds = setOf(
+            152, 302, 207, 175, 168, 88, 94, 203, 144, 187,
+            28, 3, 848, 5, 1, 4, 9, 17
+        )
         list.filter { it.id in topCompetitionsIds || it.isFavorited }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -301,6 +313,7 @@ class LeaguesViewModel @Inject constructor(
 
     private fun startLiveRefreshLoop() {
         viewModelScope.launch {
+            kotlinx.coroutines.delay(300_000L)
             while (true) {
                 val ok = refreshFixtureCountsOnly()
                 // Success → refresh every 5 min. Failure (e.g. quota exhausted) → back off

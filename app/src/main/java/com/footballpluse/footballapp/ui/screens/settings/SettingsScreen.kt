@@ -95,7 +95,9 @@ fun SettingsScreen(
                     AsyncImage(
                         model = club.logoUrl,
                         contentDescription = club.clubName,
-                        modifier = Modifier.width(28.dp).height(28.dp)
+                        modifier = Modifier.width(28.dp).height(28.dp),
+                        placeholder = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_team_placeholder),
+                        error = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_team_placeholder)
                     )
                     Spacer(Modifier.width(12.dp))
                     Text(

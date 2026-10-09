@@ -2,14 +2,20 @@ package com.footballpluse.footballapp.ui.screens.favorites
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.footballpluse.footballapp.data.repository.FavouriteRepository
 import com.footballpluse.footballapp.data.repository.BillingRepository
+import com.footballpluse.footballapp.data.repository.CommunityFirebaseRepository
+import com.footballpluse.footballapp.data.repository.FavouriteRepository
+import com.footballpluse.footballapp.data.repository.LocalRepository
 import com.footballpluse.footballapp.data.util.ApiResult
 import com.footballpluse.footballapp.data.util.SeasonUtils
-import com.footballpluse.footballapp.domain.model.*
+import com.footballpluse.footballapp.domain.model.FavouriteClub
+import com.footballpluse.footballapp.domain.model.Match
+import com.footballpluse.footballapp.domain.model.StandingItem
+import com.footballpluse.footballapp.domain.model.TeamDetail
 import com.footballpluse.footballapp.domain.repository.FootballRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -37,7 +43,7 @@ data class PollOption(
 )
 
 data class SocialPost(
-    val id: Int,
+    val id: String,
     val username: String,
     val userAvatarUrl: String?,
     val timestamp: Long,
@@ -58,20 +64,24 @@ data class FavouriteClubsUiState(
     val activeClub: FavouriteClub? = null,
     val detail: ClubDetailUiState = ClubDetailUiState(),
     val isPremium: Boolean = false,
-    val socialPosts: List<SocialPost> = emptyList()
+    val socialPosts: List<SocialPost> = emptyList(),
+    val hasPostedToday: Boolean = false,
+    val postErrorMessage: String? = null
 )
 
 @HiltViewModel
 class FavouriteClubsViewModel @Inject constructor(
     private val favouriteRepository: FavouriteRepository,
     private val footballRepository: FootballRepository,
-    private val billingRepository: BillingRepository
+    private val billingRepository: BillingRepository,
+    private val communityRepository: CommunityFirebaseRepository,
+    private val localRepository: LocalRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(FavouriteClubsUiState())
     val uiState: StateFlow<FavouriteClubsUiState> = _uiState.asStateFlow()
-
     private val cache = ClubDetailCache()
+    private var communityJob: Job? = null
 
     init {
         viewModelScope.launch {
@@ -91,7 +101,6 @@ class FavouriteClubsViewModel @Inject constructor(
                 }
             }
         }
-
         viewModelScope.launch {
             billingRepository.isPurchased.collectLatest { purchased ->
                 _uiState.value = _uiState.value.copy(isPremium = purchased)
@@ -141,8 +150,12 @@ class FavouriteClubsViewModel @Inject constructor(
                     loadedSeason = loadedSeason,
                     fixtures = fixtures.sortedBy { it.timestamp },
                     fixturesError = if (fixtures.isEmpty())
-                        "No fixtures found for ${club.clubName} (${SeasonUtils.displaySeasonLabel(loadedSeason)}). " +
-                            "The data feed may be rate-limited — tap refresh to retry."
+                        "No fixtures found for ${club.clubName} (${
+                            SeasonUtils.displaySeasonLabel(
+                                loadedSeason
+                            )
+                        }). " +
+                                "The data feed may be rate-limited — tap refresh to retry."
                     else null,
                     teamDetail = detail,
                     teamDetailError = if (detail == null)
@@ -165,21 +178,51 @@ class FavouriteClubsViewModel @Inject constructor(
             val fixturesJob = async(Dispatchers.IO) {
                 runCatching {
                     cache.getFixtures(teamId, leagueId, season, force) {
-                        val teamFirst = footballRepository.getFixturesByTeamSeasonLeague(teamId, leagueId, season)
-                        when (teamFirst) {
-                            is ApiResult.Success -> teamFirst.data
-                            is ApiResult.Error -> {
-                                val flow = footballRepository.getFixturesByLeagueSeason(leagueId, season)
-                                val first = flow.first { it !is ApiResult.Loading }
-                                when (first) {
-                                    is ApiResult.Success -> first.data.filter { m ->
-                                        m.homeTeam.id == teamId || m.awayTeam.id == teamId
+                        val teamResult = footballRepository.getFixturesByTeamSeasonLeague(
+                            teamId,
+                            leagueId,
+                            season
+                        )
+                        val direct = when (teamResult) {
+                            is ApiResult.Success -> teamResult.data
+                            else -> emptyList()
+                        }
+                        direct.ifEmpty {
+                            val flow =
+                                footballRepository.getFixturesByLeagueSeason(leagueId, season)
+                            val first = flow.first { it !is ApiResult.Loading }
+                            when (first) {
+                                is ApiResult.Success -> {
+                                    val clubNorm =
+                                        com.footballpluse.footballapp.data.remote.uitslagen.UitslagenMapper.normalize(
+                                            club.clubName
+                                        )
+                                    first.data.filter { m ->
+                                        m.homeTeam.id == teamId || m.awayTeam.id == teamId ||
+                                                (clubNorm.isNotBlank() && (
+                                                        com.footballpluse.footballapp.data.remote.uitslagen.UitslagenMapper.normalize(
+                                                            m.homeTeam.name
+                                                        ).contains(clubNorm) ||
+                                                                clubNorm.contains(
+                                                                    com.footballpluse.footballapp.data.remote.uitslagen.UitslagenMapper.normalize(
+                                                                        m.homeTeam.name
+                                                                    )
+                                                                ) ||
+                                                                com.footballpluse.footballapp.data.remote.uitslagen.UitslagenMapper.normalize(
+                                                                    m.awayTeam.name
+                                                                ).contains(clubNorm) ||
+                                                                clubNorm.contains(
+                                                                    com.footballpluse.footballapp.data.remote.uitslagen.UitslagenMapper.normalize(
+                                                                        m.awayTeam.name
+                                                                    )
+                                                                )
+                                                        ))
                                     }
-                                    is ApiResult.Error -> throw IllegalStateException(first.message)
-                                    ApiResult.Loading -> emptyList()
                                 }
+
+                                is ApiResult.Error -> throw IllegalStateException(first.message)
+                                ApiResult.Loading -> emptyList()
                             }
-                            ApiResult.Loading -> emptyList()
                         }
                     }
                 }.getOrDefault(emptyList())
@@ -201,14 +244,50 @@ class FavouriteClubsViewModel @Inject constructor(
         }
     }
 
-    private val clubPostCache = mutableMapOf<Int, List<SocialPost>>()
-
     private fun loadCommunityData(clubId: Int) {
-        // Community is a local-only feature (the API has no social data).
-        // It starts empty per club and only shows what the user has posted.
-        _uiState.value = _uiState.value.copy(
-            socialPosts = clubPostCache[clubId].orEmpty()
-        )
+        communityJob?.cancel()
+        communityJob = viewModelScope.launch {
+            val myUid = communityRepository.getCurrentUserId()
+            val startOfDay = java.util.Calendar.getInstance(java.util.TimeZone.getDefault()).apply {
+                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }.timeInMillis
+
+            communityRepository.observeClubPosts(clubId).collectLatest { fbPosts ->
+                val userPostedToday =
+                    myUid != null && fbPosts.any { it.userId == myUid && it.timestamp >= startOfDay }
+
+                _uiState.value = _uiState.value.copy(
+                    hasPostedToday = userPostedToday,
+                    socialPosts = fbPosts.map { post ->
+                        val options = post.pollOptions.mapIndexed { idx, optText ->
+                            val votes = post.pollVotes.getOrNull(idx) ?: 0
+                            PollOption(text = optText, votes = votes)
+                        }
+                        val userVote = if (myUid != null) post.voters[myUid] else null
+                        val hasLiked = (myUid != null && post.likedBy.contains(myUid))
+
+                        SocialPost(
+                            id = post.id,
+                            username = post.username,
+                            userAvatarUrl = post.userAvatarUrl,
+                            timestamp = post.timestamp,
+                            content = post.content,
+                            imageUrl = post.imageUrl,
+                            hotTakeTag = post.hotTakeTag,
+                            pollQuestion = post.pollQuestion,
+                            pollOptions = options,
+                            userVotedIndex = userVote,
+                            likes = post.likes,
+                            hasLiked = hasLiked,
+                            commentCount = post.commentCount
+                        )
+                    }
+                )
+            }
+        }
     }
 
     fun togglePremium() {
@@ -218,73 +297,67 @@ class FavouriteClubsViewModel @Inject constructor(
         }
     }
 
+    private fun getDisplayName(): String {
+        return localRepository.getUsernamePref()?.takeIf { it.isNotBlank() } ?: "Fan"
+    }
+
+    fun clearPostError() {
+        _uiState.value = _uiState.value.copy(postErrorMessage = null)
+    }
+
     fun createSocialPost(content: String, hotTakeTag: String?, pollOptions: List<String>?) {
-        val currentPosts = _uiState.value.socialPosts.toMutableList()
-        val optionsList = pollOptions?.filter { it.isNotBlank() }?.map { PollOption(it, 0) } ?: emptyList()
-        val newPost = SocialPost(
-            id = (currentPosts.maxOfOrNull { it.id } ?: 0) + 1,
-            username = "You (Fan)",
-            userAvatarUrl = null,
-            timestamp = System.currentTimeMillis(),
-            content = content,
-            hotTakeTag = hotTakeTag,
-            pollQuestion = if (optionsList.isNotEmpty()) "Poll" else null,
-            pollOptions = optionsList,
-            likes = 0,
-            hasLiked = false,
-            commentCount = 0
-        )
-        currentPosts.add(0, newPost)
-        _uiState.value = _uiState.value.copy(socialPosts = currentPosts)
-        _uiState.value.activeClub?.let { club ->
-            clubPostCache[club.clubId] = currentPosts
-        }
-    }
+        val activeClub = _uiState.value.activeClub ?: return
+        if (content.isBlank()) return
 
-    fun likePost(postId: Int) {
-        val currentPosts = _uiState.value.socialPosts.map { post ->
-            if (post.id == postId) {
-                val nextLiked = !post.hasLiked
-                post.copy(
-                    hasLiked = nextLiked,
-                    likes = if (nextLiked) post.likes + 1 else post.likes - 1
+        if (_uiState.value.hasPostedToday) {
+            _uiState.value = _uiState.value.copy(
+                postErrorMessage = "Daily limit reached: You can only post once per day in this club's community."
+            )
+            return
+        }
+
+        val username = getDisplayName()
+        viewModelScope.launch {
+            val res = communityRepository.createClubPost(
+                clubId = activeClub.clubId,
+                content = content,
+                username = username,
+                hotTakeTag = hotTakeTag,
+                pollOptions = pollOptions
+            )
+            res.onFailure { error ->
+                _uiState.value = _uiState.value.copy(
+                    postErrorMessage = error.message ?: "Failed to post message. Please try again."
                 )
-            } else {
-                post
             }
         }
-        _uiState.value = _uiState.value.copy(socialPosts = currentPosts)
-        _uiState.value.activeClub?.let { club ->
-            clubPostCache[club.clubId] = currentPosts
+    }
+
+    fun likePost(postId: String) {
+        val activeClub = _uiState.value.activeClub ?: return
+        viewModelScope.launch {
+            communityRepository.toggleLikePost(
+                clubId = activeClub.clubId,
+                postId = postId
+            )
         }
     }
 
-    fun voteInPoll(postId: Int, optionIndex: Int) {
-        val currentPosts = _uiState.value.socialPosts.map { post ->
-            if (post.id == postId && post.userVotedIndex == null) {
-                val updatedOptions = post.pollOptions.mapIndexed { idx, opt ->
-                    if (idx == optionIndex) opt.copy(votes = opt.votes + 1) else opt
-                }
-                post.copy(
-                    pollOptions = updatedOptions,
-                    userVotedIndex = optionIndex
-                )
-            } else {
-                post
-            }
-        }
-        _uiState.value = _uiState.value.copy(socialPosts = currentPosts)
-        _uiState.value.activeClub?.let { club ->
-            clubPostCache[club.clubId] = currentPosts
+    fun voteInPoll(postId: String, optionIndex: Int) {
+        val activeClub = _uiState.value.activeClub ?: return
+        viewModelScope.launch {
+            communityRepository.voteInPoll(
+                clubId = activeClub.clubId,
+                postId = postId,
+                optionIndex = optionIndex
+            )
         }
     }
-
-
-
 }
 
 private class ClubDetailCache {
     private data class Entry<T>(val value: T, val expiresAt: Long)
+
     private val fixtures = mutableMapOf<String, Entry<List<Match>>>()
     private val standings = mutableMapOf<String, Entry<List<StandingItem>>>()
     private val details = mutableMapOf<String, Entry<TeamDetail>>()

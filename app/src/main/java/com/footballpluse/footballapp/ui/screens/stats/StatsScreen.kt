@@ -1,5 +1,6 @@
 package com.footballpluse.footballapp.ui.screens.stats
 
+import java.util.Locale
 import android.view.ViewGroup
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -579,7 +580,7 @@ fun TopScorerHeroCard(
                     // replaces the old hardcoded fake "xG/90" constant.
                     val goalsPer90 = run {
                         val apps = stats?.games?.appearances ?: 0
-                        if (apps > 0) String.format("%.2f", goals.toFloat() / apps) else "-"
+                        if (apps > 0) String.format(Locale.US, "%.2f", goals.toFloat() / apps) else "-"
                     }
 
                     MiniStatBox(
@@ -881,7 +882,7 @@ fun SeasonHighlightsGrid(
             )
             HighlightStatCard(
                 icon = Icons.AutoMirrored.Rounded.TrendingUp,
-                value = String.format("%.2f", avgGoals),
+                value = String.format(Locale.US, "%.2f", avgGoals),
                 label = "Avg goals per game",
                 trend = "+0.14 vs last season",
                 trendPositive = true,
@@ -893,7 +894,7 @@ fun SeasonHighlightsGrid(
             modifier = Modifier.fillMaxWidth()
         ) {                    HighlightStatCard(
                         icon = Icons.Rounded.Scoreboard,
-                        value = String.format("%.0f%%", penaltyGoalsPct),
+                        value = String.format(Locale.US, "%.0f%%", penaltyGoalsPct),
                         label = "Goals from penalties %",
                         trend = "from top scorers",
                         trendPositive = true,
@@ -901,7 +902,7 @@ fun SeasonHighlightsGrid(
                     )
                     HighlightStatCard(
                         icon = Icons.Rounded.QueryStats,
-                        value = String.format("%.2f", avgXgPerMatch),
+                        value = String.format(Locale.US, "%.2f", avgXgPerMatch),
                         label = "Avg goals per match",
                         trend = "from finished fixtures",
                         trendPositive = true,
@@ -1434,7 +1435,7 @@ fun WinRateLeadersList(standings: List<StandingRecord>) {
                     value = entry.wins,
                     maxValue = (entry.played).coerceAtLeast(1),
                     accentColor = Color(0xFFF0A500),
-                    trailingLabel = String.format("%.0f%%", entry.winRate)
+                    trailingLabel = String.format(Locale.US, "%.0f%%", entry.winRate)
                 )
                 if (index < sorted.size - 1) {
                     HorizontalDivider(
@@ -1785,7 +1786,7 @@ fun AttackDefenceQuadrant(
                                 modifier = Modifier.weight(1f)
                             )
                             Text(
-                                text = String.format("%.1f", team.goalsScored),
+                                text = String.format(Locale.US, "%.1f", team.goalsScored),
                                 color = Color(0xFF00E676),
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.Bold
@@ -2282,7 +2283,7 @@ fun GoalConversionList(leaders: List<PlayerShotsStat>) {
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            text = String.format("%.1f%%", item.conversionPct),
+                            text = String.format(Locale.US, "%.1f%%", item.conversionPct),
                             color = Color(0xFF5B8DE8),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
@@ -2825,7 +2826,7 @@ fun FirstGoalAdvantageCard(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = String.format("%.0f%%", data.firstGoalWinsPct),
+                    text = String.format(Locale.US, "%.0f%%", data.firstGoalWinsPct),
                     color = Color(0xFF00E676),
                     fontSize = 20.sp,
                     fontWeight = FontWeight.Bold
@@ -2845,6 +2846,7 @@ fun FirstGoalAdvantageCard(
                 Text(
                     text = "Teams that score first win ${
                         String.format(
+                            Locale.US,
                             "%.0f%%",
                             data.firstGoalWinsPct
                         )

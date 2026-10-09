@@ -22,12 +22,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.footballpluse.footballapp.ui.theme.PitchBlack
 
+import coil.compose.AsyncImage
+import com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues
+
 private data class CompetitionCard(
     val id: String,
     val leagueId: Int,
     val name: String,
     val season: String,
-    val emoji: String,
+    val logoUrl: String?,
     val bgColor: Color,
     val accentColor: Color
 )
@@ -37,29 +40,46 @@ private val currentSeasonLabel =
         "$y/" + ((y + 1) % 100).toString().padStart(2, '0')
     }
 
-/* FootballCharts covers domestic leagues only - the UCL and World Cup cards
- * from the previous provider were removed because the source cannot serve
- * them (ids 3/28 now belong to different FC leagues). */
 private val COMPETITIONS = listOf(
     CompetitionCard(
-        "pl", 152, "Premier League", currentSeasonLabel, "\uD83C\uDFC6",
+        "ucl", 28, "Champions League", currentSeasonLabel,
+        UitslagenLeagues.logoUrlFor(28),
+        Color(0xFF0F172A), Color(0xFF38BDF8)
+    ),
+    CompetitionCard(
+        "uel", 3, "Europa League", currentSeasonLabel,
+        UitslagenLeagues.logoUrlFor(3),
+        Color(0xFF451A03), Color(0xFFFB923C)
+    ),
+    CompetitionCard(
+        "pl", 152, "Premier League", currentSeasonLabel,
+        UitslagenLeagues.logoUrlFor(152),
         Color(0xFF4C1D95), Color(0xFFA78BFA)
     ),
     CompetitionCard(
-        "laliga", 302, "La Liga", currentSeasonLabel, "\uD83C\uDFC6",
+        "laliga", 302, "La Liga", currentSeasonLabel,
+        UitslagenLeagues.logoUrlFor(302),
         Color(0xFF7F1D1D), Color(0xFFF87171)
     ),
     CompetitionCard(
-        "bundesliga", 175, "Bundesliga", currentSeasonLabel, "\uD83C\uDFC6",
+        "bundesliga", 175, "Bundesliga", currentSeasonLabel,
+        UitslagenLeagues.logoUrlFor(175),
         Color(0xFF1C1C1E), Color(0xFFEF4444)
     ),
     CompetitionCard(
-        "seriea", 207, "Serie A", currentSeasonLabel, "\uD83C\uDFC6",
+        "seriea", 207, "Serie A", currentSeasonLabel,
+        UitslagenLeagues.logoUrlFor(207),
         Color(0xFF0F172A), Color(0xFF3B82F6)
     ),
     CompetitionCard(
-        "ligue1", 168, "Ligue 1", currentSeasonLabel, "\uD83C\uDFC6",
+        "ligue1", 168, "Ligue 1", currentSeasonLabel,
+        UitslagenLeagues.logoUrlFor(168),
         Color(0xFF134E4A), Color(0xFF2DD4BF)
+    ),
+    CompetitionCard(
+        "wc", 1, "World Cup", currentSeasonLabel,
+        UitslagenLeagues.logoUrlFor(1),
+        Color(0xFF1E1B4B), Color(0xFF818CF8)
     )
 )
 
@@ -177,7 +197,13 @@ private fun CompetitionCardItem(
                     .background(Color.White.copy(alpha = 0.08f)),
                 contentAlignment = Alignment.Center
             ) {
-                Text(text = card.emoji, fontSize = 24.sp)
+                AsyncImage(
+                    model = card.logoUrl,
+                    contentDescription = card.name,
+                    modifier = Modifier.size(36.dp),
+                    placeholder = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_league_placeholder),
+                    error = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_league_placeholder)
+                )
             }
         }
     }

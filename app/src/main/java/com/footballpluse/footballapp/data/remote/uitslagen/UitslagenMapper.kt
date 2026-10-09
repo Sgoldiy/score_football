@@ -40,15 +40,24 @@ object UitslagenMapper {
     private fun htPair(row: UitslagenMatchRow): Pair<Int, Int>? =
         row.ht?.takeIf { it.trim() != "-" }?.let { parseScoreCell(it) }
 
-    /** True when the dd/MM/yyyy row date lies inside the yyyy-MM-dd window. */
+    /** True when the row date lies inside the [fromIso, toIso] window. Supports dd/MM/yyyy and yyyy-MM-dd. */
     fun inRangeUtc(rowDate: String?, fromIso: String?, toIso: String?): Boolean {
         if (rowDate.isNullOrBlank()) return true // keep rows without a date
-        val row = parseUtc(rowDate, "dd/MM/yyyy") ?: return true
-        val from = fromIso?.let { parseUtc(it, "yyyy-MM-dd") }
-        val to = toIso?.let { parseUtc(it, "yyyy-MM-dd") }
+        val row = parseAnyUtc(rowDate) ?: return true
+        val from = fromIso?.let { parseAnyUtc(it) }
+        val to = toIso?.let { parseAnyUtc(it) }?.let {
+            // End of day (23:59:59.999 UTC) so matches played on `to` date aren't excluded
+            java.util.Date(it.time + 86_399_999L)
+        }
         if (from != null && row.before(from)) return false
         if (to != null && row.after(to)) return false
         return true
+    }
+
+    private fun parseAnyUtc(value: String): java.util.Date? {
+        val trimmed = value.trim()
+        val pattern = if (trimmed.contains("/")) "dd/MM/yyyy" else "yyyy-MM-dd"
+        return parseUtc(trimmed.take(10), pattern)
     }
 
     private fun parseUtc(value: String, pattern: String) = try {
@@ -70,11 +79,18 @@ object UitslagenMapper {
         val phase = UitslagenStatus.decode(row.status, kickoff, nowUtcMs)
         val score = parseScoreCell(row.scoretime)
         val ht = htPair(row)
+        val lId = leagueIdOverride ?: row.leagueid
+        val lName = leagueNameOverride ?: row.leaguename
+        val resolvedCountry = UitslagenLeagues.countryFor(
+            leagueId = lId?.toIntOrNull(),
+            leagueName = lName,
+            rawCountry = row.filegroup
+        )
         return ApiEvent(
             match_id = row.id,
-            country_name = row.filegroup,
-            league_id = leagueIdOverride ?: row.leagueid,
-            league_name = leagueNameOverride ?: row.leaguename,
+            country_name = resolvedCountry,
+            league_id = lId,
+            league_name = lName,
             match_date = row.date,               // kept in upstream dd/MM/yyyy format
             match_time = row.time,
             match_status = phase.label,
@@ -196,15 +212,22 @@ object UitslagenMapper {
         if (groups.isEmpty()) return emptyList()
         val countryFallback = table?.filegroup
         val leagueNameFallback = table?.leaguename
+        val lId = leagueId?.toIntOrNull()
+        val lName = leagueName ?: leagueNameFallback
         return groups.flatMap { g ->
+            val resolvedCountry = UitslagenLeagues.countryFor(
+                leagueId = lId,
+                leagueName = lName ?: g.league,
+                rawCountry = g.country ?: countryFallback
+            )
             g.teams.orEmpty().mapIndexed { _, t ->
                 val won = t.totalWon?.toIntOrNull() ?: 0
                 val drawn = t.totalDraw?.toIntOrNull() ?: 0
                 val lost = t.totalLost?.toIntOrNull() ?: 0
                 ApiStanding(
-                    country_name = g.country ?: countryFallback,
+                    country_name = resolvedCountry,
                     league_id = leagueId,
-                    league_name = leagueName ?: leagueNameFallback ?: g.league,
+                    league_name = lName ?: g.league,
                     team_id = t.id_gs,
                     team_name = t.team,
                     standing_place = t.position,
@@ -225,13 +248,19 @@ object UitslagenMapper {
 
     fun blockToTeams(block: UitslagenFixturesBlock?, leagueKey: String?): List<ApiTeam> {
         val tableFilegroup = block?.table?.filegroup
+        val lId = leagueKey?.let { UitslagenLeagues.idForKey(it) }
+        val resolvedCountry = UitslagenLeagues.countryFor(
+            leagueId = lId,
+            leagueName = block?.table?.leaguename,
+            rawCountry = tableFilegroup
+        )
         val fromTable = block?.table?.groups.orEmpty()
             .flatMap { it.teams.orEmpty() }
             .map { t ->
                 ApiTeam(
                     team_key = t.id_gs,
                     team_name = t.team,
-                    team_country = tableFilegroup,
+                    team_country = resolvedCountry,
                     team_founded = null,
                     team_badge = UitslagenApiService.teamLogoUrl(t.id_gs),
                     venue = null, players = null, coaches = null
@@ -271,72 +300,168 @@ object UitslagenMapper {
 
     // ─── team / player pages ──────────────────────────────────────────────────
 
-    fun teamPageToApiTeam(page: UitslagenTeamPage): ApiTeam = ApiTeam(
-        team_key = page.id_gs,
-        team_name = page.teamname,
-        team_country = page.country,
-        team_founded = page.founded,
-        team_badge = UitslagenApiService.teamLogoUrl(page.id_gs),
-        venue = ApiVenue(
-            venue_name = page.venue,
-            venue_address = page.venueaddress,
-            venue_city = page.venuecity,
-            venue_capacity = page.venuecapacity,
-            venue_surface = page.venuesurface
-        ),
-        players = page.squad.orEmpty().map { p ->
-            ApiPlayer(
-                player_key = p.id?.toLongOrNull(),
-                player_id = p.id,
-                player_name = p.name,
-                player_number = p.number,
-                player_type = p.position,
-                player_age = p.age,
-                player_goals = p.goals,
-                player_yellow_cards = p.yellowcards,
-                player_red_cards = p.redcards,
-                player_injured = p.injured,
-                player_is_captain = p.isCaptain,
-                player_rating = p.rating,
-                player_match_played = p.appearances,
-                player_minutes = p.minutes,
-                player_image = null,
-                player_country = null,
-                player_birthdate = null,
-                player_substitute_out = null,
-                player_substitutes_on_bench = null,
-                player_assists = null,
-                player_shots_total = null,
-                player_goals_conceded = null,
-                player_fouls_committed = null,
-                player_tackles = null,
-                player_blocks = null,
-                player_crosses_total = null,
-                player_interceptions = null,
-                player_clearances = null,
-                player_dispossesed = null,
-                player_saves = null,
-                player_inside_box_saves = null,
-                player_duels_total = null,
-                player_duels_won = null,
-                player_dribble_attempts = null,
-                player_dribble_succ = null,
-                player_pen_comm = null,
-                player_pen_won = null,
-                player_pen_scored = null,
-                player_pen_missed = null,
-                player_passes = null,
-                player_passes_accuracy = null,
-                player_key_passes = null,
-                player_woordworks = null
+    fun teamPageToApiTeam(page: UitslagenTeamPage): ApiTeam {
+        val trophies = page.trophies.orEmpty().map { t ->
+            com.footballpluse.footballapp.domain.model.ClubTrophy(
+                league = t.league.orEmpty(),
+                country = t.country,
+                status = t.status ?: "Winner",
+                count = t.count?.toIntOrNull() ?: 1,
+                seasons = t.seasons
             )
-        },
-        coaches = listOfNotNull(
-            page.coach?.takeIf { it.isNotBlank() }?.let {
-                ApiCoach(coach_name = it, coach_country = page.coachnationality, coach_age = null)
-            }
+        }
+
+        val incomingTransfers = page.transfers?.`in`.orEmpty().map {
+            com.footballpluse.footballapp.domain.model.TransferRecord(
+                player = it.name.orEmpty(),
+                date = it.date.orEmpty(),
+                type = it.type?.takeIf { type -> type.isNotBlank() && type != "-" } ?: "Signing",
+                teamIn = page.teamname.orEmpty(),
+                teamOut = it.from?.takeIf { f -> f.isNotBlank() } ?: "Unknown",
+                playerId = it.id?.toIntOrNull() ?: 0,
+                playerPhotoUrl = null,
+                teamInLogoUrl = UitslagenApiService.teamLogoUrl(page.id_gs),
+                teamOutLogoUrl = UitslagenApiService.teamLogoUrl(it.teamid)
+            )
+        }
+        val outgoingTransfers = page.transfers?.out.orEmpty().map {
+            com.footballpluse.footballapp.domain.model.TransferRecord(
+                player = it.name.orEmpty(),
+                date = it.date.orEmpty(),
+                type = it.type?.takeIf { type -> type.isNotBlank() && type != "-" } ?: "Departure",
+                teamIn = it.to?.takeIf { t -> t.isNotBlank() } ?: "Unknown",
+                teamOut = page.teamname.orEmpty(),
+                playerId = it.id?.toIntOrNull() ?: 0,
+                playerPhotoUrl = null,
+                teamInLogoUrl = UitslagenApiService.teamLogoUrl(it.teamid),
+                teamOutLogoUrl = UitslagenApiService.teamLogoUrl(page.id_gs)
+            )
+        }
+        val transfers = incomingTransfers + outgoingTransfers
+
+        val st = page.stats
+        val wTot = st?.winTotal?.toIntOrNull() ?: 0
+        val dTot = st?.drawTotal?.toIntOrNull() ?: 0
+        val lTot = st?.lostTotal?.toIntOrNull() ?: 0
+        val gfTot = st?.goalsForTotal?.toIntOrNull() ?: 0
+        val gaTot = st?.goalsAgainstTotal?.toIntOrNull() ?: 0
+        val playedTot = wTot + dTot + lTot
+
+        val teamStats = if (st != null || page.shape != null) {
+            com.footballpluse.footballapp.domain.model.TeamStats(
+                form = page.shape,
+                played = playedTot,
+                wins = wTot,
+                draws = dTot,
+                loses = lTot,
+                goalsFor = gfTot,
+                goalsAgainst = gaTot
+            )
+        } else null
+
+        val detailedStats = st?.let {
+            com.footballpluse.footballapp.domain.model.TeamDetailedStats(
+                rank = it.rank,
+                winTotal = wTot,
+                winHome = it.winHome?.toIntOrNull() ?: 0,
+                winAway = it.winAway?.toIntOrNull() ?: 0,
+                drawTotal = dTot,
+                drawHome = it.drawHome?.toIntOrNull() ?: 0,
+                drawAway = it.drawAway?.toIntOrNull() ?: 0,
+                lostTotal = lTot,
+                lostHome = it.lostHome?.toIntOrNull() ?: 0,
+                lostAway = it.lostAway?.toIntOrNull() ?: 0,
+                goalsForTotal = gfTot,
+                goalsForHome = it.goalsForHome?.toIntOrNull() ?: 0,
+                goalsForAway = it.goalsForAway?.toIntOrNull() ?: 0,
+                goalsAgainstTotal = gaTot,
+                goalsAgainstHome = it.goalsAgainstHome?.toIntOrNull() ?: 0,
+                goalsAgainstAway = it.goalsAgainstAway?.toIntOrNull() ?: 0,
+                cleanSheetTotal = it.cleanSheetTotal?.toIntOrNull() ?: 0,
+                cleanSheetHome = it.cleanSheetHome?.toIntOrNull() ?: 0,
+                cleanSheetAway = it.cleanSheetAway?.toIntOrNull() ?: 0,
+                avgGoalsScored = it.avgGoalsPerGameScoredTotal,
+                avgGoalsConceded = it.avgGoalsPerGameConcededTotal,
+                failedToScore = it.failedToScoreTotal?.toIntOrNull() ?: 0
+            )
+        }
+
+        val resolvedTeamCountry = UitslagenLeagues.countryFor(
+            leagueId = null,
+            leagueName = null,
+            rawCountry = page.country
         )
-    )
+        return ApiTeam(
+            team_key = page.id_gs,
+            team_name = page.teamname,
+            team_country = resolvedTeamCountry,
+            team_founded = page.founded,
+            team_badge = UitslagenApiService.teamLogoUrl(page.id_gs),
+            venue = ApiVenue(
+                venue_name = page.venue,
+                venue_address = page.venueaddress,
+                venue_city = page.venuecity,
+                venue_capacity = page.venuecapacity,
+                venue_surface = page.venuesurface
+            ),
+            players = page.squad.orEmpty().map { p ->
+                ApiPlayer(
+                    player_key = p.id?.toLongOrNull(),
+                    player_id = p.id,
+                    player_name = p.name,
+                    player_number = p.number,
+                    player_type = p.position,
+                    player_age = p.age,
+                    player_goals = p.goals,
+                    player_yellow_cards = p.yellowcards,
+                    player_red_cards = p.redcards,
+                    player_injured = p.injured,
+                    player_is_captain = p.isCaptain,
+                    player_rating = p.rating,
+                    player_match_played = p.appearances,
+                    player_minutes = p.minutes,
+                    player_image = null,
+                    player_country = null,
+                    player_birthdate = null,
+                    player_substitute_out = null,
+                    player_substitutes_on_bench = null,
+                    player_assists = null,
+                    player_shots_total = null,
+                    player_goals_conceded = null,
+                    player_fouls_committed = null,
+                    player_tackles = null,
+                    player_blocks = null,
+                    player_crosses_total = null,
+                    player_interceptions = null,
+                    player_clearances = null,
+                    player_dispossesed = null,
+                    player_saves = null,
+                    player_inside_box_saves = null,
+                    player_duels_total = null,
+                    player_duels_won = null,
+                    player_dribble_attempts = null,
+                    player_dribble_succ = null,
+                    player_pen_comm = null,
+                    player_pen_won = null,
+                    player_pen_scored = null,
+                    player_pen_missed = null,
+                    player_passes = null,
+                    player_passes_accuracy = null,
+                    player_key_passes = null,
+                    player_woordworks = null
+                )
+            },
+            coaches = listOfNotNull(
+                page.coach?.takeIf { it.isNotBlank() }?.let {
+                    ApiCoach(coach_name = it, coach_country = page.coachnationality, coach_age = null)
+                }
+            ),
+            transfers = transfers,
+            trophies = trophies,
+            teamStats = teamStats,
+            detailedStats = detailedStats
+        )
+    }
 
     fun playerPageToApiPlayer(page: UitslagenPlayerPage): ApiPlayer = ApiPlayer(
         player_key = page.id?.toLongOrNull(),

@@ -102,6 +102,13 @@ class ApiCacheInterceptor(
         Thread(r, "api-cache-refresh").apply { isDaemon = true }
     }
 
+    private val backgroundClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .build()
+    }
+
     init {
         if (dir != null) runCatching { evictExpiredFromDisk() }
     }
@@ -148,9 +155,11 @@ class ApiCacheInterceptor(
                 leaderFuture.completeExceptionally(IllegalStateException("Upstream rate-limited"))
                 response
             } else {
-                store(key, response.code, body, Instant.now(clock))
+                val code = response.code
+                response.close()
+                store(key, code, body, Instant.now(clock))
                 leaderFuture.complete(body)
-                respond(request, CacheEntry(response.code, body, Instant.now(clock)))
+                respond(request, CacheEntry(code, body, Instant.now(clock)))
             }
         } catch (e: Exception) {
             leaderFuture.completeExceptionally(e)
@@ -170,7 +179,7 @@ class ApiCacheInterceptor(
         if (inflight.putIfAbsent(key, future) != null) return // refresh already running
         refreshExecutor.execute {
             try {
-                val response = OkHttpClient().newCall(template).execute()
+                val response = backgroundClient.newCall(template).execute()
                 val body = response.peekBody(MAX_CACHED_BYTES).string()
                 response.close()
                 if (isRateLimited(response.code, body)) {

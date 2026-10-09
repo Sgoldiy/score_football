@@ -48,15 +48,47 @@ internal fun String?.seasonToStartYear(): Int? =
     this?.takeWhile { it.isDigit() }?.toIntOrNull()
 
 /**
- * Match timestamp from v3 API. match_date is "yyyy-MM-dd" and match_time is
+ * Normalizes date to ISO format yyyy-MM-dd. Supports dd/MM/yyyy, dd-MM-yyyy, and yyyy-MM-dd.
+ */
+internal fun normalizeDateToIso(date: String?): String? {
+    if (date.isNullOrBlank()) return null
+    val trimmed = date.trim()
+    return when {
+        trimmed.contains("/") -> {
+            val parts = trimmed.split("/")
+            if (parts.size == 3) {
+                val d = parts[0].padStart(2, '0')
+                val m = parts[1].padStart(2, '0')
+                val y = parts[2].take(4)
+                "$y-$m-$d"
+            } else trimmed.take(10)
+        }
+        trimmed.contains("-") -> {
+            val parts = trimmed.split("-")
+            if (parts.size == 3 && parts[0].length == 4) {
+                trimmed.take(10)
+            } else if (parts.size == 3 && parts[2].length >= 4) {
+                val d = parts[0].padStart(2, '0')
+                val m = parts[1].padStart(2, '0')
+                val y = parts[2].take(4)
+                "$y-$m-$d"
+            } else trimmed.take(10)
+        }
+        else -> trimmed.take(10)
+    }
+}
+
+/**
+ * Match timestamp from v3 API. match_date can be "yyyy-MM-dd" or "dd/MM/yyyy" and match_time is
  * the kickoff in **UTC** (the uitslagen upstream serves UTC — see
  * docs/LIVE_FEED.md). Combining them gives the correct UTC instant.
  */
 internal fun eventTimestamp(date: String?, time: String?): Long {
     if (date.isNullOrBlank()) return 0L
     return try {
+        val isoDate = normalizeDateToIso(date) ?: return 0L
         val zone = java.time.ZoneId.of("UTC")
-        val d = java.time.LocalDate.parse(date.take(10))
+        val d = java.time.LocalDate.parse(isoDate)
         val (h, m) = if (time != null && time.contains(":")) {
             val parts = time.split(":")
             Pair(parts[0].toIntOrNull() ?: 0, parts[1].toIntOrNull() ?: 0)
@@ -64,8 +96,13 @@ internal fun eventTimestamp(date: String?, time: String?): Long {
         d.atTime(h, m).atZone(zone).toInstant().toEpochMilli() / 1000L
     } catch (_: Exception) {
         try {
-            java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-                .parse(date.take(10))?.time?.div(1000L) ?: 0L
+            val fmt = if (date.contains("/")) {
+                java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US)
+            } else {
+                java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+            }
+            fmt.timeZone = java.util.TimeZone.getTimeZone("UTC")
+            fmt.parse(date.take(10))?.time?.div(1000L) ?: 0L
         } catch (_: Exception) { 0L }
     }
 }
@@ -74,6 +111,7 @@ fun ApiEvent.toFixtureResponse(): FixtureResponse {
     val fixtureId = match_id.toIntOr(0)
     val homeId = match_hometeam_id.toIntOr(0)
     val awayId = match_awayteam_id.toIntOr(0)
+    val isoDate = normalizeDateToIso(match_date) ?: match_date
     val timestamp = eventTimestamp(match_date, match_time)
     val elapsed = match_status.minuteToElapsed()
     val statusShort = mapStatus(match_status, match_live, elapsed)
@@ -90,17 +128,19 @@ fun ApiEvent.toFixtureResponse(): FixtureResponse {
         else null
     }
 
+    val resolvedLeagueCountry = com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.countryFor(league_id.toIntOr(0), league_name, country_name)
     return FixtureResponse(
         fixture = Fixture(
             id = fixtureId, referee = match_referee, timezone = null,
-            date = match_date, timestamp = timestamp,
+            date = isoDate, timestamp = timestamp,
             periods = Periods(null, null),
             venue = Venue(id = null, name = match_stadium, address = null, city = null, capacity = null, surface = null, image = null),
             status = FixtureStatus(long = match_status ?: "", short = statusShort, elapsed = elapsed, extra = null)
         ),
         league = League(
-            id = league_id.toIntOr(0), name = league_name, type = null, country = country_name,
-            logo = league_logo, flag = null,
+            id = league_id.toIntOr(0), name = league_name, type = null, country = resolvedLeagueCountry,
+            logo = league_logo ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(league_id.toIntOr(0), league_name, resolvedLeagueCountry),
+            flag = com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.flagUrl(resolvedLeagueCountry),
             season = league_year.seasonToStartYear(),
             round = match_round, standings = null
         ),
@@ -328,20 +368,21 @@ fun ApiLeague.toLeagueResponse(): LeagueResponse {
             league_name?.contains("pokal", ignoreCase = true) == true ||
             league_name?.contains("copetta", ignoreCase = true) == true ||
             league_name?.contains("fa ", ignoreCase = true) == true
-    val isInt = country_name == "World" || country_name == "Europe" || country_name.isNullOrBlank()
+    val resolvedCountry = com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.countryFor(league_id.toIntOr(0), league_name, country_name)
+    val isInt = resolvedCountry == "World" || resolvedCountry == "Europe" || resolvedCountry.isBlank()
     return LeagueResponse(
         league = League(
             id = league_id.toIntOr(0),
             name = league_name,
             type = if (isCup) "Cup" else "League",
-            country = country_name,
-            logo = league_logo,
-            flag = country_logo,
+            country = resolvedCountry,
+            logo = league_logo ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(league_id.toIntOr(0), league_name, resolvedCountry),
+            flag = country_logo ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.flagUrl(resolvedCountry),
             season = seasonInt,
             round = null,
             standings = null
         ),
-        country = Country(name = country_name ?: "", code = if (isInt) null else "country", flag = country_logo),
+        country = Country(name = resolvedCountry, code = if (isInt) null else "country", flag = country_logo ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.flagUrl(resolvedCountry)),
         seasons = listOf(Season(year = seasonInt, start = null, end = null, current = true, coverage = null))
     )
 }
@@ -445,9 +486,23 @@ fun ApiPrediction.toPrediction(): Prediction {
     )
 }
 
+fun normalizeSquadPosition(raw: String?): String = when (raw?.trim()?.uppercase(java.util.Locale.US)) {
+    "G", "GK", "GOALKEEPER", "GOALKEEPERS" -> "Goalkeeper"
+    "D", "DF", "DEFENDER", "DEFENDERS" -> "Defender"
+    "M", "MF", "MIDFIELDER", "MIDFIELDERS" -> "Midfielder"
+    "A", "FW", "F", "FORWARD", "FORWARDS", "ATTACKER", "ATTACKERS", "ST", "STRIKER" -> "Attacker"
+    else -> if (raw.isNullOrBlank()) "Other" else raw.trim().replaceFirstChar { it.uppercase(java.util.Locale.US) }
+}
+
 fun List<ApiPlayer>.toSquadPlayers(): List<SquadPlayer> = map {
-    SquadPlayer(id = it.player_key?.toInt(), name = it.player_name, age = it.player_age?.toIntOrNull(),
-        number = it.player_number?.toIntOrNull(), position = it.player_type, photo = it.player_image)
+    SquadPlayer(
+        id = it.player_key?.toInt(),
+        name = it.player_name,
+        age = it.player_age?.toIntOrNull(),
+        number = it.player_number?.toIntOrNull(),
+        position = normalizeSquadPosition(it.player_type),
+        photo = it.player_image
+    )
 }
 
 fun ApiMatchPlayerStatistic.toPlayerPerformance(): PlayerPerformance {
@@ -463,17 +518,22 @@ fun ApiMatchPlayerStatistic.toPlayerPerformance(): PlayerPerformance {
 }
 
 fun ApiTeam.toTeamDetail(standing: ApiStanding? = null): TeamDetail {
-    val wins = standing?.standing_W?.toIntOrNull() ?: 0
-    val draws = standing?.standing_D?.toIntOrNull() ?: 0
-    val loses = standing?.standing_L?.toIntOrNull() ?: 0
+    val wins = standing?.standing_W?.toIntOrNull() ?: teamStats?.wins ?: 0
+    val draws = standing?.standing_D?.toIntOrNull() ?: teamStats?.draws ?: 0
+    val loses = standing?.standing_L?.toIntOrNull() ?: teamStats?.loses ?: 0
+    val form = standing?.overall_form ?: teamStats?.form
+    val gf = standing?.overall_GF?.toIntOrNull() ?: teamStats?.goalsFor ?: 0
+    val ga = standing?.overall_GA?.toIntOrNull() ?: teamStats?.goalsAgainst ?: 0
+    val played = standing?.standing_total?.toIntOrNull() ?: teamStats?.played ?: (wins + draws + loses)
+
     val stats = TeamStats(
-        form = standing?.overall_form,
-        played = standing?.standing_total?.toIntOrNull() ?: (wins + draws + loses),
+        form = form,
+        played = played,
         wins = wins,
         draws = draws,
         loses = loses,
-        goalsFor = standing?.overall_GF?.toIntOrNull() ?: 0,
-        goalsAgainst = standing?.overall_GA?.toIntOrNull() ?: 0
+        goalsFor = gf,
+        goalsAgainst = ga
     )
 
     return TeamDetail(
@@ -481,7 +541,8 @@ fun ApiTeam.toTeamDetail(standing: ApiStanding? = null): TeamDetail {
             id = team_key.toIntOr(0),
             name = team_name ?: "",
             logo = team_badge,
-            country = team_country
+            country = team_country,
+            founded = team_founded
         ),
         venue = venue?.let {
             VenueInfo(
@@ -489,13 +550,17 @@ fun ApiTeam.toTeamDetail(standing: ApiStanding? = null): TeamDetail {
                 name = it.venue_name,
                 city = it.venue_city,
                 capacity = it.venue_capacity?.toIntOrNull(),
-                image = null
+                image = null,
+                address = it.venue_address,
+                surface = it.venue_surface
             )
         },
         stats = stats,
         squad = players?.toSquadPlayers()?.map { it.toSquadMember() } ?: emptyList(),
         coaches = coaches?.toCoaches()?.map { CoachInfo(it.id ?: 0, it.name ?: "", it.photo) } ?: emptyList(),
-        transfers = emptyList()
+        transfers = transfers ?: emptyList(),
+        trophies = trophies ?: emptyList(),
+        detailedStats = detailedStats
     )
 }
 
@@ -715,7 +780,7 @@ fun SquadPlayer.toSquadMember(): SquadMember {
     return SquadMember(
         id = id ?: 0,
         name = name ?: "",
-        position = position,
+        position = normalizeSquadPosition(position),
         number = number,
         photo = photo
     )

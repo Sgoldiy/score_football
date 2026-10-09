@@ -14,6 +14,8 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import okhttp3.ConnectionPool
+import okhttp3.Dispatcher
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Response
@@ -64,11 +66,14 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(cacheDir: File): OkHttpClient {
+        val dispatcher = Dispatcher().apply {
+            maxRequests = 64
+            maxRequestsPerHost = 16
+        }
+        val connectionPool = ConnectionPool(16, 5, TimeUnit.MINUTES)
         return OkHttpClient.Builder()
-            // Params first so the cache keys on the FINAL upstream URL; the cache
-            // then serves fresh entries without a network call, revalidates stale
-            // ones in the background, coalesces duplicate requests and backs off
-            // on rate limits — cutting upstream calls dramatically.
+            .dispatcher(dispatcher)
+            .connectionPool(connectionPool)
             .addInterceptor(UitslagenParamsInterceptor())
             .addInterceptor(ApiCacheInterceptor(dir = cacheDir))
             .addInterceptor(HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BASIC })
