@@ -74,7 +74,7 @@ fun TeamDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(Brush.verticalGradient(listOf(PitchBlack, PitchSurfaceHigh)))
+                .background(PitchBlack)
         ) {
             when (val result = state) {
                 is ApiResult.Loading -> {
@@ -254,7 +254,7 @@ private fun TeamSquadTab(squad: List<SquadMember>, onPlayerClick: (Int) -> Unit)
                 items(players) { p ->
                     Card(
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+                        colors = CardDefaults.cardColors(containerColor = DarkCard),
                         border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.06f)),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -323,7 +323,7 @@ private fun TeamTransfersTab(transfers: List<TransferRecord>, clubName: String) 
                 modifier = Modifier
                     .weight(1f)
                     .background(
-                        if (mode == 0) LiveGreen.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.04f),
+                        if (mode == 0) LiveGreen.copy(alpha = 0.15f) else DarkCard,
                         RoundedCornerShape(12.dp)
                     )
             ) {
@@ -334,7 +334,7 @@ private fun TeamTransfersTab(transfers: List<TransferRecord>, clubName: String) 
                 modifier = Modifier
                     .weight(1f)
                     .background(
-                        if (mode == 1) DangerRed.copy(alpha = 0.15f) else Color.White.copy(alpha = 0.04f),
+                        if (mode == 1) DangerRed.copy(alpha = 0.15f) else DarkCard,
                         RoundedCornerShape(12.dp)
                     )
             ) {
@@ -371,7 +371,7 @@ private fun TeamTransfersTab(transfers: List<TransferRecord>, clubName: String) 
 
                 Card(
                     shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+                    colors = CardDefaults.cardColors(containerColor = DarkCard),
                     border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.06f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -466,7 +466,7 @@ private fun TeamInfoTab(detail: TeamDetail) {
         if (detail.trophies.isNotEmpty()) {
             item {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+                    colors = CardDefaults.cardColors(containerColor = DarkCard),
                     shape = RoundedCornerShape(20.dp),
                     border = BorderStroke(0.5.dp, Color(0xFFFFD700).copy(alpha = 0.25f)),
                     modifier = Modifier.fillMaxWidth()
@@ -548,7 +548,7 @@ private fun TeamInfoTab(detail: TeamDetail) {
         // Stadium Card
         item {
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+                colors = CardDefaults.cardColors(containerColor = DarkCard),
                 shape = RoundedCornerShape(20.dp),
                 border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.06f)),
                 modifier = Modifier.fillMaxWidth()
@@ -625,7 +625,7 @@ private fun TeamInfoTab(detail: TeamDetail) {
         // Stats Card
         item {
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+                colors = CardDefaults.cardColors(containerColor = DarkCard),
                 shape = RoundedCornerShape(20.dp),
                 border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.06f)),
                 modifier = Modifier.fillMaxWidth()
@@ -697,7 +697,7 @@ private fun TeamInfoTab(detail: TeamDetail) {
             item {
                 val coach = detail.coaches.first()
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+                    colors = CardDefaults.cardColors(containerColor = DarkCard),
                     shape = RoundedCornerShape(20.dp),
                     border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.06f)),
                     modifier = Modifier.fillMaxWidth()

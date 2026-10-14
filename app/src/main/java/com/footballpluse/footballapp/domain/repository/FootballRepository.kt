@@ -25,4 +25,5 @@ interface FootballRepository {
     suspend fun getRecentFixturesDirect(teamId: Int, leagueId: Int, season: Int): List<FixtureResponse>
     suspend fun getTopScorersDirect(leagueId: Int, season: Int): List<PlayerProfileStatisticsResponse>
     suspend fun searchTeamsDirect(query: String): List<TeamInfoResponse>
+    suspend fun searchPlayers(query: String): ApiResult<List<PlayerInfo>>
 }

@@ -78,14 +78,6 @@ interface ApiService {
         @Query("match_id") matchId: String
     ): Map<String, ApiMatchStatisticsResponse>
 
-    // Odds (from/to mandatory when not filtering by match_id)
-    @GET("?action=get_odds")
-    suspend fun getOdds(
-        @Query("from") from: String? = null,
-        @Query("to") to: String? = null,
-        @Query("match_id") matchId: String? = null
-    ): List<ApiOdd>
-
     // Top Scorers
     @GET("?action=get_topscorers")
     suspend fun getTopScorers(
@@ -105,10 +97,4 @@ interface ApiService {
         @Query("match_id") matchId: String? = null,
         @Query("league_id") leagueId: String? = null
     ): List<ApiEvent>
-
-    // Predictions: match_id alone is accepted
-    @GET("?action=get_predictions")
-    suspend fun getPredictions(
-        @Query("match_id") matchId: String
-    ): List<ApiPrediction>
 }

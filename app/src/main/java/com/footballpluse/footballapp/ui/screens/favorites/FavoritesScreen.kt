@@ -37,6 +37,7 @@ import com.footballpluse.footballapp.domain.model.FavouriteClub
 import com.footballpluse.footballapp.domain.model.Match
 import com.footballpluse.footballapp.data.util.SeasonUtils
 import com.footballpluse.footballapp.domain.model.OnboardingDefaults
+import com.footballpluse.footballapp.ui.theme.DarkCard
 import com.footballpluse.footballapp.ui.theme.GlassGlowGreen
 import com.footballpluse.footballapp.ui.theme.PitchBlack
 import com.footballpluse.footballapp.ui.theme.PitchSurface
@@ -51,6 +52,7 @@ fun FavoritesScreen(
     onPlayerClick: (Int) -> Unit,
     onMatchClick: (Int) -> Unit,
     onTeamClick: (Int, Int) -> Unit,
+    onNotificationsClick: () -> Unit = {},
     viewModel: FavouriteClubsViewModel = hiltViewModel()
 ) {
     val state by viewModel.uiState.collectAsState()
@@ -58,12 +60,26 @@ fun FavoritesScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(PitchBlack, PitchSurfaceHigh)))
+            .background(PitchBlack)
     ) {
-        TopBar(onSearchClick = onSearchClick, onRefresh = { viewModel.retry() })
+        TopBar(
+            onSearchClick = onSearchClick,
+            onNotificationsClick = onNotificationsClick,
+            onRefresh = { viewModel.retry() }
+        )
+
+        if (state.players.isNotEmpty()) {
+            FollowedPlayersBar(
+                players = state.players,
+                onPlayerClick = onPlayerClick
+            )
+        }
 
         if (state.clubs.isEmpty()) {
-            EmptyFavouriteClubs(onAddClubs = onAddClubs)
+            EmptyFavouriteClubs(
+                onAddClubs = onAddClubs,
+                hasPlayers = state.players.isNotEmpty()
+            )
             return@Column
         }
 
@@ -91,7 +107,11 @@ fun FavoritesScreen(
 }
 
 @Composable
-private fun TopBar(onSearchClick: () -> Unit, onRefresh: () -> Unit) {
+private fun TopBar(
+    onSearchClick: () -> Unit,
+    onNotificationsClick: () -> Unit,
+    onRefresh: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -126,17 +146,104 @@ private fun TopBar(onSearchClick: () -> Unit, onRefresh: () -> Unit) {
                 icon = Icons.Default.Search,
                 onClick = onSearchClick
             )
-            HeaderIcon(icon = Icons.Default.Notifications)
+            HeaderIcon(
+                icon = Icons.Default.Notifications,
+                onClick = onNotificationsClick
+            )
         }
     }
 }
 
 @Composable
-private fun EmptyFavouriteClubs(onAddClubs: () -> Unit) {
+private fun FollowedPlayersBar(
+    players: List<com.footballpluse.footballapp.domain.model.FavouritePlayer>,
+    onPlayerClick: (Int) -> Unit
+) {
     Column(
         modifier = Modifier
-            .fillMaxSize()
-            .padding(32.dp),
+            .fillMaxWidth()
+            .background(PitchSurface)
+            .padding(vertical = 10.dp)
+            .border(1.dp, Color.White.copy(alpha = 0.06f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Rounded.Star,
+                contentDescription = null,
+                tint = GlassGlowGreen,
+                modifier = Modifier.size(14.dp)
+            )
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = "FOLLOWED PLAYERS",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = GlassGlowGreen,
+                letterSpacing = 1.sp
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        LazyRow(
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            items(players) { player ->
+                Column(
+                    modifier = Modifier
+                        .width(64.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { onPlayerClick(player.playerId) }
+                        .padding(vertical = 4.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    PlayerAvatar(
+                        url = player.photoUrl,
+                        name = player.playerName,
+                        modifier = Modifier.size(46.dp),
+                        ringColor = GlassGlowGreen.copy(alpha = 0.7f)
+                    )
+                    Spacer(Modifier.height(5.dp))
+                    Text(
+                        text = player.playerName,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color.White,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        textAlign = TextAlign.Center
+                    )
+                    if (player.clubName.isNotBlank()) {
+                        Text(
+                            text = player.clubName,
+                            fontSize = 9.sp,
+                            color = TextSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyFavouriteClubs(
+    onAddClubs: () -> Unit,
+    hasPlayers: Boolean = false
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (hasPlayers) Modifier.padding(32.dp) else Modifier.fillMaxSize().padding(32.dp)),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
@@ -144,10 +251,17 @@ private fun EmptyFavouriteClubs(onAddClubs: () -> Unit) {
             text = "No favourite clubs yet",
             color = Color.White,
             fontWeight = FontWeight.Bold,
-            style = MaterialTheme.typography.headlineSmall,
+            style = MaterialTheme.typography.titleMedium,
             textAlign = TextAlign.Center
         )
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "Follow your clubs to track fixtures, tables, and community discussions",
+            color = TextSecondary,
+            fontSize = 12.sp,
+            textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(14.dp))
         Button(
             onClick = onAddClubs,
             colors = ButtonDefaults.buttonColors(containerColor = GlassGlowGreen, contentColor = PitchBlack),
@@ -471,7 +585,7 @@ private fun SquadTab(
                 items(players) { p ->
                     Card(
                         shape = RoundedCornerShape(16.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+                        colors = CardDefaults.cardColors(containerColor = DarkCard),
                         border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.06f)),
                         modifier = Modifier
                             .fillMaxWidth()
@@ -576,7 +690,7 @@ private fun InfoTab(detail: ClubDetailUiState, club: FavouriteClub) {
         if (!td?.trophies.isNullOrEmpty()) {
             item {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+                    colors = CardDefaults.cardColors(containerColor = DarkCard),
                     shape = RoundedCornerShape(20.dp),
                     border = BorderStroke(0.5.dp, Color(0xFFFFD700).copy(alpha = 0.25f)),
                     modifier = Modifier.fillMaxWidth()
@@ -663,7 +777,7 @@ private fun InfoTab(detail: ClubDetailUiState, club: FavouriteClub) {
         // ── 2. Performance & Season Stats ──
         item {
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+                colors = CardDefaults.cardColors(containerColor = DarkCard),
                 shape = RoundedCornerShape(20.dp),
                 border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.06f)),
                 modifier = Modifier.fillMaxWidth()
@@ -779,7 +893,7 @@ private fun InfoTab(detail: ClubDetailUiState, club: FavouriteClub) {
 
             item {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+                    colors = CardDefaults.cardColors(containerColor = DarkCard),
                     shape = RoundedCornerShape(20.dp),
                     border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.06f)),
                     modifier = Modifier.fillMaxWidth()
@@ -900,7 +1014,7 @@ private fun InfoTab(detail: ClubDetailUiState, club: FavouriteClub) {
         // ── 4. Stadium Details Card ──
         item {
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+                colors = CardDefaults.cardColors(containerColor = DarkCard),
                 shape = RoundedCornerShape(20.dp),
                 border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.06f)),
                 modifier = Modifier.fillMaxWidth()
@@ -985,7 +1099,7 @@ private fun InfoTab(detail: ClubDetailUiState, club: FavouriteClub) {
         td?.coaches?.firstOrNull()?.let { coach ->
             item {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+                    colors = CardDefaults.cardColors(containerColor = DarkCard),
                     shape = RoundedCornerShape(20.dp),
                     border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.06f)),
                     modifier = Modifier.fillMaxWidth()
@@ -1101,7 +1215,7 @@ private fun MatchRow(
             .fillMaxWidth()
             .height(60.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White.copy(alpha = 0.04f))
+            .background(DarkCard)
             .clickable { onMatchClick(match.id) }
             .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -1183,7 +1297,7 @@ private fun ErrorInline(message: String) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White.copy(alpha = 0.04f))
+            .background(DarkCard)
             .padding(12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -1364,7 +1478,7 @@ private fun DeveloperControls(
     onTogglePremium: () -> Unit
 ) {
     Card(
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+        colors = CardDefaults.cardColors(containerColor = DarkCard),
         shape = RoundedCornerShape(12.dp),
         border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.08f)),
         modifier = Modifier.fillMaxWidth()
@@ -1496,7 +1610,7 @@ private fun SocialPostCard(
                                 .fillMaxWidth()
                                 .height(38.dp)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(Color.White.copy(alpha = 0.04f))
+                                .background(DarkCard)
                                 .clickable(enabled = !userVoted) { onVoteClick(idx) }
                         ) {
                             Box(
@@ -1657,9 +1771,9 @@ private fun CreatePostDialog(
                     onValueChange = { text = it },
                     placeholder = { Text("What is on your mind?", fontSize = 13.sp, color = Color.White.copy(alpha = 0.4f)) },
                     colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.White.copy(alpha = 0.04f),
-                        unfocusedContainerColor = Color.White.copy(alpha = 0.04f),
-                        disabledContainerColor = Color.White.copy(alpha = 0.04f),
+                        focusedContainerColor = DarkCard,
+                        unfocusedContainerColor = DarkCard,
+                        disabledContainerColor = DarkCard,
                         cursorColor = GlassGlowGreen,
                         focusedTextColor = Color.White,
                         unfocusedTextColor = Color.White,

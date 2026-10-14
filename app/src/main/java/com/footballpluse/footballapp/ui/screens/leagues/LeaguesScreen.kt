@@ -753,13 +753,33 @@ fun LeagueItem(
                 overflow = TextOverflow.Ellipsis
             )
             Spacer(Modifier.height(3.dp))
-            Text(
-                text = "${league.country} · ${league.season}",
-                fontSize = 10.sp,
-                color = Color(0xFF555555),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            val flagUrl = remember(league.country) {
+                com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.flagUrl(league.country)
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(5.dp)
+            ) {
+                if (!flagUrl.isNullOrBlank()) {
+                    AsyncImage(
+                        model = flagUrl,
+                        contentDescription = league.country,
+                        modifier = Modifier
+                            .size(width = 14.dp, height = 10.dp)
+                            .clip(RoundedCornerShape(2.dp)),
+                        contentScale = ContentScale.Crop,
+                        placeholder = painterResource(R.drawable.ic_placeholder),
+                        error = painterResource(R.drawable.ic_placeholder)
+                    )
+                }
+                Text(
+                    text = "${league.country} · ${league.season}",
+                    fontSize = 10.sp,
+                    color = Color(0xFF555555),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
             Spacer(Modifier.height(2.dp))
             if (selectedTab == LeagueTab.LIVE) {
                 Text(

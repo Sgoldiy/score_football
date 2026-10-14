@@ -1,6 +1,7 @@
 package com.footballpluse.footballapp.ui.screens.search
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -18,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
 import com.footballpluse.footballapp.data.util.ApiResult
@@ -33,6 +35,7 @@ fun SearchScreen(
     onBack: () -> Unit,
     onLeagueClick: (Int) -> Unit = {},
     onTeamClick: (Int) -> Unit = {},
+    onPlayerClick: (Int) -> Unit = {},
     viewModel: SearchViewModel = hiltViewModel()
 ) {
     val query by viewModel.searchQuery.collectAsState()
@@ -46,7 +49,7 @@ fun SearchScreen(
                     TextField(
                         value = query,
                         onValueChange = { viewModel.onQueryChanged(it) },
-                        placeholder = { Text("Search teams or leagues...", color = TextSecondary) },
+                        placeholder = { Text("Search teams, leagues, players...", color = TextSecondary) },
                         modifier = Modifier.fillMaxWidth(),
                         colors = TextFieldDefaults.colors(
                             focusedContainerColor = Color.Transparent,
@@ -84,7 +87,7 @@ fun SearchScreen(
                             onClear = { viewModel.clearRecentSearches() }
                         )
                     } else {
-                        SearchSuggestions()
+                        SearchSuggestions(onSearchClick = { viewModel.onQueryChanged(it) })
                     }
                 }
                 is SearchUiState.Loading -> {
@@ -97,8 +100,10 @@ fun SearchScreen(
                     SearchResultList(
                         teams = data.teams,
                         leagues = data.leagues,
+                        players = data.players,
                         onLeagueClick = onLeagueClick,
-                        onTeamClick = onTeamClick
+                        onTeamClick = onTeamClick,
+                        onPlayerClick = onPlayerClick
                     )
                 }
                 is SearchUiState.Error -> {
@@ -150,29 +155,63 @@ private fun RecentSearches(
 }
 
 @Composable
-private fun SearchSuggestions() {
+private fun SearchSuggestions(onSearchClick: (String) -> Unit) {
     Column(Modifier.padding(16.dp)) {
+        Text(
+            "Trending Searches",
+            style = MaterialTheme.typography.titleSmall,
+            color = Color.White,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(Modifier.height(10.dp))
+        val trendingTags = listOf("Real Madrid", "Arsenal", "Barcelona", "Haaland", "Mbappé", "Bellingham", "Man City")
+        androidx.compose.foundation.lazy.LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            contentPadding = PaddingValues(vertical = 4.dp)
+        ) {
+            items(trendingTags) { tag ->
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(PitchSurface)
+                        .border(1.dp, Color(0xFF00E676).copy(alpha = 0.3f), RoundedCornerShape(16.dp))
+                        .clickable { onSearchClick(tag) }
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = tag,
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(24.dp))
         Text(
             "Popular Leagues",
             style = MaterialTheme.typography.titleSmall,
             color = Color.White,
             fontWeight = FontWeight.Bold
         )
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(12.dp))
 
-        val popular = listOf("Premier League", "La Liga", "Bundesliga", "Serie A")
+        val popular = listOf("Premier League", "La Liga", "Bundesliga", "Serie A", "Champions League")
         popular.forEach { name ->
-            SuggestionItem(name)
+            SuggestionItem(name = name, onClick = { onSearchClick(name) })
         }
     }
 }
 
 @Composable
-private fun SuggestionItem(name: String) {
+private fun SuggestionItem(name: String, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 12.dp),
+            .clip(RoundedCornerShape(8.dp))
+            .clickable { onClick() }
+            .padding(vertical = 10.dp, horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -185,7 +224,7 @@ private fun SuggestionItem(name: String) {
             Icon(Icons.Rounded.Search, contentDescription = null, tint = TextSecondary, modifier = Modifier.size(16.dp))
         }
         Spacer(Modifier.width(16.dp))
-        Text(name, color = Color.White.copy(alpha = 0.8f))
+        Text(name, color = Color.White.copy(alpha = 0.85f), fontSize = 14.sp)
     }
 }
 
@@ -193,14 +232,40 @@ private fun SuggestionItem(name: String) {
 private fun SearchResultList(
     teams: List<com.footballpluse.footballapp.domain.model.TeamInfo>,
     leagues: List<com.footballpluse.footballapp.domain.model.LeagueInfo>,
+    players: List<com.footballpluse.footballapp.domain.model.PlayerInfo> = emptyList(),
     onLeagueClick: (Int) -> Unit,
-    onTeamClick: (Int) -> Unit
+    onTeamClick: (Int) -> Unit,
+    onPlayerClick: (Int) -> Unit
 ) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
+        if (players.isNotEmpty()) {
+            item {
+                Text(
+                    "Players",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+            }
+            items(players) { player ->
+                SearchResultItem(
+                    name = player.name,
+                    logo = player.photo,
+                    subtitle = listOfNotNull(
+                        player.type?.takeIf { it.isNotBlank() },
+                        player.nationality?.takeIf { it.isNotBlank() },
+                        player.age?.let { "$it yrs" }
+                    ).joinToString(" \u00B7 "),
+                    onClick = { onPlayerClick(player.id) }
+                )
+            }
+        }
+
         if (teams.isNotEmpty()) {
             item {
                 Text(

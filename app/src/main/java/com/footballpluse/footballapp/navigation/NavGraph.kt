@@ -301,6 +301,9 @@ fun SetupNavGraph(
                 },
                 onTeamClick = { teamId, leagueId ->
                     navController.navigate(Screen.ClubInfo.createRoute(teamId, leagueId))
+                },
+                onNotificationsClick = {
+                    navController.navigate(Screen.Notifications.route)
                 }
             )
         }
@@ -320,6 +323,9 @@ fun SetupNavGraph(
                 },
                 onTeamClick = { teamId ->
                     navController.navigate(Screen.ClubInfo.createRoute(teamId, 0))
+                },
+                onPlayerClick = { playerId ->
+                    navController.navigate(Screen.PlayerProfile.createRoute(playerId))
                 },
                 viewModel = hiltViewModel()
             )
@@ -367,6 +373,9 @@ fun SetupNavGraph(
                 },
                 onTeamClick = { teamId ->
                     navController.navigate(Screen.ClubInfo.createRoute(teamId, leagueId))
+                },
+                onPlayerClick = { playerId ->
+                    navController.navigate(Screen.PlayerProfile.createRoute(playerId))
                 }
             )
         }
@@ -383,7 +392,13 @@ fun SetupNavGraph(
             ClubInfoScreen(
                 teamId = teamId,
                 leagueId = leagueId,
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                onPlayerClick = { playerId ->
+                    navController.navigate(Screen.PlayerProfile.createRoute(playerId))
+                },
+                onMatchClick = { matchId ->
+                    navController.navigate(Screen.MatchCenter.createRoute(matchId.toString()))
+                }
             )
         }
 

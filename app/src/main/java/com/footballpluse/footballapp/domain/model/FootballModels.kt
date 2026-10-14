@@ -55,6 +55,15 @@ data class StandingItem(
     val form: String?
 )
 
+data class MatchCommentaryItem(
+    val minute: Int,
+    val extraMinute: Int? = null,
+    val isKeyMoment: Boolean = false,
+    val eventType: String? = null, // "goal", "card", "subst", "chance", "var", "info"
+    val title: String,
+    val comment: String
+)
+
 data class MatchDetail(
     val match: Match,
     val events: List<MatchEvent>,
@@ -68,7 +77,8 @@ data class MatchDetail(
     val venue: VenueInfo? = null,
     val referee: String? = null,
     val homeForm: String? = null,
-    val awayForm: String? = null
+    val awayForm: String? = null,
+    val commentary: List<MatchCommentaryItem> = emptyList()
 )
 
 data class MatchPrediction(
@@ -272,7 +282,8 @@ data class LineupPlayer(
     val name: String,
     val number: Int,
     val position: String,
-    val grid: String?
+    val grid: String?,
+    val photo: String? = null
 )
 
 data class CoachInfo(

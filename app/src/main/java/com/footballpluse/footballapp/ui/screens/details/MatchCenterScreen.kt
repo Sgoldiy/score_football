@@ -34,6 +34,7 @@ import com.footballpluse.footballapp.domain.model.*
 import com.footballpluse.footballapp.ui.components.*
 import com.footballpluse.footballapp.ui.theme.*
 import com.footballpluse.footballapp.viewmodel.FixtureDetailViewModel
+import com.footballpluse.footballapp.viewmodel.NotificationsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,11 +42,21 @@ fun MatchCenterScreen(
     matchId: String,
     onBackClick: () -> Unit,
     onPlayerClick: (Int) -> Unit = {},
-    viewModel: FixtureDetailViewModel = hiltViewModel()
+    viewModel: FixtureDetailViewModel = hiltViewModel(),
+    notificationsViewModel: NotificationsViewModel = hiltViewModel()
 ) {
     val detailState by viewModel.detailState.collectAsState()
+    var showNotificationSheet by remember { mutableStateOf(false) }
+
     LaunchedEffect(matchId) {
         matchId.toIntOrNull()?.let { viewModel.loadFixtureDetails(it) }
+    }
+
+    if (showNotificationSheet) {
+        MatchAlertsBottomSheet(
+            notificationsViewModel = notificationsViewModel,
+            onDismiss = { showNotificationSheet = false }
+        )
     }
 
     Scaffold(
@@ -64,26 +75,54 @@ fun MatchCenterScreen(
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
                     }
                 },
+                actions = {
+                    val context = androidx.compose.ui.platform.LocalContext.current
+                    IconButton(onClick = {
+                        val match = (detailState as? ApiResult.Success)?.data?.match
+                        val shareText = if (match != null) {
+                            "⚽ ${match.homeTeam.name} ${match.homeScore ?: 0} - ${match.awayScore ?: 0} ${match.awayTeam.name} (${match.status.short})\nCheck out live match scores and stats on Score Football!"
+                        } else {
+                            "Check out live match scores and stats on Score Football!"
+                        }
+                        val sendIntent = android.content.Intent().apply {
+                            action = android.content.Intent.ACTION_SEND
+                            putExtra(android.content.Intent.EXTRA_TEXT, shareText)
+                            type = "text/plain"
+                        }
+                        val shareIntent = android.content.Intent.createChooser(sendIntent, "Share Match")
+                        context.startActivity(shareIntent)
+                    }) {
+                        Icon(
+                            imageVector = Icons.Rounded.Share,
+                            contentDescription = "Share Match",
+                            tint = Color.White
+                        )
+                    }
+                    IconButton(onClick = { showNotificationSheet = true }) {
+                        Icon(
+                            imageVector = Icons.Rounded.Notifications,
+                            contentDescription = "Match Alerts",
+                            tint = Color.White
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = PitchBlack,
                     titleContentColor = Color.White,
-                    navigationIconContentColor = Color.White
+                    navigationIconContentColor = Color.White,
+                    actionIconContentColor = Color.White
                 )
             )
         }
     ) { padding ->
         var selectedTab by remember { mutableIntStateOf(0) }
-        val tabs = listOf("Overview", "Lineups", "H2H", "Chat")
+        val tabs = listOf("Overview", "Commentary", "Lineups", "H2H", "Chat")
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(
-                    Brush.verticalGradient(
-                        listOf(PitchBlack, PitchSurfaceHigh)
-                    )
-                )
+                .background(PitchBlack)
         ) {
             when (val state = detailState) {
                 is ApiResult.Loading -> {
@@ -207,7 +246,15 @@ fun MatchCenterScreen(
                                         }
                                     }
                                 }
-                                1 -> { // Lineups
+                                1 -> { // Commentary & Key Moments
+                                    item {
+                                        MatchCommentaryTab(
+                                            commentary = data.commentary,
+                                            isLive = data.match.isLive
+                                        )
+                                    }
+                                }
+                                2 -> { // Lineups
                                     if (data.lineups == null) {
                                         item {
                                             EmptyStateMessage("Lineups not available yet")
@@ -230,7 +277,7 @@ fun MatchCenterScreen(
                                         }
                                     }
                                 }
-                                2 -> { // H2H & Predictions / Odds
+                                3 -> { // H2H & Predictions / Odds
                                     item {
                                         WhoWillWinPoll(viewModel = viewModel)
                                     }
@@ -275,7 +322,7 @@ fun MatchCenterScreen(
                                         }
                                     }
                                 }
-                                3 -> { // Chat
+                                4 -> { // Chat
                                     item {
                                         MatchChatSection(viewModel = viewModel)
                                     }
@@ -301,8 +348,8 @@ private fun VenueRefereeCard(venue: VenueInfo?, referee: String?) {
     if (venue == null && referee == null) return
     Card(
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.06f)),
+        colors = CardDefaults.cardColors(containerColor = DarkCard),
+        border = BorderStroke(1.dp, DarkBorder),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -343,8 +390,8 @@ private fun MatchStatsSection(stats: List<MatchStat>, homeTeamId: Int, awayTeamI
     if (stats.isEmpty()) return
     Card(
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.06f)),
+        colors = CardDefaults.cardColors(containerColor = DarkCard),
+        border = BorderStroke(1.dp, DarkBorder),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -422,8 +469,8 @@ private fun LiveEventsTimeline(events: List<MatchEvent>, homeTeamId: Int, awayTe
     if (events.isEmpty()) return
     Card(
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.06f)),
+        colors = CardDefaults.cardColors(containerColor = DarkCard),
+        border = BorderStroke(1.dp, DarkBorder),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -741,7 +788,18 @@ private fun PlayerRow(player: LineupPlayer, isSub: Boolean = false) {
                 fontWeight = FontWeight.Bold
             )
         }
-        Spacer(Modifier.width(12.dp))
+        Spacer(Modifier.width(8.dp))
+        if (!player.photo.isNullOrBlank()) {
+            AsyncImage(
+                model = player.photo,
+                contentDescription = player.name,
+                modifier = Modifier
+                    .size(28.dp)
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.05f))
+            )
+            Spacer(Modifier.width(8.dp))
+        }
         Text(
             player.name,
             style = MaterialTheme.typography.bodyMedium,
@@ -762,8 +820,8 @@ private fun PlayerRow(player: LineupPlayer, isSub: Boolean = false) {
 private fun PredictionsSection(prediction: MatchPrediction) {
     Card(
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.06f)),
+        colors = CardDefaults.cardColors(containerColor = DarkCard),
+        border = BorderStroke(1.dp, DarkBorder),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -874,7 +932,7 @@ private fun PlayerOfTheMatchCard(
 ) {
     Card(
         shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
+        colors = CardDefaults.cardColors(containerColor = DarkCard),
         border = BorderStroke(1.dp, Color(0xFFFFD700).copy(alpha = 0.3f)), // Gold border glow!
         modifier = Modifier
             .fillMaxWidth()
@@ -992,8 +1050,8 @@ private fun MatchPlayerRatingsSection(
     if (playersData.isEmpty()) return
     Card(
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.06f)),
+        colors = CardDefaults.cardColors(containerColor = DarkCard),
+        border = BorderStroke(1.dp, DarkBorder),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -1093,8 +1151,8 @@ private fun OddsSection(odds: List<MatchOdd>) {
     if (odds.isEmpty()) return
     Card(
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.06f)),
+        colors = CardDefaults.cardColors(containerColor = DarkCard),
+        border = BorderStroke(1.dp, DarkBorder),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -1188,8 +1246,8 @@ private fun MatchAttackMomentumGraph(events: List<MatchEvent>, homeTeamId: Int) 
 
     Card(
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.06f)),
+        colors = CardDefaults.cardColors(containerColor = DarkCard),
+        border = BorderStroke(1.dp, DarkBorder),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -1265,8 +1323,8 @@ private fun WhoWillWinPoll(
 
     Card(
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.06f)),
+        colors = CardDefaults.cardColors(containerColor = DarkCard),
+        border = BorderStroke(1.dp, DarkBorder),
         modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
     ) {
         Column(modifier = Modifier.padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1303,7 +1361,7 @@ private fun VoteButton(label: String, onClick: () -> Unit, modifier: Modifier = 
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White.copy(alpha = 0.04f))
+            .background(DarkCard)
             .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
             .clickable { onClick() }
             .padding(vertical = 12.dp),
@@ -1316,7 +1374,7 @@ private fun VoteButton(label: String, onClick: () -> Unit, modifier: Modifier = 
 @Composable
 private fun PredictionResultRow(label: String, isSelected: Boolean, isCorrect: Boolean?, color: Color) {
     val bgGlow = if (isSelected) color.copy(alpha = 0.1f) else Color.White.copy(alpha = 0.02f)
-    val border = if (isSelected) color.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.06f)
+    val border = if (isSelected) color.copy(alpha = 0.4f) else DarkBorder
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1358,8 +1416,8 @@ private fun MatchChatSection(viewModel: FixtureDetailViewModel) {
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(Color.White.copy(alpha = 0.04f))
-            .border(1.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(20.dp))
+            .background(DarkCard)
+            .border(1.dp, DarkBorder, RoundedCornerShape(20.dp))
             .padding(14.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1375,7 +1433,7 @@ private fun MatchChatSection(viewModel: FixtureDetailViewModel) {
                 .fillMaxWidth()
                 .height(300.dp)
                 .background(Color.Black.copy(alpha = 0.2f), RoundedCornerShape(12.dp))
-                .border(0.5.dp, Color.White.copy(alpha = 0.06f), RoundedCornerShape(12.dp))
+                .border(0.5.dp, DarkBorder, RoundedCornerShape(12.dp))
                 .padding(8.dp)
         ) {
             LazyColumn(
@@ -1445,7 +1503,7 @@ private fun MatchChatSection(viewModel: FixtureDetailViewModel) {
                     modifier = Modifier
                         .size(36.dp)
                         .clip(CircleShape)
-                        .background(Color.White.copy(alpha = 0.04f))
+                        .background(DarkCard)
                         .clickable {
                             viewModel.sendComment("$emoji Reaction!", reactionType = emoji)
                         },
@@ -1467,8 +1525,8 @@ private fun MatchChatSection(viewModel: FixtureDetailViewModel) {
                 onValueChange = { textVal = it },
                 placeholder = { Text("Say something...", color = TextSecondary, fontSize = 12.sp) },
                 colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.White.copy(alpha = 0.06f),
-                    unfocusedContainerColor = Color.White.copy(alpha = 0.04f),
+                    focusedContainerColor = DarkBorder,
+                    unfocusedContainerColor = DarkCard,
                     focusedIndicatorColor = Color.Transparent,
                     unfocusedIndicatorColor = Color.Transparent,
                     focusedTextColor = Color.White,
@@ -1514,8 +1572,8 @@ private fun MatchInjuryBoard(injuries: List<MatchInjury>, homeTeam: TeamInfo, aw
 
     Card(
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.04f)),
-        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.06f)),
+        colors = CardDefaults.cardColors(containerColor = DarkCard),
+        border = BorderStroke(1.dp, DarkBorder),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -1570,7 +1628,7 @@ private fun MatchInjuryBoard(injuries: List<MatchInjury>, homeTeam: TeamInfo, aw
                     modifier = Modifier
                         .width(1.dp)
                         .height(IntrinsicSize.Min)
-                        .background(Color.White.copy(alpha = 0.06f))
+                        .background(DarkBorder)
                 )
                 
                 // Away Team Injuries Column
@@ -1639,3 +1697,328 @@ private fun SidelinedPlayerRow(injury: MatchInjury) {
     }
 }
 
+// ─── LIVE COMMENTARY & KEY MOMENTS TICKER ─────────────────────────────────────
+
+@Composable
+private fun MatchCommentaryTab(
+    commentary: List<com.footballpluse.footballapp.domain.model.MatchCommentaryItem>,
+    isLive: Boolean
+) {
+    var selectedFilter by remember { mutableStateOf("ALL") }
+    val filters = listOf("ALL" to "All Events", "goal" to "Goals ⚽", "card" to "Cards 🟨🟥", "subst" to "Subs 🔄")
+
+    val filteredList = remember(commentary, selectedFilter) {
+        if (selectedFilter == "ALL") commentary
+        else commentary.filter { it.eventType.equals(selectedFilter, ignoreCase = true) }
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        // Live status & filter pill row
+        Card(
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = DarkCard),
+            border = BorderStroke(1.dp, DarkBorder),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(Modifier.padding(14.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isLive) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .clip(CircleShape)
+                                    .background(LiveGreen)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "LIVE TICKER",
+                                color = LiveGreen,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 12.sp,
+                                letterSpacing = 1.sp
+                            )
+                        } else {
+                            Text(
+                                "MATCH COMMENTARY & MOMENTS",
+                                color = Color.White.copy(alpha = 0.7f),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp,
+                                letterSpacing = 1.sp
+                            )
+                        }
+                    }
+                    Text(
+                        "${filteredList.size} events",
+                        color = TextSecondary,
+                        fontSize = 11.sp
+                    )
+                }
+
+                Spacer(Modifier.height(10.dp))
+
+                // Filter pills
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    filters.forEach { (key, label) ->
+                        val isSelected = selectedFilter == key
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(if (isSelected) LiveGreen.copy(alpha = 0.2f) else Color.White.copy(alpha = 0.05f))
+                                .border(0.5.dp, if (isSelected) LiveGreen else Color.Transparent, RoundedCornerShape(12.dp))
+                                .clickable { selectedFilter = key }
+                                .padding(horizontal = 10.dp, vertical = 6.dp)
+                        ) {
+                            Text(
+                                text = label,
+                                fontSize = 11.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) LiveGreen else TextSecondary
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (filteredList.isEmpty()) {
+            EmptyStateMessage("No commentary entries matching this filter")
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                filteredList.forEach { item ->
+                    CommentaryCard(item)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CommentaryCard(item: com.footballpluse.footballapp.domain.model.MatchCommentaryItem) {
+    val accentColor = when (item.eventType?.lowercase()) {
+        "goal" -> LiveGreen
+        "card" -> if (item.title.contains("RED", ignoreCase = true)) DangerRed else Color(0xFFFFC107)
+        "subst" -> IceBlue
+        else -> Color.White.copy(alpha = 0.5f)
+    }
+
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (item.isKeyMoment) DarkCard.copy(alpha = 0.95f) else DarkCard
+        ),
+        border = BorderStroke(
+            if (item.isKeyMoment) 1.dp else 0.5.dp,
+            if (item.isKeyMoment) accentColor.copy(alpha = 0.5f) else DarkBorder
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            // Minute Badge
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(accentColor.copy(alpha = 0.15f))
+                    .border(0.5.dp, accentColor.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                val minText = if (item.extraMinute != null && item.extraMinute > 0) {
+                    "${item.minute}+${item.extraMinute}'"
+                } else {
+                    "${item.minute}'"
+                }
+                Text(
+                    text = minText,
+                    color = accentColor,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp
+                )
+            }
+
+            Spacer(Modifier.width(12.dp))
+
+            // Title & Description
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = item.title,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 13.sp
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = item.comment,
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MatchAlertsBottomSheet(
+    notificationsViewModel: NotificationsViewModel,
+    onDismiss: () -> Unit
+) {
+    val uiState by notificationsViewModel.uiState.collectAsState()
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        containerColor = PitchSurface,
+        scrimColor = Color.Black.copy(alpha = 0.65f),
+        dragHandle = {
+            BottomSheetDefaults.DragHandle(
+                color = Color.White.copy(alpha = 0.3f)
+            )
+        }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 20.dp, end = 20.dp, bottom = 32.dp, top = 8.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(bottom = 16.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Notifications,
+                    contentDescription = null,
+                    tint = GlassGlowGreen,
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+                Column {
+                    Text(
+                        text = "Match Alert Preferences",
+                        color = Color.White,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Customize push alerts for live match events",
+                        color = Color.White.copy(alpha = 0.6f),
+                        fontSize = 12.sp
+                    )
+                }
+            }
+
+            HorizontalDivider(color = Color.White.copy(alpha = 0.08f), modifier = Modifier.padding(bottom = 12.dp))
+
+            MatchAlertToggleRow(
+                title = "Match Kickoff & Full Time",
+                subtitle = "Whistle start, half-time and final result",
+                checked = uiState.matchStart,
+                onCheckedChange = { notificationsViewModel.updateNotificationSetting("match_start", it) }
+            )
+
+            MatchAlertToggleRow(
+                title = "Goal & VAR Alerts",
+                subtitle = "Instant score changes, penalties and VAR reviews",
+                checked = uiState.goal,
+                onCheckedChange = { notificationsViewModel.updateNotificationSetting("goal", it) }
+            )
+
+            MatchAlertToggleRow(
+                title = "Red Cards & Disciplinary",
+                subtitle = "Direct dismissals and double bookings",
+                checked = uiState.redCard,
+                onCheckedChange = { notificationsViewModel.updateNotificationSetting("red_card", it) }
+            )
+
+            MatchAlertToggleRow(
+                title = "Official Lineups Released",
+                subtitle = "Starting XI and bench 1 hour before kickoff",
+                checked = uiState.lineupReleased,
+                onCheckedChange = { notificationsViewModel.updateNotificationSetting("lineup_released", it) }
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            Button(
+                onClick = onDismiss,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = GlassGlowGreen,
+                    contentColor = PitchBlack
+                )
+            ) {
+                Text(
+                    text = "Done",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MatchAlertToggleRow(
+    title: String,
+    subtitle: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .clickable { onCheckedChange(!checked) }
+            .padding(vertical = 12.dp, horizontal = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                text = subtitle,
+                color = Color.White.copy(alpha = 0.55f),
+                fontSize = 12.sp
+            )
+        }
+
+        Spacer(Modifier.width(16.dp))
+
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color.Black,
+                checkedTrackColor = GlassGlowGreen,
+                uncheckedThumbColor = Color.White.copy(alpha = 0.6f),
+                uncheckedTrackColor = PitchSurfaceHigh
+            )
+        )
+    }
+}

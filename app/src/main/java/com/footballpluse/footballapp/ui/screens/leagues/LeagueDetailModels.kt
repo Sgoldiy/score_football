@@ -50,7 +50,9 @@ data class StandingRowUiModel(
     val awayDraw: Int = 0,
     val awayLost: Int = 0,
     val awayGoalsFor: Int = 0,
-    val awayGoalsAgainst: Int = 0
+    val awayGoalsAgainst: Int = 0,
+    val liveRankChange: Int = 0, // e.g. +1 (climbed 1 spot), -2 (dropped 2 spots), 0 (unchanged)
+    val isLive: Boolean = false
 )
 
 data class FixtureUiModel(
@@ -82,7 +84,8 @@ data class PlayerStatUiModel(
     val avatarUrl: String?,
     val statValue: Int,
     val secondaryStatLabel: String,
-    val progressFraction: Float
+    val progressFraction: Float,
+    val playerId: Int? = null
 )
 
 data class SeasonStatsUiModel(

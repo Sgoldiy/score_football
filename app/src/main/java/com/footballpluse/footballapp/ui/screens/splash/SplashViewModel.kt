@@ -46,7 +46,7 @@ class SplashViewModel @Inject constructor(
                 val minDisplay = async { delay(MIN_SPLASH_MS) }
                 destination.await()
                 minDisplay.await()
-                _startDestination.value = destination.getCompleted()
+                _startDestination.value = destination.await()
             }
         }
     }

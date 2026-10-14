@@ -18,5 +18,5 @@ data class FavouritePlayer(
     val clubName: String,
     val position: String,
     val photoUrl: String,
-    val addedAt: Long
+    val addedAt: Long = System.currentTimeMillis()
 )

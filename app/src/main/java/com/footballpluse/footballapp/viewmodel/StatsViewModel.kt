@@ -83,7 +83,8 @@ data class ClubSeasonRow(
 /** Real shooting numbers derived from get_players team statistics. */
 data class PlayerShotsStat(
     val name: String, val playerPhoto: String?, val teamLogo: String?,
-    val goals: Int, val shotsTotal: Int, val conversionPct: Float
+    val goals: Int, val shotsTotal: Int, val conversionPct: Float,
+    val playerId: Int? = null
 )
 
 // GOAL TIMING UI STATE
@@ -115,7 +116,15 @@ sealed class DisciplineUiState {
     data class Error(val message: String) : DisciplineUiState()
 }
 
-data class PlayerCardsStat(val name: String, val playerPhoto: String?, val teamLogo: String?, val teamName: String?, val yellowCount: Int, val redCount: Int)
+data class PlayerCardsStat(
+    val name: String,
+    val playerPhoto: String?,
+    val teamLogo: String?,
+    val teamName: String?,
+    val yellowCount: Int,
+    val redCount: Int,
+    val playerId: Int? = null
+)
 data class TeamCardsStat(val teamName: String, val teamLogo: String, val yellowCount: Int, val redCount: Int)
 data class PlayerFoulsStat(val name: String, val playerPhoto: String?, val teamLogo: String, val teamName: String?, val count: Int)
 
@@ -626,7 +635,8 @@ class StatsViewModel @Inject constructor(
                         teamLogo = s.statistics?.firstOrNull()?.team?.logo,
                         goals = goals,
                         shotsTotal = shots,
-                        conversionPct = goals.toFloat() / shots * 100f
+                        conversionPct = goals.toFloat() / shots * 100f,
+                        playerId = s.player?.id
                     )
                 }.sortedByDescending { it.conversionPct }
 
@@ -869,16 +879,35 @@ class StatsViewModel @Inject constructor(
                     }
                 }
 
+                val playerPool = try {
+                    repository.getPlayersPoolSnapshot(leagueId)
+                } catch (_: Exception) {
+                    emptyList<com.footballpluse.footballapp.data.model.ApiPlayer>()
+                }
+                val poolByName = playerPool.filter { !it.player_name.isNullOrBlank() }
+                    .associateBy { it.player_name!!.trim().lowercase() }
+
                 val mostCardedPlayers = playersCardMap.values
                     .filter { it.yellow > 0 || it.red > 0 }
                     .map { holder ->
+                        val hName = holder.name.trim().lowercase()
+                        val matched = poolByName[hName] ?: playerPool.firstOrNull { p ->
+                            val pName = p.player_name?.trim()?.lowercase() ?: return@firstOrNull false
+                            pName.contains(hName) || hName.contains(pName) ||
+                                (hName.split(" ").lastOrNull()?.let { it.length > 2 && pName.endsWith(it) } == true)
+                        }
+                        val matchedId = matched?.player_key?.toInt() ?: matched?.player_id?.toIntOrNull()
+                        val matchedPhoto = matched?.player_image?.takeIf { it.isNotBlank() }
+                            ?: matchedId?.let { com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.playerImageUrl(it.toString()) }
+
                         PlayerCardsStat(
                             name = holder.name,
-                            playerPhoto = null, // card events carry no player photos
+                            playerPhoto = matchedPhoto,
                             teamLogo = holder.teamLogo,
                             teamName = holder.teamName,
                             yellowCount = holder.yellow,
-                            redCount = holder.red
+                            redCount = holder.red,
+                            playerId = matchedId
                         )
                     }.sortedWith { c1, c2 ->
                         val redDiff = c2.redCount.compareTo(c1.redCount)

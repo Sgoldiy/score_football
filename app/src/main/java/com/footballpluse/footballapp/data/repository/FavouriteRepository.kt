@@ -44,6 +44,14 @@ class FavouriteRepository @Inject constructor(
         favouriteClubDao.insertAll(clubs.map { it.toEntity() })
     }
 
+    suspend fun addFavouriteClub(club: FavouriteClub) {
+        favouriteClubDao.insert(club.toEntity())
+    }
+
+    suspend fun removeFavouriteClub(clubId: Int) {
+        favouriteClubDao.deleteByClubId(clubId)
+    }
+
     suspend fun replaceFavouriteLeagues(leagues: List<com.footballpluse.footballapp.domain.model.LeagueInfo>) {
         favouriteLeagueDao.clear()
         favouriteLeagueDao.insertAll(leagues.map { 
@@ -55,6 +63,17 @@ class FavouriteRepository @Inject constructor(
                 addedAt = System.currentTimeMillis()
             )
         })
+    }
+
+    fun isPlayerFavorite(playerId: Int): Flow<Boolean> =
+        favouritePlayerDao.isPlayerFavorite(playerId)
+
+    suspend fun addFavouritePlayer(player: FavouritePlayer) {
+        favouritePlayerDao.insert(player.toEntity())
+    }
+
+    suspend fun removeFavouritePlayer(playerId: Int) {
+        favouritePlayerDao.deleteByPlayerId(playerId)
     }
 
     suspend fun replaceFavouritePlayers(players: List<FavouritePlayer>) {

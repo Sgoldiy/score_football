@@ -115,7 +115,7 @@ fun TopPlayersScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Brush.verticalGradient(listOf(Color(0xFF071B2C), PitchBlack)))
+                .background(PitchBlack)
                 .padding(padding)
         ) {
             PremiumTabBar(

@@ -60,6 +60,7 @@ data class SocialPost(
 
 data class FavouriteClubsUiState(
     val clubs: List<FavouriteClub> = emptyList(),
+    val players: List<com.footballpluse.footballapp.domain.model.FavouritePlayer> = emptyList(),
     val activeClubId: Int? = null,
     val activeClub: FavouriteClub? = null,
     val detail: ClubDetailUiState = ClubDetailUiState(),
@@ -102,9 +103,20 @@ class FavouriteClubsViewModel @Inject constructor(
             }
         }
         viewModelScope.launch {
+            favouriteRepository.getFavouritePlayers().collectLatest { players ->
+                _uiState.value = _uiState.value.copy(players = players)
+            }
+        }
+        viewModelScope.launch {
             billingRepository.isPurchased.collectLatest { purchased ->
                 _uiState.value = _uiState.value.copy(isPremium = purchased)
             }
+        }
+    }
+
+    fun removePlayer(playerId: Int) {
+        viewModelScope.launch {
+            favouriteRepository.removeFavouritePlayer(playerId)
         }
     }
 

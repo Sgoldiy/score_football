@@ -156,8 +156,8 @@ fun MatchdaySummaryBar(fixtures: List<FixtureUiModel>) {
 private fun SummaryChip(text: String) {
     Surface(
         shape = RoundedCornerShape(20.dp),
-        color = Color(0xFF1E1E1E),
-        border = BorderStroke(0.5.dp, Color(0xFF242424))
+        color = Color(0xFF131620),
+        border = BorderStroke(0.5.dp, Color(0xFF1A1E2A))
     ) {
         Text(
             text = text,
@@ -186,7 +186,7 @@ fun MatchdayHeaderChip(hasLive: Boolean = false, liveCount: Int = 0) {
             if (hasLive) {
                 LivePulsingDot()
                 Text(
-                    text = "$liveCount live", fontSize = 11.sp, color = Color(0xFFEF4444)
+                    text = "$liveCount live", fontSize = 11.sp, color = Color(0xFFFF4444)
                 )
             }
         }
@@ -205,7 +205,7 @@ fun LivePulsingDot() {
         modifier = Modifier
             .size(8.dp)
             .clip(CircleShape)
-            .background(Color(0xFFEF4444).copy(alpha = alpha))
+            .background(Color(0xFFFF4444).copy(alpha = alpha))
     )
 }
 
@@ -230,7 +230,7 @@ fun FixtureSectionHeader(title: String, color: Color) {
             )
         }
         HorizontalDivider(
-            modifier = Modifier.weight(1f), color = Color(0xFF1E1E1E), thickness = 1.dp
+            modifier = Modifier.weight(1f), color = Color(0xFF1A1E2A), thickness = 0.5.dp
         )
     }
 }
@@ -244,8 +244,8 @@ fun FixtureCard(
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    val containerColor = if (isLive) Color(0xFF2D1A1A) else Color(0xFF161616)
-    val borderColor = if (isLive) Color(0xFFEF4444).copy(alpha = 0.3f) else Color(0xFF242424)
+    val containerColor = if (isLive) Color(0xFF1A0A0A) else Color(0xFF131620)
+    val borderColor = if (isLive) Color(0xFF3A1212) else Color(0xFF1A1E2A)
 
     Card(
         modifier = Modifier
@@ -311,7 +311,7 @@ fun FixtureCard(
 
             if (expanded && fixture.goalEvents.isNotEmpty()) {
                 Spacer(Modifier.height(8.dp))
-                HorizontalDivider(color = Color(0xFF1E1E1E))
+                HorizontalDivider(color = Color(0xFF1A1E2A), thickness = 0.5.dp)
                 Spacer(Modifier.height(8.dp))
                 fixture.goalEvents.forEach { event ->
                     Row(
@@ -436,7 +436,7 @@ private fun FixtureCardShimmer() {
             .fillMaxWidth()
             .height(80.dp),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF161616))
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF131620))
     ) {
         Row(
             modifier = Modifier

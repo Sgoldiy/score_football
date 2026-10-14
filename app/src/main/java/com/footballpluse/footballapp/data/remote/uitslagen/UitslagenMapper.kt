@@ -198,7 +198,8 @@ object UitslagenMapper {
         player = p.name,
         player_number = p.number,
         player_pos = p.position,
-        player_key = p.id
+        player_key = p.id,
+        player_image = UitslagenApiService.playerImageUrl(p.id)
     )
 
     // ─── league block -> standings / teams / top scorers ──────────────────────
@@ -286,14 +287,18 @@ object UitslagenMapper {
         block?.topscorers?.tournaments.orEmpty()
             .flatMap { t -> t.players.orEmpty().ifEmpty { t.topscorers.orEmpty() } }
             .mapIndexed { idx, s ->
+                val pId = s.id
+                val tId = s.team_id_gs ?: s.teamid
                 ApiTopScorer(
                     player_name = s.name,
                     team_name = s.team,
                     goals = s.goals,
                     assists = s.assists,
                     penalty_goals = s.penalty_goals ?: s.penalty,
-                    player_id = s.id?.toLongOrNull(),
-                    team_id = s.team_id_gs ?: s.teamid,
+                    player_id = pId?.toLongOrNull(),
+                    team_id = tId,
+                    player_image = UitslagenApiService.playerImageUrl(pId),
+                    team_badge = UitslagenApiService.teamLogoUrl(tId),
                     player_place = s.pos ?: (idx + 1).toString()
                 )
             }
@@ -319,7 +324,7 @@ object UitslagenMapper {
                 teamIn = page.teamname.orEmpty(),
                 teamOut = it.from?.takeIf { f -> f.isNotBlank() } ?: "Unknown",
                 playerId = it.id?.toIntOrNull() ?: 0,
-                playerPhotoUrl = null,
+                playerPhotoUrl = UitslagenApiService.playerImageUrl(it.id),
                 teamInLogoUrl = UitslagenApiService.teamLogoUrl(page.id_gs),
                 teamOutLogoUrl = UitslagenApiService.teamLogoUrl(it.teamid)
             )
@@ -332,7 +337,7 @@ object UitslagenMapper {
                 teamIn = it.to?.takeIf { t -> t.isNotBlank() } ?: "Unknown",
                 teamOut = page.teamname.orEmpty(),
                 playerId = it.id?.toIntOrNull() ?: 0,
-                playerPhotoUrl = null,
+                playerPhotoUrl = UitslagenApiService.playerImageUrl(it.id),
                 teamInLogoUrl = UitslagenApiService.teamLogoUrl(it.teamid),
                 teamOutLogoUrl = UitslagenApiService.teamLogoUrl(page.id_gs)
             )
@@ -420,7 +425,7 @@ object UitslagenMapper {
                     player_rating = p.rating,
                     player_match_played = p.appearances,
                     player_minutes = p.minutes,
-                    player_image = null,
+                    player_image = UitslagenApiService.playerImageUrl(p.id),
                     player_country = null,
                     player_birthdate = null,
                     player_substitute_out = null,
@@ -453,7 +458,12 @@ object UitslagenMapper {
             },
             coaches = listOfNotNull(
                 page.coach?.takeIf { it.isNotBlank() }?.let {
-                    ApiCoach(coach_name = it, coach_country = page.coachnationality, coach_age = null)
+                    ApiCoach(
+                        coach_name = it,
+                        coach_country = page.coachnationality,
+                        coach_age = null,
+                        coach_image = UitslagenApiService.coachImageUrl(page.coachid)
+                    )
                 }
             ),
             transfers = transfers,
@@ -473,7 +483,7 @@ object UitslagenMapper {
         player_birthdate = page.birthdate,
         team_name = page.team,
         team_key = page.teamid,
-        player_image = null,
+        player_image = UitslagenApiService.playerImageUrl(page.id),
         player_number = null,
         player_match_played = null,
         player_goals = null,
@@ -531,7 +541,7 @@ object UitslagenMapper {
                 player_id = hit.id_gs,
                 player_name = hit.name,
                 player_country = hit.country,
-                player_image = null,
+                player_image = UitslagenApiService.playerImageUrl(hit.id_gs),
                 player_number = null,
                 player_goals = null,
                 player_yellow_cards = null,

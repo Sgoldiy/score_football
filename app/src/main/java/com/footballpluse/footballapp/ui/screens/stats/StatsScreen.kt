@@ -58,6 +58,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -249,7 +250,7 @@ fun StatsScreen(
                 StatsTab.CLUBS -> ClubsTabContent(clubsState, onNavigateToClubInfo, viewModel)
                 StatsTab.XG_ADVANCED -> XGAdvancedTabContent(xgState, viewModel, onNavigateToPlayerProfile)
                 StatsTab.GOAL_TIMING -> GoalTimingTabContent(timingState, viewModel)
-                StatsTab.DISCIPLINE -> DisciplineTabContent(disciplineState, viewModel)
+                StatsTab.DISCIPLINE -> DisciplineTabContent(disciplineState, viewModel, onNavigateToPlayerProfile)
             }
         }
     }
@@ -503,8 +504,8 @@ fun TopScorerHeroCard(
             .fillMaxWidth()
             .clickable { onPlayerClick(player.id) },
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, Color(0xFF1E2A4A)),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF131A2E))
+        border = BorderStroke(1.dp, Color(0xFF1A1E2A)),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF131620))
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
             Column(
@@ -518,7 +519,7 @@ fun TopScorerHeroCard(
                         modifier = Modifier
                             .size(60.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF1E2433)),
+                            .background(Color(0xFF131620)),
                         contentAlignment = Alignment.Center
                     ) {
                         AsyncImage(
@@ -740,7 +741,7 @@ fun PlayerStatLeaderboard(
                         modifier = Modifier
                             .size(42.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF1E2433))
+                            .background(Color(0xFF131620))
                             .border(
                                 1.5.dp,
                                 accentColor.copy(alpha = if (index == 0) 0.8f else 0.25f),
@@ -1013,7 +1014,7 @@ fun PlayerRatingsLeaderboard(
                         modifier = Modifier
                             .size(32.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF1E2433)),
+                            .background(Color(0xFF131620)),
                         contentAlignment = Alignment.Center
                     ) {
                         AsyncImage(
@@ -1256,7 +1257,7 @@ fun ClubStatBarRow(
                 modifier = Modifier
                     .size(32.dp)
                     .clip(CircleShape)
-                    .background(Color(0xFF1E2433)),
+                    .background(Color(0xFF131620)),
                 contentAlignment = Alignment.Center
             ) {
                 AsyncImage(
@@ -2016,7 +2017,7 @@ fun XGAdvancedTabContent(
                         color = Color(0xFF555555),
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
-                    GoalConversionList(state.goalConversionLeaders)
+                    GoalConversionList(state.goalConversionLeaders, onPlayerClick)
                     Spacer(Modifier.height(20.dp))
                 }
 
@@ -2083,7 +2084,7 @@ fun TopScorersAdvancedCard(
                         modifier = Modifier
                             .size(32.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF1E2433)),
+                            .background(Color(0xFF131620)),
                         contentAlignment = Alignment.Center
                     ) {
                         AsyncImage(
@@ -2220,7 +2221,10 @@ fun ClubSeasonTable(clubs: List<ClubSeasonRow>) {
 }
 
 @Composable
-fun GoalConversionList(leaders: List<PlayerShotsStat>) {
+fun GoalConversionList(
+    leaders: List<PlayerShotsStat>,
+    onPlayerClick: (Int) -> Unit = {}
+) {
     if (leaders.isEmpty()) return
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -2233,6 +2237,9 @@ fun GoalConversionList(leaders: List<PlayerShotsStat>) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clickable(enabled = item.playerId != null) {
+                            item.playerId?.let(onPlayerClick)
+                        }
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -2247,7 +2254,7 @@ fun GoalConversionList(leaders: List<PlayerShotsStat>) {
                         modifier = Modifier
                             .size(36.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF1E2433))
+                            .background(Color(0xFF131620))
                             .border(1.5.dp, Color(0xFF5B8DE8).copy(alpha = 0.5f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
@@ -2255,6 +2262,7 @@ fun GoalConversionList(leaders: List<PlayerShotsStat>) {
                             model = item.playerPhoto,
                             contentDescription = item.name,
                             modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
                             placeholder = painterResource(R.drawable.ic_placeholder),
                             error = painterResource(R.drawable.ic_placeholder)
                         )
@@ -2328,7 +2336,7 @@ fun TopRatedList(players: List<PlayerProfileStatisticsResponse>, onPlayerClick: 
                         modifier = Modifier
                             .size(32.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF1E2433)),
+                            .background(Color(0xFF131620)),
                         contentAlignment = Alignment.Center
                     ) {
                         AsyncImage(
@@ -2604,7 +2612,7 @@ fun TeamTimingOverlayBlock(
                         modifier = Modifier
                             .size(28.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF1E2433)),
+                            .background(Color(0xFF131620)),
                         contentAlignment = Alignment.Center
                     ) {
                         AsyncImage(
@@ -2647,7 +2655,7 @@ fun TeamTimingOverlayBlock(
                                     modifier = Modifier
                                         .size(22.dp)
                                         .clip(CircleShape)
-                                        .background(Color(0xFF1E2433)),
+                                        .background(Color(0xFF131620)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     AsyncImage(
@@ -2865,7 +2873,8 @@ fun FirstGoalAdvantageCard(
 @Composable
 fun DisciplineTabContent(
     state: DisciplineUiState,
-    viewModel: StatsViewModel
+    viewModel: StatsViewModel,
+    onPlayerClick: (Int) -> Unit = {}
 ) {
     when (state) {
         is DisciplineUiState.Idle, is DisciplineUiState.Loading -> {
@@ -2892,7 +2901,7 @@ fun DisciplineTabContent(
                     color = Color(0xFF555555),
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
-                MostCardedPlayersList(state.mostCardedPlayers)
+                MostCardedPlayersList(state.mostCardedPlayers, onPlayerClick)
 
                 Spacer(Modifier.height(20.dp))
 
@@ -2923,7 +2932,10 @@ fun DisciplineTabContent(
 }
 
 @Composable
-fun MostCardedPlayersList(players: List<PlayerCardsStat>) {
+fun MostCardedPlayersList(
+    players: List<PlayerCardsStat>,
+    onPlayerClick: (Int) -> Unit = {}
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
@@ -2935,6 +2947,9 @@ fun MostCardedPlayersList(players: List<PlayerCardsStat>) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .clickable(enabled = item.playerId != null) {
+                            item.playerId?.let(onPlayerClick)
+                        }
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -2951,13 +2966,14 @@ fun MostCardedPlayersList(players: List<PlayerCardsStat>) {
                         modifier = Modifier
                             .size(32.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF1E2433)),
+                            .background(Color(0xFF131620)),
                         contentAlignment = Alignment.Center
                     ) {
                         AsyncImage(
                             model = item.playerPhoto,
                             contentDescription = item.name,
                             modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
                             placeholder = painterResource(R.drawable.ic_placeholder),
                             error = painterResource(R.drawable.ic_placeholder)
                         )
@@ -3127,7 +3143,7 @@ fun DirtiestTeamsChart(teams: List<TeamCardsStat>) {
                             modifier = Modifier
                                 .size(30.dp)
                                 .clip(CircleShape)
-                                .background(Color(0xFF1E2433)),
+                                .background(Color(0xFF131620)),
                             contentAlignment = Alignment.Center
                         ) {
                             AsyncImage(
@@ -3317,7 +3333,7 @@ fun PodiumCol(
                     .size(if (rank == 1) 56.dp else 46.dp)
                     .clip(CircleShape)
                     .border(2.dp, borderColor, CircleShape)
-                    .background(Color(0xFF1E2433)),
+                    .background(Color(0xFF131620)),
                 contentAlignment = Alignment.Center
             ) {
                 AsyncImage(

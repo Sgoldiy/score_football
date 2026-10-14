@@ -30,6 +30,8 @@ import androidx.compose.material.icons.rounded.Cake
 import androidx.compose.material.icons.rounded.CalendarToday
 import androidx.compose.material.icons.rounded.EmojiEvents
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material.icons.rounded.FavoriteBorder
 import androidx.compose.material.icons.rounded.FitnessCenter
 import androidx.compose.material.icons.rounded.Healing
 import androidx.compose.material.icons.rounded.Height
@@ -103,6 +105,21 @@ fun PlayerProfileScreen(
                         )
                     }
                 },
+                actions = {
+                    if (state is ApiResult.Success) {
+                        val detail = (state as ApiResult.Success).data
+                        val isFavorite by viewModel.isFavorite.collectAsState()
+                        IconButton(onClick = {
+                            viewModel.toggleFavoritePlayer(detail)
+                        }) {
+                            Icon(
+                                imageVector = if (isFavorite) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder,
+                                contentDescription = if (isFavorite) "Unfollow Player" else "Follow Player",
+                                tint = if (isFavorite) Color(0xFF00E676) else Color(0xFF8B949E)
+                            )
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = PitchBlack)
             )
         },
@@ -112,7 +129,7 @@ fun PlayerProfileScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(Brush.verticalGradient(listOf(PitchBlack, PitchSurfaceHigh)))
+                .background(PitchBlack)
         ) {
             when (val result = state) {
                 is ApiResult.Loading -> {
@@ -186,12 +203,17 @@ private fun PlayerContent(detail: com.footballpluse.footballapp.domain.model.Pla
                             .border(3.dp, GlassGlowGreen, CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
+                        val photoUrl = info.photo?.takeIf { it.isNotBlank() }
+                            ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.playerImageUrl(info.id.toString())
                         AsyncImage(
-                            model = info.photo,
+                            model = photoUrl,
                             contentDescription = info.name,
                             modifier = Modifier
-                                .size(108.dp)
-                                .clip(CircleShape)
+                                .fillMaxSize()
+                                .clip(CircleShape),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                            placeholder = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_placeholder),
+                            error = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_placeholder)
                         )
                     }
                     Spacer(Modifier.height(16.dp))
@@ -214,7 +236,8 @@ private fun PlayerContent(detail: com.footballpluse.footballapp.domain.model.Pla
                                 PremiumBioChip(
                                     label = "Nationality",
                                     value = it,
-                                    icon = Icons.Rounded.Public
+                                    icon = Icons.Rounded.Public,
+                                    imageUrl = com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.flagUrl(it)
                                 )
                             }
                         }
@@ -380,7 +403,8 @@ private fun PlayerContent(detail: com.footballpluse.footballapp.domain.model.Pla
 private fun PremiumBioChip(
     label: String,
     value: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    imageUrl: String? = null
 ) {
     Row(
         modifier = Modifier
@@ -391,12 +415,22 @@ private fun PremiumBioChip(
             .padding(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = GlassGlowGreen.copy(alpha = 0.8f),
-            modifier = Modifier.size(16.dp)
-        )
+        if (!imageUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = imageUrl,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(18.dp)
+                    .clip(CircleShape)
+            )
+        } else {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = GlassGlowGreen.copy(alpha = 0.8f),
+                modifier = Modifier.size(16.dp)
+            )
+        }
         Spacer(Modifier.width(8.dp))
         Column {
             Text(label, color = TextSecondary, fontSize = 8.sp, fontWeight = FontWeight.Medium)

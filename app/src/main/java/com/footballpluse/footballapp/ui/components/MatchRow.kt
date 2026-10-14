@@ -27,6 +27,7 @@ fun MatchRow(
     match: Match,
     homeForm: String = "",
     awayForm: String = "",
+    hideScores: Boolean = false,
     onClick: (String) -> Unit
 ) {
     val isLive = match.isLive
@@ -133,7 +134,8 @@ fun MatchRow(
                 form = homeForm,
                 isWinner = homeWon,
                 isLoser = homeLost,
-                isLiveOrFinished = isLiveOrFinished
+                isLiveOrFinished = isLiveOrFinished,
+                hideScores = hideScores
             )
             Spacer(modifier = Modifier.height(6.dp))
             TeamRow(
@@ -143,7 +145,8 @@ fun MatchRow(
                 form = awayForm,
                 isWinner = awayWon,
                 isLoser = awayLost,
-                isLiveOrFinished = isLiveOrFinished
+                isLiveOrFinished = isLiveOrFinished,
+                hideScores = hideScores
             )
         }
     }
@@ -187,7 +190,8 @@ private fun TeamRow(
     form: String,
     isWinner: Boolean,
     isLoser: Boolean,
-    isLiveOrFinished: Boolean
+    isLiveOrFinished: Boolean,
+    hideScores: Boolean = false
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -231,7 +235,11 @@ private fun TeamRow(
             modifier = Modifier.width(26.dp),
             contentAlignment = Alignment.CenterEnd
         ) {
-            val scoreText = if (isLiveOrFinished) score?.toString() ?: "0" else "—"
+            val scoreText = when {
+                hideScores && isLiveOrFinished -> "•"
+                isLiveOrFinished -> score?.toString() ?: "0"
+                else -> "—"
+            }
             val scoreColor = when {
                 !isLiveOrFinished -> Color(0xFF333333)
                 isWinner -> Color(0xFFFFFFFF)

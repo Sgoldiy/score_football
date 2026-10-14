@@ -13,10 +13,20 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SettingsClubsViewModel @Inject constructor(
-    private val favouriteRepository: FavouriteRepository
+    private val favouriteRepository: FavouriteRepository,
+    private val appSettingsDataStore: com.footballpluse.footballapp.data.local.AppSettingsDataStore
 ) : ViewModel() {
     val clubs: StateFlow<List<FavouriteClub>> =
         favouriteRepository.getFavouriteClubs().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val hideScoresMode: StateFlow<Boolean> =
+        appSettingsDataStore.hideScoresMode.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    fun toggleHideScoresMode(enabled: Boolean) {
+        viewModelScope.launch {
+            appSettingsDataStore.saveHideScoresMode(enabled)
+        }
+    }
 
     fun removeClub(clubId: Int) {
         viewModelScope.launch {

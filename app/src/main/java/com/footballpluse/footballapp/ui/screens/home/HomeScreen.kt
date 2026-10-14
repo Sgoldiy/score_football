@@ -26,6 +26,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -37,6 +38,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.footballpluse.footballapp.R
 import com.footballpluse.footballapp.data.model.PlayerProfileStatisticsResponse
+import com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService
+import com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues
 import com.footballpluse.footballapp.data.util.SeasonUtils
 import com.footballpluse.footballapp.domain.model.LeagueInfo
 import com.footballpluse.footballapp.domain.model.Match
@@ -80,16 +83,16 @@ private val topCompetitions = listOf(
  * arrives. Names/countries match the uitslagen adapter league map so byName matching
  * works; ids are the legacy ids those leagues are persisted under. */
 private val hardcodedDomesticLeagues = listOf(
-    LeagueInfo(id = 152, name = "Premier League", logo = "https://apiv3.apifootball.com/badges/logo_leagues/152_premier-league.png", country = "England", flag = null, season = currentSeason),
-    LeagueInfo(id = 302, name = "LaLiga", logo = "https://apiv3.apifootball.com/badges/logo_leagues/302_la-liga.png", country = "Spain", flag = null, season = currentSeason),
-    LeagueInfo(id = 207, name = "Serie A", logo = "https://apiv3.apifootball.com/badges/logo_leagues/207_serie-a.png", country = "Italy", flag = null, season = currentSeason),
-    LeagueInfo(id = 175, name = "Bundesliga", logo = "https://apiv3.apifootball.com/badges/logo_leagues/175_bundesliga.png", country = "Germany", flag = null, season = currentSeason),
-    LeagueInfo(id = 168, name = "Ligue 1", logo = "https://apiv3.apifootball.com/badges/logo_leagues/168_ligue-1.png", country = "France", flag = null, season = currentSeason),
-    LeagueInfo(id = 88, name = "Eredivisie", logo = "https://apiv3.apifootball.com/badges/logo_leagues/88_eredivisie.png", country = "Netherlands", flag = null, season = currentSeason),
-    LeagueInfo(id = 94, name = "Liga Portugal", logo = "https://apiv3.apifootball.com/badges/logo_leagues/94_liga-portugal.png", country = "Portugal", flag = null, season = currentSeason),
-    LeagueInfo(id = 144, name = "Jupiler Pro League", logo = "https://apiv3.apifootball.com/badges/logo_leagues/144_jupiler-pro-league.png", country = "Belgium", flag = null, season = currentSeason),
-    LeagueInfo(id = 203, name = "Saudi Professional League", logo = "https://apiv3.apifootball.com/badges/logo_leagues/203_saudi-professional-league.png", country = "Saudi Arabia", flag = null, season = currentSeason),
-    LeagueInfo(id = 187, name = "Super League", logo = "https://apiv3.apifootball.com/badges/logo_leagues/187_super-league.png", country = "Switzerland", flag = null, season = currentSeason),
+    LeagueInfo(id = 152, name = "Premier League", logo = "https://apiv3.apifootball.com/badges/logo_leagues/152_premier-league.png", country = "England", flag = UitslagenApiService.flagUrl("England"), season = currentSeason),
+    LeagueInfo(id = 302, name = "LaLiga", logo = "https://apiv3.apifootball.com/badges/logo_leagues/302_la-liga.png", country = "Spain", flag = UitslagenApiService.flagUrl("Spain"), season = currentSeason),
+    LeagueInfo(id = 207, name = "Serie A", logo = "https://apiv3.apifootball.com/badges/logo_leagues/207_serie-a.png", country = "Italy", flag = UitslagenApiService.flagUrl("Italy"), season = currentSeason),
+    LeagueInfo(id = 175, name = "Bundesliga", logo = "https://apiv3.apifootball.com/badges/logo_leagues/175_bundesliga.png", country = "Germany", flag = UitslagenApiService.flagUrl("Germany"), season = currentSeason),
+    LeagueInfo(id = 168, name = "Ligue 1", logo = "https://apiv3.apifootball.com/badges/logo_leagues/168_ligue-1.png", country = "France", flag = UitslagenApiService.flagUrl("France"), season = currentSeason),
+    LeagueInfo(id = 88, name = "Eredivisie", logo = UitslagenLeagues.logoUrlFor(88, "Eredivisie", "Netherlands"), country = "Netherlands", flag = UitslagenApiService.flagUrl("Netherlands"), season = currentSeason),
+    LeagueInfo(id = 94, name = "Liga Portugal", logo = "https://apiv3.apifootball.com/badges/logo_leagues/94_liga-portugal.png", country = "Portugal", flag = UitslagenApiService.flagUrl("Portugal"), season = currentSeason),
+    LeagueInfo(id = 144, name = "Jupiler Pro League", logo = UitslagenLeagues.logoUrlFor(144, "Jupiler Pro League", "Belgium"), country = "Belgium", flag = UitslagenApiService.flagUrl("Belgium"), season = currentSeason),
+    LeagueInfo(id = 203, name = "Saudi Professional League", logo = UitslagenLeagues.logoUrlFor(203, "Saudi Professional League", "Saudi Arabia"), country = "Saudi Arabia", flag = UitslagenApiService.flagUrl("Saudi Arabia"), season = currentSeason),
+    LeagueInfo(id = 187, name = "Super League", logo = UitslagenLeagues.logoUrlFor(187, "Super League", "Switzerland"), country = "Switzerland", flag = UitslagenApiService.flagUrl("Switzerland"), season = currentSeason),
 )
 
 /* International competitions (UCL, World Cup, ...) are not covered by the
@@ -116,28 +119,28 @@ private fun isTomorrow(timestampMs: Long): Boolean {
 
 private fun getLeagueCardColor(leagueId: Int): Color {
     return when (leagueId) {
-        28 -> Color(0xFF1A462B)
-        3 -> Color(0xFF0F204C)
-        4 -> Color(0xFF4C2A0F)
-        1 -> Color(0xFF0B2E5E)
-        9 -> Color(0xFF2A1A3A)
-        848 -> Color(0xFF143F24)
-        5 -> Color(0xFF2A1A0F)
-        6 -> Color(0xFF0F2A1A)
-        15 -> Color(0xFF1A3A1A)
-        152 -> Color(0xFF2C0F3A)
-        302 -> Color(0xFF4C1014)
-        207 -> Color(0xFF10335C)
-        175 -> Color(0xFF4C0E11)
-        168 -> Color(0xFF403C10)
-        88 -> Color(0xFF5E2A0B)
-        94 -> Color(0xFF143B1A)
-        203 -> Color(0xFF3A0F0F)
-        144 -> Color(0xFF0F2A3A)
-        187 -> Color(0xFF1A1A4C)
-        188 -> Color(0xFF2A1A0F)
-        169 -> Color(0xFF1A2A1A)
-        17 -> Color(0xFF0F204C)
+        // Line 1: Top Domestic Leagues (Sharp, rich dark shades)
+        152 -> Color(0xFF230D3A) // Premier League: Sharp Dark Purple / Violet
+        302 -> Color(0xFF380812) // LaLiga: Sharp Deep Crimson Wine
+        207 -> Color(0xFF0A2242) // Serie A: Sharp Dark Royal Navy
+        175 -> Color(0xFF3A0D0E) // Bundesliga: Sharp Dark Maroon Brick
+        168 -> Color(0xFF132238) // Ligue 1: Sharp Dark Slate Indigo
+        88 -> Color(0xFF3E1E08)  // Eredivisie: Sharp Dark Amber
+        94 -> Color(0xFF0B2C16)  // Liga Portugal: Sharp Dark Forest Green
+        144 -> Color(0xFF0A262E) // Jupiler Pro League: Sharp Dark Teal
+        203 -> Color(0xFF132B18) // Saudi Pro League: Sharp Dark Emerald
+        187 -> Color(0xFF26102E) // Super League: Sharp Dark Midnight Plum
+
+        // Line 2: Top Competitions (Sharp, distinct dark shades)
+        28 -> Color(0xFF0A1838)  // Champions League: Sharp Deep Midnight Star Blue
+        3 -> Color(0xFF341A06)   // Europa League: Sharp Deep Bronze / Amber
+        848 -> Color(0xFF082E1E) // Conference League: Sharp Deep Emerald
+        5 -> Color(0xFF121E36)   // Nations League: Sharp Deep Cobalt
+        1 -> Color(0xFF330914)   // World Cup: Sharp Deep Crimson Burgundy
+        4 -> Color(0xFF07213D)   // EURO: Sharp Deep Ocean Blue
+        9 -> Color(0xFF0B2144)   // Copa América: Sharp Deep Sapphire
+        17 -> Color(0xFF2C0A1B)  // Asian Cup: Sharp Deep Ruby / Claret
+
         else -> Color(0xFF131620)
     }
 }
@@ -193,7 +196,12 @@ private fun ShimmerBox(modifier: Modifier = Modifier, cornerRadius: androidx.com
 private fun HomeLoadingShimmer() {
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF0D0F14))) {
         Spacer(Modifier.height(10.dp))
-        AppHeader(onSearchClick = {}, onFavsClick = {}, onNotifsClick = {}, modifier = Modifier.height(60.dp).padding(horizontal = 16.dp))
+        AppHeader(
+            onSearchClick = {},
+            onFavsClick = {},
+            onNotifsClick = {},
+            modifier = Modifier.fillMaxWidth().height(60.dp).padding(horizontal = 16.dp)
+        )
         LazyColumn(modifier = Modifier.weight(1f), contentPadding = PaddingValues(bottom = 56.dp)) {
             item {
                 Spacer(Modifier.height(16.dp))
@@ -241,6 +249,12 @@ private fun EmptyMatchesState(onRetry: () -> Unit) {
     }
 }
 
+enum class HomeMatchTab(val label: String) {
+    LIVE("Live"),
+    FINISHED("Finished"),
+    UPCOMING("Upcoming")
+}
+
 @Composable
 private fun HomeContent(
     state: HomeUiState.Success,
@@ -258,17 +272,37 @@ private fun HomeContent(
     onFetchForm: (Int, Int, Int) -> Unit,
     onClubClick: (Int) -> Unit
 ) {
+    var selectedMatchTab by remember { mutableStateOf(HomeMatchTab.LIVE) }
+
     val allToday = remember(state.liveMatches, state.upcomingMatches, state.finishedMatches) {
         (state.liveMatches + state.upcomingMatches.sortedBy { it.timestamp } + state.finishedMatches).distinctBy { it.id }
     }
     val todayMatches = remember(allToday) { allToday.filter { isToday(it.timestamp * 1000L) } }
     val tomorrowMatches = remember(allToday) { allToday.filter { isTomorrow(it.timestamp * 1000L) } }
-    val todayCountByLeague = remember(todayMatches) { todayMatches.groupingBy { it.league.id }.eachCount() }
-    val groupedMatches = remember(todayMatches, favouriteLeagueId) {
-        // Group by league identity (id + name): the upstream reuses numeric
-        // league ids across DIFFERENT competitions (e.g. 1201 = four English
-        // non-league divisions), so id-only grouping merges unrelated leagues.
-        todayMatches.groupBy { "${it.league.id}|${it.league.name}" }
+
+    val liveMatchesCount = remember(todayMatches) { todayMatches.count { it.isLive } }
+    val finishedMatchesCount = remember(todayMatches) {
+        todayMatches.count { !it.isLive && (it.status.short in listOf("FT", "AET", "PEN", "AP") || it.status.long.contains("Finish", ignoreCase = true)) }
+    }
+    val upcomingMatchesCount = remember(todayMatches) {
+        todayMatches.count { !it.isLive && it.status.short !in listOf("FT", "AET", "PEN", "AP") && !it.status.long.contains("Finish", ignoreCase = true) }
+    }
+
+    val currentTabMatches = remember(todayMatches, selectedMatchTab) {
+        when (selectedMatchTab) {
+            HomeMatchTab.LIVE -> todayMatches.filter { it.isLive }
+            HomeMatchTab.FINISHED -> todayMatches.filter {
+                !it.isLive && (it.status.short in listOf("FT", "AET", "PEN", "AP") || it.status.long.contains("Finish", ignoreCase = true))
+            }
+            HomeMatchTab.UPCOMING -> todayMatches.filter {
+                !it.isLive && it.status.short !in listOf("FT", "AET", "PEN", "AP") && !it.status.long.contains("Finish", ignoreCase = true)
+            }
+        }
+    }
+
+    val groupedMatches = remember(currentTabMatches, favouriteLeagueId) {
+        // Group by league identity (id + name)
+        currentTabMatches.groupBy { "${it.league.id}|${it.league.name}" }
             .map { (_, matches) -> matches }
             .sortedWith(
                 compareByDescending<List<Match>> { group -> group.first().league.id == favouriteLeagueId }
@@ -302,8 +336,6 @@ private fun HomeContent(
             }
         }
     }
-
-    val internationalLeagues: List<LeagueInfo> = emptyList()  // superseded by topCompetitions rail
 
     val listState = rememberLazyListState()
 
@@ -368,8 +400,7 @@ private fun HomeContent(
                                 logoUrl = league.logo ?: leagueBadgeUrl(league.id, league.name),
                                 season = league.season ?: currentSeason,
                                 hasLiveMatches = state.liveMatches.any { it.league.id == league.id },
-                                onClick = { onNavigateToLeagueDetail?.invoke(league.id, league.season ?: currentSeason) ?: onNavigateToLeagues() },
-                                todayCount = todayCountByLeague[league.id] ?: 0
+                                onClick = { onNavigateToLeagueDetail?.invoke(league.id, league.season ?: currentSeason) ?: onNavigateToLeagues() }
                             )
                         }
                     }
@@ -393,79 +424,120 @@ private fun HomeContent(
                             hasLiveMatches = state.liveMatches.any { it.league.id == comp.id || it.league.name.contains(comp.name, ignoreCase = true) },
                             emojiOverride = null,
                             subtitleOverride = comp.country,
-                            onClick = { onNavigateToLeagueDetail?.invoke(comp.id, currentSeason) ?: onNavigateToLeagues() },
-                            todayCount = todayMatches.count { it.league.id == comp.id || it.league.name.contains(comp.name, ignoreCase = true) }
+                            onClick = { onNavigateToLeagueDetail?.invoke(comp.id, currentSeason) ?: onNavigateToLeagues() }
                         )
                     }
                 }
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(20.dp))
             }
 
-            if (state.liveMatches.isNotEmpty()) {
-                item(key = "live_header") {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Live Now", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                            Spacer(Modifier.width(8.dp))
-                            LivePulse()
-                        }
-                        Text(
-                            "See all",
-                            color = Color(0xFF00E676),
-                            fontSize = 12.sp,
-                            modifier = Modifier.clickable { onNavigateToFixtures() }
-                        )
-                    }
+            item(key = "schedule_header") {
+                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp)) {
+                    Text(
+                        "Match Schedule",
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                     Spacer(Modifier.height(12.dp))
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                        modifier = Modifier.fillMaxWidth()
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        itemsIndexed(state.liveMatches, key = { idx, match -> "live_${match.id}_$idx" }) { _, match ->
-                            BroadcastMatchCard(
-                                match = match,
-                                modifier = Modifier.width(300.dp),
-                                onClick = { onMatchClick(match.id.toString()) },
-                                homeForm = formMap[match.homeTeam.id] ?: "",
-                                awayForm = formMap[match.awayTeam.id] ?: ""
+                        HomeMatchTab.values().forEach { tab ->
+                            val isSelected = selectedMatchTab == tab
+                            val count = when (tab) {
+                                HomeMatchTab.LIVE -> liveMatchesCount
+                                HomeMatchTab.FINISHED -> finishedMatchesCount
+                                HomeMatchTab.UPCOMING -> upcomingMatchesCount
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(
+                                        if (isSelected) {
+                                            if (tab == HomeMatchTab.LIVE && count > 0) Color(0xFFFF4444).copy(alpha = 0.18f)
+                                            else Color(0xFF00E676).copy(alpha = 0.18f)
+                                        } else Color(0xFF131620)
+                                    )
+                                    .border(
+                                        1.dp,
+                                        if (isSelected) {
+                                            if (tab == HomeMatchTab.LIVE && count > 0) Color(0xFFFF4444)
+                                            else Color(0xFF00E676)
+                                        } else Color(0xFF1A1E2A),
+                                        RoundedCornerShape(20.dp)
+                                    )
+                                    .clickable { selectedMatchTab = tab }
+                                    .padding(horizontal = 14.dp, vertical = 7.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    if (tab == HomeMatchTab.LIVE && count > 0) {
+                                        LivePulse(color = Color(0xFFFF4444), dotSize = 6.dp)
+                                        Spacer(Modifier.width(6.dp))
+                                    }
+                                    Text(
+                                        text = tab.label,
+                                        color = if (isSelected) {
+                                            if (tab == HomeMatchTab.LIVE && count > 0) Color(0xFFFF4444)
+                                            else Color(0xFF00E676)
+                                        } else Color(0xFF8B949E),
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                                    )
+                                    if (count > 0) {
+                                        Spacer(Modifier.width(5.dp))
+                                        Text(
+                                            text = "($count)",
+                                            color = if (isSelected) {
+                                                if (tab == HomeMatchTab.LIVE && count > 0) Color(0xFFFF4444)
+                                                else Color(0xFF00E676)
+                                            } else Color(0xFF555555),
+                                            fontSize = 11.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(10.dp))
+                }
+            }
+
+            if (groupedMatches.isEmpty()) {
+                item(key = "tab_empty_${selectedMatchTab.name}") {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 36.dp, horizontal = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = when (selectedMatchTab) {
+                                    HomeMatchTab.LIVE -> "No matches currently live"
+                                    HomeMatchTab.FINISHED -> "No finished matches today"
+                                    HomeMatchTab.UPCOMING -> "No upcoming matches scheduled today"
+                                },
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White.copy(alpha = 0.6f),
+                                textAlign = TextAlign.Center
+                            )
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = when (selectedMatchTab) {
+                                    HomeMatchTab.LIVE -> "Select Finished or Upcoming to view fixtures"
+                                    else -> "Check other tabs for match updates"
+                                },
+                                fontSize = 11.sp,
+                                color = Color.White.copy(alpha = 0.4f),
+                                textAlign = TextAlign.Center
                             )
                         }
                     }
-                    Spacer(Modifier.height(24.dp))
                 }
-            }
-
-            item(key = "my_teams") {
-                MyTeamsStrip(onEditFavorites = onFavourites, onClubClick = onClubClick)
-                Text(
-                    "Match Schedule",
-                    color = Color.White,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-                Spacer(Modifier.height(10.dp))
-            }
-
-            if (todayMatches.isEmpty() && tomorrowMatches.isEmpty()) {
-                item(key = "empty") { EmptyMatchesState(onRetry = onRetry) }
             } else {
-                if (todayMatches.isNotEmpty()) {
-                    item(key = "today_header") {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Today", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
                 groupedMatches.forEachIndexed { groupIdx, group ->
                     val league = group.first().league
                     // Key by league ID + first match ID + index: guaranteed unique
@@ -507,25 +579,26 @@ private fun HomeContent(
                         }
                     }
                 }
-                if (tomorrowMatches.isNotEmpty()) {
-                    item(key = "tomorrow_header") {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("Tomorrow", color = Color(0xFF00E676), fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                        }
+            }
+
+            if (selectedMatchTab == HomeMatchTab.UPCOMING && tomorrowMatches.isNotEmpty()) {
+                item(key = "tomorrow_header") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Tomorrow", color = Color(0xFF00E676), fontSize = 13.sp, fontWeight = FontWeight.Bold)
                     }
-                    tomorrowMatches.forEachIndexed { idx, match ->
-                        item(key = "tomorrow_match_${match.id}_$idx") {
-                            MatchRow(
-                                match = match,
-                                homeForm = formMap[match.homeTeam.id] ?: "",
-                                awayForm = formMap[match.awayTeam.id] ?: "",
-                                onMatchClick = onMatchClick
-                            )
-                        }
+                }
+                tomorrowMatches.forEachIndexed { idx, match ->
+                    item(key = "tomorrow_match_${match.id}_$idx") {
+                        MatchRow(
+                            match = match,
+                            homeForm = formMap[match.homeTeam.id] ?: "",
+                            awayForm = formMap[match.awayTeam.id] ?: "",
+                            onMatchClick = onMatchClick
+                        )
                     }
                 }
             }
@@ -551,7 +624,7 @@ private fun AppHeader(
     modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = modifier,
+        modifier = modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -578,9 +651,7 @@ private fun CompetitionCard(
     /** Emoji mark shown when no logo url exists (competitions). */
     emojiOverride: String? = null,
     /** Replaces the season line when set (e.g. competition region). */
-    subtitleOverride: String? = null,
-    /** Today's fixture count shown as a small badge on the card. */
-    todayCount: Int = 0
+    subtitleOverride: String? = null
 ) {
     Card(
         modifier = Modifier.width(130.dp).height(88.dp).clickable(
@@ -631,21 +702,11 @@ private fun CompetitionCard(
             }
             Column {
                 Text(leagueName, color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        subtitleOverride ?: "$season/${(season + 1) % 100}",
-                        color = Color.White.copy(alpha = 0.5f),
-                        fontSize = 9.sp
-                    )
-                    if (todayCount > 0) {
-                        Spacer(Modifier.width(6.dp))
-                        Box(
-                            modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(Color(0xFF00E676).copy(alpha = 0.18f)).padding(horizontal = 5.dp, vertical = 1.dp)
-                        ) {
-                            Text("$todayCount", color = Color(0xFF00E676), fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
+                Text(
+                    subtitleOverride ?: "$season/${(season + 1) % 100}",
+                    color = Color.White.copy(alpha = 0.5f),
+                    fontSize = 9.sp
+                )
             }
         }
     }
@@ -683,8 +744,31 @@ private fun LeagueGroupHeader(
             error = painterResource(R.drawable.ic_league_placeholder)
         )
         Spacer(Modifier.width(8.dp))
+        val canonicalCountry = remember(league.id, league.name, league.country) {
+            com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.countryFor(league.id, league.name, league.country)
+        }
+        val flagUrl = remember(canonicalCountry) {
+            com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.flagUrl(canonicalCountry)
+        }
+        if (!flagUrl.isNullOrBlank()) {
+            AsyncImage(
+                model = flagUrl,
+                contentDescription = canonicalCountry,
+                modifier = Modifier
+                    .padding(end = 6.dp)
+                    .size(width = 14.dp, height = 10.dp)
+                    .clip(RoundedCornerShape(2.dp)),
+                contentScale = ContentScale.Crop,
+                placeholder = painterResource(R.drawable.ic_placeholder),
+                error = painterResource(R.drawable.ic_placeholder)
+            )
+        }
         Text(
-            league.name,
+            if (canonicalCountry.isNotBlank() && canonicalCountry != "World" && canonicalCountry != "Europe") {
+                "$canonicalCountry · ${league.name}"
+            } else {
+                league.name
+            },
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
             color = Color.White,

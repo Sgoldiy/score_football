@@ -6,9 +6,7 @@ import com.footballpluse.footballapp.data.model.ApiLeague
 import com.footballpluse.footballapp.data.model.ApiLineupResponse
 import com.footballpluse.footballapp.data.model.ApiMatchStatistic
 import com.footballpluse.footballapp.data.model.ApiMatchStatisticsResponse
-import com.footballpluse.footballapp.data.model.ApiOdd
 import com.footballpluse.footballapp.data.model.ApiPlayer
-import com.footballpluse.footballapp.data.model.ApiPrediction
 import com.footballpluse.footballapp.data.model.ApiStanding
 import com.footballpluse.footballapp.data.model.ApiTeam
 import com.footballpluse.footballapp.data.model.ApiTopScorer
@@ -381,10 +379,6 @@ class UitslagenAdapter @Inject constructor(
         val block = cached("block|$key", BLOCK_TTL_MS) { api.fixturesV2Small(key) }
         UitslagenMapper.topScorers(block)
     } catch (_: Exception) { emptyList() }
-
-    override suspend fun getOdds(from: String?, to: String?, matchId: String?): List<ApiOdd> = emptyList()
-
-    override suspend fun getPredictions(matchId: String): List<ApiPrediction> = emptyList()
 
     // ─── Feed helpers ─────────────────────────────────────────────────────────
 

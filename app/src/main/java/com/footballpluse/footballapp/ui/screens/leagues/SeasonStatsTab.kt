@@ -27,7 +27,7 @@ import androidx.compose.ui.unit.sp
 fun SeasonStatsTab(seasonStats: SeasonStatsUiModel?) {
     if (seasonStats == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator(color = Color(0xFF4ADE80))
+            CircularProgressIndicator(color = Color(0xFF00E676))
         }
         return
     }
@@ -96,8 +96,8 @@ fun SeasonAtAGlanceRow(stats: SeasonStatsUiModel) {
 private fun GlanceCard(label: String, value: String) {
     Card(
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF161616)),
-        border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFF242424))
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF131620)),
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFF1A1E2A))
     ) {
         Column(
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
@@ -107,7 +107,7 @@ private fun GlanceCard(label: String, value: String) {
                 text = value,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF4ADE80)
+                color = Color(0xFF00E676)
             )
             Text(
                 text = label,
@@ -125,8 +125,8 @@ fun GoalsByMinuteChart(bands: List<GoalBand>) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF161616)),
-        border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFF242424))
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF131620)),
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFF1A1E2A))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
@@ -163,7 +163,7 @@ fun GoalsByMinuteChart(bands: List<GoalBand>) {
                     val y = size.height - 20f - barHeight
 
                     val isMax = band.count == maxCount && maxCount > 0
-                    val barColor = if (isMax) Color(0xFF4ADE80) else Color(0xFF4ADE80).copy(alpha = 0.5f)
+                    val barColor = if (isMax) Color(0xFF00E676) else Color(0xFF00E676).copy(alpha = 0.5f)
 
                     drawRect(
                         color = barColor,
@@ -207,8 +207,8 @@ fun TopTeamsRow(bestAttack: Pair<String, Int>, bestDefense: Pair<String, Int>) {
         Card(
             modifier = Modifier.weight(1f),
             shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF161616)),
-            border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFF242424))
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF131620)),
+            border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFF1A1E2A))
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
                 Text(
@@ -229,15 +229,15 @@ fun TopTeamsRow(bestAttack: Pair<String, Int>, bestDefense: Pair<String, Int>) {
                     text = "${bestAttack.second} goals scored",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF4ADE80)
+                    color = Color(0xFF00E676)
                 )
             }
         }
         Card(
             modifier = Modifier.weight(1f),
             shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF161616)),
-            border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFF242424))
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF131620)),
+            border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFF1A1E2A))
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
                 Text(
@@ -258,7 +258,7 @@ fun TopTeamsRow(bestAttack: Pair<String, Int>, bestDefense: Pair<String, Int>) {
                     text = "${bestDefense.second} goals conceded",
                     fontSize = 22.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color(0xFF4ADE80)
+                    color = Color(0xFF00E676)
                 )
             }
         }
@@ -270,12 +270,12 @@ fun HomeAwayBreakdown(homePct: Float, awayPct: Float, drawPct: Float) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF161616)),
-        border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFF242424))
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF131620)),
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFF1A1E2A))
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            BreakdownRow(label = "Home Wins", pct = homePct, color = Color(0xFF4ADE80))
-            BreakdownRow(label = "Away Wins", pct = awayPct, color = Color(0xFF4ADE80).copy(alpha = 0.6f))
+            BreakdownRow(label = "Home Wins", pct = homePct, color = Color(0xFF00E676))
+            BreakdownRow(label = "Away Wins", pct = awayPct, color = Color(0xFF00E676).copy(alpha = 0.6f))
             BreakdownRow(label = "Draws", pct = drawPct, color = Color(0xFF555555))
         }
     }
@@ -321,8 +321,8 @@ fun FormTable(formTable: FormTableData) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF161616)),
-        border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFF242424))
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF131620)),
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFF1A1E2A))
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(
@@ -335,7 +335,7 @@ fun FormTable(formTable: FormTableData) {
                 FormTableRow(row, isHot = true)
             }
 
-            HorizontalDivider(color = Color(0xFF1E1E1E), thickness = 1.dp)
+            HorizontalDivider(color = Color(0xFF1A1E2A), thickness = 0.5.dp)
             Spacer(Modifier.height(4.dp))
 
             Text(
@@ -372,7 +372,7 @@ private fun FormTableRow(row: FormTeamRow, isHot: Boolean) {
             val results = row.form.takeLast(5).padStart(5, 'U')
             results.forEach { result ->
                 val color = when (result) {
-                    'W' -> Color(0xFF4ADE80)
+                    'W' -> Color(0xFF00E676)
                     'D' -> Color(0xFF555555)
                     'L' -> Color(0xFFEF4444)
                     else -> Color(0xFF1E1E1E)
@@ -391,7 +391,7 @@ private fun FormTableRow(row: FormTeamRow, isHot: Boolean) {
             modifier = Modifier.width(44.dp),
             fontSize = 12.sp,
             fontWeight = FontWeight.Medium,
-            color = if (isHot) Color(0xFF4ADE80) else Color(0xFFEF4444),
+            color = if (isHot) Color(0xFF00E676) else Color(0xFFEF4444),
             textAlign = TextAlign.End
         )
     }

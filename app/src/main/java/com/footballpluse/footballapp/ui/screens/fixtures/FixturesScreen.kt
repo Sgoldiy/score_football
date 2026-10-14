@@ -81,7 +81,7 @@ fun FixturesScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(DeepNavy)
+            .background(DarkBackground)
     ) {
         // Date Rail
         DateRail(
@@ -424,8 +424,31 @@ fun FixturesList(
                                     error = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_league_placeholder)
                                 )
                                 Spacer(Modifier.width(8.dp))
+                                val canonicalCountry = remember(league.id, league.name, league.country) {
+                                    com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.countryFor(league.id, league.name, league.country)
+                                }
+                                val flagUrl = remember(canonicalCountry) {
+                                    com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.flagUrl(canonicalCountry)
+                                }
+                                if (!flagUrl.isNullOrBlank()) {
+                                    AsyncImage(
+                                        model = flagUrl,
+                                        contentDescription = canonicalCountry,
+                                        modifier = Modifier
+                                            .padding(end = 6.dp)
+                                            .size(width = 14.dp, height = 10.dp)
+                                            .clip(RoundedCornerShape(2.dp)),
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                                        placeholder = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_placeholder),
+                                        error = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_placeholder)
+                                    )
+                                }
                                 Text(
-                                    text = league.name,
+                                    text = if (canonicalCountry.isNotBlank() && canonicalCountry != "World" && canonicalCountry != "Europe") {
+                                        "$canonicalCountry · ${league.name}"
+                                    } else {
+                                        league.name
+                                    },
                                     fontWeight = FontWeight.Bold,
                                     color = Color.White,
                                     fontSize = 13.sp,
@@ -546,7 +569,7 @@ fun ErrorView(message: String, onRetry: () -> Unit) {
     ) {
         Text(message, color = DangerRed, textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(16.dp))
-        Button(onClick = onRetry, colors = ButtonDefaults.buttonColors(containerColor = GlassGlowGreen, contentColor = DeepNavy)) {
+        Button(onClick = onRetry, colors = ButtonDefaults.buttonColors(containerColor = DarkAccentGreen, contentColor = DarkBackground), shape = RoundedCornerShape(10.dp)) {
             Text("Retry", fontWeight = FontWeight.Bold)
         }
     }

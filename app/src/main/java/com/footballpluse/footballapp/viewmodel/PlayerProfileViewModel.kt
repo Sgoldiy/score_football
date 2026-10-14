@@ -45,34 +45,15 @@ class PlayerProfileViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.value = PlayerProfileUiState.Loading
             try {
-                val statsDef = async { repository.getPlayerStats(playerId, 2025) }
-                val trophiesDef = async { repository.getTrophies(playerId) }
-                val sidelinedDef = async { repository.getSidelined(playerId) }
-
-                val statsResult = statsDef.await()
-                val trophiesResult = trophiesDef.await()
-                val sidelinedResult = sidelinedDef.await()
-
+                val statsResult = repository.getPlayerStats(playerId, 2025)
                 val stats = (statsResult as? ApiResult.Success)?.data.orEmpty()
-                val trophies = (trophiesResult as? ApiResult.Success)?.data.orEmpty()
-                val sidelined = (sidelinedResult as? ApiResult.Success)?.data.orEmpty()
 
                 if (stats.isNotEmpty()) {
                     _uiState.value = PlayerProfileUiState.Success(
                         player = stats.first(),
                         profileData = PlayerProfileData(
-                            trophies = trophies,
-                            injuries = sidelined.mapNotNull { sidelined ->
-                                val player = stats.first().player
-                                if (player != null) {
-                                    Injury(
-                                        player = player,
-                                        team = null,
-                                        fixture = null,
-                                        league = null
-                                    )
-                                } else null
-                            }
+                            trophies = emptyList(),
+                            injuries = emptyList()
                         )
                     )
                 } else {

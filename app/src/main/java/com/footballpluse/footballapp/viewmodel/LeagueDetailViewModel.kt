@@ -19,6 +19,8 @@ import javax.inject.Inject
 
 data class LeagueDetailUiState(
     val leagueInfo: LeagueInfo? = null,
+    val selectedSeason: Int = 2025,
+    val availableSeasons: List<Int> = listOf(2025, 2024, 2023, 2022),
     val standings: ApiResult<List<StandingRowUiModel>> = ApiResult.Loading,
     val fixtures: ApiResult<List<FixtureUiModel>> = ApiResult.Loading,
     val topScorers: ApiResult<List<PlayerStatUiModel>> = ApiResult.Loading,
@@ -29,7 +31,9 @@ data class LeagueDetailUiState(
     val seasonStats: SeasonStatsUiModel? = null,
     val h2hData: ApiResult<H2HUiModel> = ApiResult.Loading,
     val selectedTeamA: TeamUiModel? = null,
-    val selectedTeamB: TeamUiModel? = null
+    val selectedTeamB: TeamUiModel? = null,
+    val isLiveTableMode: Boolean = false,
+    val hasInPlayMatches: Boolean = false
 )
 
 @HiltViewModel
@@ -43,12 +47,97 @@ class LeagueDetailViewModel @Inject constructor(
 
     private var leagueId: Int = 0
     private var season: Int = 2025
+    private var baseStandingsList: List<StandingRowUiModel> = emptyList()
 
+    fun toggleLiveTableMode(enabled: Boolean) {
+        _state.update { it.copy(isLiveTableMode = enabled) }
+        applyLiveStandingsIfActive()
+    }
+
+    private fun applyLiveStandingsIfActive() {
+        val isLiveMode = _state.value.isLiveTableMode
+        if (!isLiveMode || baseStandingsList.isEmpty()) {
+            // Restore regular standings with 0 rank changes
+            val restored = baseStandingsList.map { it.copy(liveRankChange = 0, isLive = false) }
+            _state.update { it.copy(standings = ApiResult.Success(restored)) }
+            return
+        }
+
+        val fixturesResult = _state.value.fixtures
+        val fixturesList = if (fixturesResult is ApiResult.Success) fixturesResult.data else emptyList()
+
+        // Find matches in play or with active scores
+        val activeFixtures = fixturesList.filter { it.status == MatchStatusUi.LIVE }
+        val liveTeamIds = activeFixtures.flatMap { listOf(it.homeTeam.id, it.awayTeam.id) }.toSet()
+
+        // Clone base table and calculate in-play modifications
+        val adjustedMap = baseStandingsList.associateBy { it.team.id }.toMutableMap()
+
+        activeFixtures.forEach { f ->
+            val hScore = f.homeScore ?: 0
+            val aScore = f.awayScore ?: 0
+            val hTeam = adjustedMap[f.homeTeam.id]
+            val aTeam = adjustedMap[f.awayTeam.id]
+
+            if (hTeam != null && aTeam != null) {
+                val (hPts, aPts) = when {
+                    hScore > aScore -> Pair(3, 0)
+                    hScore < aScore -> Pair(0, 3)
+                    else -> Pair(1, 1)
+                }
+
+                adjustedMap[f.homeTeam.id] = hTeam.copy(
+                    played = hTeam.played + 1,
+                    points = hTeam.points + hPts,
+                    goalsFor = hTeam.goalsFor + hScore,
+                    goalsAgainst = hTeam.goalsAgainst + aScore,
+                    goalsDiff = hTeam.goalsDiff + (hScore - aScore),
+                    isLive = true
+                )
+
+                adjustedMap[f.awayTeam.id] = aTeam.copy(
+                    played = aTeam.played + 1,
+                    points = aTeam.points + aPts,
+                    goalsFor = aTeam.goalsFor + aScore,
+                    goalsAgainst = aTeam.goalsAgainst + hScore,
+                    goalsDiff = aTeam.goalsDiff + (aScore - hScore),
+                    isLive = true
+                )
+            }
+        }
+
+        // Re-sort table: descending points, then GD, then GF
+        val reordered = adjustedMap.values.sortedWith(
+            compareByDescending<StandingRowUiModel> { it.points }
+                .thenByDescending { it.goalsDiff }
+                .thenByDescending { it.goalsFor }
+        )
+
+        // Compute rank changes compared to original base rank
+        val liveStandingsWithDeltas = reordered.mapIndexed { index, item ->
+            val newRank = index + 1
+            val delta = item.rank - newRank // positive if climbed (e.g. was 3, now 1 -> +2)
+            item.copy(
+                rank = newRank,
+                liveRankChange = delta,
+                isLive = liveTeamIds.contains(item.team.id)
+            )
+        }
+
+        _state.update { it.copy(standings = ApiResult.Success(liveStandingsWithDeltas), hasInPlayMatches = liveTeamIds.isNotEmpty()) }
+    }
+
+    fun changeSeason(newSeason: Int) {
+        if (newSeason == season) return
+        load(leagueId, newSeason)
+    }
 
     fun load(leagueId: Int, season: Int) {
         this.leagueId = leagueId
         this.season = season
-        _state.update { LeagueDetailUiState() }
+        val currentYear = com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()
+        val seasons = listOf(currentYear, currentYear - 1, currentYear - 2, currentYear - 3)
+        _state.update { LeagueDetailUiState(selectedSeason = season, availableSeasons = seasons) }
 
         viewModelScope.launch {
             val leaguesResult = repository.getLeagues()
@@ -191,7 +280,9 @@ class LeagueDetailViewModel @Inject constructor(
                 val record = rawRecords.find { it.team?.id == item.team.id }
                 item.toUiModel(record)
             }
+            baseStandingsList = uiModels
             _state.update { it.copy(standings = ApiResult.Success(uiModels)) }
+            applyLiveStandingsIfActive()
             computeSeasonStats(ApiResult.Success(uiModels), _state.value.fixtures)
         } catch (e: Exception) {
             _state.update { it.copy(standings = ApiResult.Error(e.message ?: "Failed to load standings")) }
@@ -242,6 +333,7 @@ class LeagueDetailViewModel @Inject constructor(
                 .toFixtureResponseList().map { it.toFixtureUiModel() }
 
             _state.update { it.copy(fixtures = ApiResult.Success(uiModels)) }
+            applyLiveStandingsIfActive()
             computeSeasonStats(_state.value.standings, ApiResult.Success(uiModels))
         } catch (e: Exception) {
             // Fallback: try repository
@@ -345,7 +437,8 @@ class LeagueDetailViewModel @Inject constructor(
                     statValue = valTotal,
                     secondaryStatLabel = if (stats?.games?.appearances ?: 0 > 0)
                         String.format("%.1f per game", valTotal.toFloat() / (stats?.games?.appearances ?: 1)) else "",
-                    progressFraction = if (maxVal > 0) valTotal.toFloat() / maxVal else 0f
+                    progressFraction = if (maxVal > 0) valTotal.toFloat() / maxVal else 0f,
+                    playerId = entry.player?.id
                 )
             }
             _state.update { it.copy(topScorers = ApiResult.Success(models)) }
@@ -355,7 +448,36 @@ class LeagueDetailViewModel @Inject constructor(
     }
 
     private suspend fun loadTopAssists(leagueId: Int, season: Int) {
-        _state.update { it.copy(topAssists = ApiResult.Error("Not available in current API version")) }
+        try {
+            val rawScorers = apiService.getTopScorers(leagueId.toString())
+            val response = rawScorers
+                .map { it.toPlayerProfileStatisticsResponse() }
+                .filter { (it.statistics?.firstOrNull()?.goals?.assists ?: 0) > 0 }
+                .sortedByDescending { it.statistics?.firstOrNull()?.goals?.assists ?: 0 }
+            if (response.isEmpty()) {
+                _state.update { it.copy(topAssists = ApiResult.Success(emptyList())) }
+                return
+            }
+            val maxVal = response.maxOfOrNull { it.statistics?.firstOrNull()?.goals?.assists ?: 0 } ?: 1
+            val models = response.mapIndexed { idx, entry ->
+                val stats = entry.statistics?.firstOrNull()
+                val valTotal = stats?.goals?.assists ?: 0
+                PlayerStatUiModel(
+                    rank = idx + 1,
+                    playerName = entry.player?.name ?: "Player",
+                    clubName = stats?.team?.name ?: "",
+                    avatarUrl = entry.player?.photo,
+                    statValue = valTotal,
+                    secondaryStatLabel = if (stats?.games?.appearances ?: 0 > 0)
+                        String.format("%.1f per game", valTotal.toFloat() / (stats?.games?.appearances ?: 1)) else "",
+                    progressFraction = if (maxVal > 0) valTotal.toFloat() / maxVal else 0f,
+                    playerId = entry.player?.id
+                )
+            }
+            _state.update { it.copy(topAssists = ApiResult.Success(models)) }
+        } catch (e: Exception) {
+            _state.update { it.copy(topAssists = ApiResult.Error(e.message ?: "Failed")) }
+        }
     }
 
     private suspend fun loadTopYellowCards(leagueId: Int, season: Int) {

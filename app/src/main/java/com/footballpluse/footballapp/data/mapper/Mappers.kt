@@ -261,7 +261,7 @@ internal fun ApiTeamLineup.toFixtureLineup(teamId: Int, teamName: String?, badge
     val mappedStartXI = startXI.map { it.toLineupPlayerWrapper(perRow) }
     return FixtureLineup(
         team = FixtureTeam(id = teamId, name = teamName, logo = badge, winner = null, update = null, colors = null),
-        coach = coaches?.firstOrNull()?.let { LineupCoach(id = it.player_key?.toIntOrNull(), name = it.player, photo = null) },
+        coach = coaches?.firstOrNull()?.let { LineupCoach(id = it.player_key?.toIntOrNull(), name = it.player, photo = com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.coachImageUrl(it.player_key)) },
         formation = formation,
         startXI = mappedStartXI,
         substitutes = substitutes?.map { it.toLineupPlayerWrapper(null) } ?: emptyList()
@@ -277,13 +277,15 @@ private fun ApiLineupPlayer.toLineupPlayerWrapper(rowCounter: IntArray?): Lineup
         rowCounter[row]
     } else 1
     val grid = if (rowCounter != null) "$row:$col" else null
+    val pId = player_key?.toIntOrNull() ?: 0
     return LineupPlayerWrapper(
         player = LineupPlayer(
-            id = player_key?.toIntOrNull() ?: 0,
+            id = pId,
             name = player ?: "",
             number = num ?: 0,
             pos = player_pos ?: "",
-            grid = grid
+            grid = grid,
+            photo = player_image ?: if (pId > 0) com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.playerImageUrl(pId.toString()) else null
         )
     )
 }
@@ -404,13 +406,14 @@ fun ApiPlayer.toPlayerProfileStatisticsResponse(): PlayerProfileStatisticsRespon
             birth = player_birthdate?.let { PlayerBirth(date = it, place = null, country = player_country) },
             nationality = player_country, height = null, weight = null,
             injured = player_injured?.equals("Yes", ignoreCase = true) ?: (player_injured == "1"),
-            photo = player_image, type = player_type, reason = null
+            photo = player_image?.takeIf { it.isNotBlank() } ?: (player_key ?: player_id?.toLongOrNull())?.let { com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.playerImageUrl(it.toString()) },
+            type = player_type, reason = null
         ),
         statistics = listOf(
             PlayerStatistics(
                 player = null,
                 // get_players embeds team_name/team_key on the player object
-                team = Team(id = team_key.toIntOr(0), name = team_name, code = null, country = null, founded = null, national = null, logo = null),
+                team = Team(id = team_key.toIntOr(0), name = team_name, code = null, country = null, founded = null, national = null, logo = com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.teamLogoUrl(team_key)),
                 league = null,
                 games = PlayerGames(
                     appearances = player_match_played?.toIntOrNull(),
@@ -443,7 +446,9 @@ fun ApiTopScorer.toPlayerProfileStatisticsResponse(): PlayerProfileStatisticsRes
         player = Player(
             id = (player_id ?: 0).toInt(), name = player_name, firstname = null, lastname = null,
             age = null, birth = null, nationality = null, height = null, weight = null,
-            injured = null, photo = player_image, type = null, reason = null
+            injured = null,
+            photo = player_image ?: player_id?.let { com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.playerImageUrl(it.toString()) },
+            type = null, reason = null
         ),
         statistics = listOf(
             PlayerStatistics(
@@ -495,13 +500,14 @@ fun normalizeSquadPosition(raw: String?): String = when (raw?.trim()?.uppercase(
 }
 
 fun List<ApiPlayer>.toSquadPlayers(): List<SquadPlayer> = map {
+    val pId = it.player_key?.toString() ?: it.player_id
     SquadPlayer(
         id = it.player_key?.toInt(),
         name = it.player_name,
         age = it.player_age?.toIntOrNull(),
         number = it.player_number?.toIntOrNull(),
         position = normalizeSquadPosition(it.player_type),
-        photo = it.player_image
+        photo = it.player_image?.takeIf { it.isNotBlank() } ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.playerImageUrl(pId)
     )
 }
 
@@ -509,7 +515,7 @@ fun ApiMatchPlayerStatistic.toPlayerPerformance(): PlayerPerformance {
     return PlayerPerformance(
         id = player_key.toIntOr(0),
         name = player_name ?: "",
-        photo = null, // Not available in match stats
+        photo = player_image?.takeIf { it.isNotBlank() } ?: player_key?.takeIf { it.isNotBlank() }?.let { com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.playerImageUrl(it) },
         rating = player_rating,
         position = player_position ?: "",
         goals = player_goals.toIntOr(0),
@@ -584,7 +590,7 @@ fun List<ApiCoach>.toCoaches(): List<Coach> = map {
         nationality = it.coach_country,
         height = null,
         weight = null,
-        photo = null,
+        photo = it.coach_image ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.coachImageUrl(it.coach_name?.hashCode()?.toString()),
         team = null,
         career = null
     )
@@ -703,12 +709,14 @@ fun FixtureLineup.toTeamLineup(): TeamLineup {
 }
 
 fun LineupPlayerWrapper.toLineupPlayer(): DomainLineupPlayer {
+    val pId = player?.id ?: 0
     return DomainLineupPlayer(
-        id = player?.id ?: 0,
+        id = pId,
         name = player?.name ?: "",
         number = player?.number ?: 0,
         position = player?.pos ?: "",
-        grid = player?.grid
+        grid = player?.grid,
+        photo = player?.photo ?: if (pId > 0) com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.playerImageUrl(pId.toString()) else null
     )
 }
 

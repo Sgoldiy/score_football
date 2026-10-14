@@ -13,6 +13,7 @@ import androidx.compose.material.icons.rounded.CalendarToday
 import androidx.compose.material.icons.rounded.EmojiEvents
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -44,53 +45,68 @@ fun BottomNavigationBar(
         BottomNavItem(Screen.Favourites.route, Icons.Outlined.StarBorder, "Favorites")
     )
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(56.dp)
-            .background(Color(0xFF131620))
-            .border(width = 1.dp, color = Color(0xFF1A1E2A))
-            .padding(horizontal = 4.dp),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-        verticalAlignment = Alignment.CenterVertically
+    Surface(
+        color = Color(0xFF131620),
+        modifier = Modifier.fillMaxWidth()
     ) {
-        items.forEach { item ->
-            val isSelected = currentRoute == item.route
-
-            Column(
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+        ) {
+            Box(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .clickable(
-                        onClick = { onItemClick(item) }
-                    )
-                    .padding(vertical = 4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(Color(0xFF1A1E2A))
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .padding(horizontal = 4.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = if (item.route == Screen.Favourites.route && isSelected) Icons.Filled.Star else item.icon,
-                    contentDescription = item.label,
-                    tint = if (isSelected) Color(0xFF00E676) else Color(0xFF8B949E),
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = item.label,
-                    color = if (isSelected) Color(0xFF00E676) else Color(0xFF8B949E),
-                    fontSize = 9.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                if (isSelected) {
-                    Box(
+                items.forEach { item ->
+                    val isSelected = currentRoute == item.route
+
+                    Column(
                         modifier = Modifier
-                            .size(3.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF00E676))
-                    )
-                } else {
-                    Box(modifier = Modifier.size(3.dp)) // Empty space to preserve height alignment
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clickable(
+                                onClick = { onItemClick(item) }
+                            )
+                            .padding(vertical = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = if (item.route == Screen.Favourites.route && isSelected) Icons.Filled.Star else item.icon,
+                            contentDescription = item.label,
+                            tint = if (isSelected) Color(0xFF00E676) else Color(0xFF8B949E),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = item.label,
+                            color = if (isSelected) Color(0xFF00E676) else Color(0xFF8B949E),
+                            fontSize = 9.sp,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        if (isSelected) {
+                            Box(
+                                modifier = Modifier
+                                    .size(3.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF00E676))
+                            )
+                        } else {
+                            Box(modifier = Modifier.size(3.dp))
+                        }
+                    }
                 }
             }
         }

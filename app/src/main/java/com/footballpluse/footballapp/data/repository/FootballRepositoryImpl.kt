@@ -216,6 +216,128 @@ class FootballRepositoryImpl @Inject constructor(
                 )
             } else emptyList()
 
+            // Synthesize real-time match commentary & timeline narrative
+            val homeName = response.teams?.home?.name ?: "Home"
+            val awayName = response.teams?.away?.name ?: "Away"
+            val commentaryItems = mutableListOf<MatchCommentaryItem>()
+
+            // Opening kickoff milestone
+            commentaryItems.add(
+                MatchCommentaryItem(
+                    minute = 1,
+                    eventType = "info",
+                    title = "Match Kickoff",
+                    comment = "The referee blows the whistle and the match between $homeName and $awayName gets underway!"
+                )
+            )
+
+            // Convert timeline events to narrative commentary
+            detailedEvents.forEach { ev ->
+                val min = ev.time?.elapsed ?: 0
+                val extraMin = ev.time?.extra
+                val isHome = ev.team?.id == homeId
+                val teamName = if (isHome) homeName else awayName
+                val pName = ev.player?.name ?: "Player"
+                val aName = ev.assist?.name
+
+                when (ev.type?.lowercase()) {
+                    "goal" -> {
+                        val isOg = ev.detail?.contains("own", ignoreCase = true) == true
+                        val isPen = ev.detail?.contains("pen", ignoreCase = true) == true
+                        val title = when {
+                            isOg -> "⚽ OWN GOAL! ($teamName)"
+                            isPen -> "⚽ GOAL! PENALTY ($teamName)"
+                            else -> "⚽ GOAL! ($teamName)"
+                        }
+                        val desc = when {
+                            isOg -> "Unfortunate moment for $pName, who inadvertently turns the ball into the back of their own net."
+                            isPen -> "$pName coolly steps up and dispatches the penalty kick past the keeper."
+                            !aName.isNullOrBlank() -> "$pName strikes cleanly from inside the box into the net after a great assist from $aName!"
+                            else -> "$pName finds space and fires into the back of the net to put $teamName on the scoresheet!"
+                        }
+                        commentaryItems.add(
+                            MatchCommentaryItem(
+                                minute = min,
+                                extraMinute = extraMin,
+                                isKeyMoment = true,
+                                eventType = "goal",
+                                title = title,
+                                comment = desc
+                            )
+                        )
+                    }
+                    "card" -> {
+                        val isRed = ev.detail?.contains("red", ignoreCase = true) == true
+                        val title = if (isRed) "🟥 RED CARD! ($teamName)" else "🟨 Yellow Card ($teamName)"
+                        val desc = if (isRed) {
+                            "$pName is shown a straight red card for a serious foul play! $teamName will play with 10 men."
+                        } else {
+                            "$pName enters the referee's notebook following a tactical foul to halt the counter-attack."
+                        }
+                        commentaryItems.add(
+                            MatchCommentaryItem(
+                                minute = min,
+                                extraMinute = extraMin,
+                                isKeyMoment = isRed,
+                                eventType = "card",
+                                title = title,
+                                comment = desc
+                            )
+                        )
+                    }
+                    "subst" -> {
+                        val title = "🔄 Substitution ($teamName)"
+                        val outP = ev.player?.name ?: "Player"
+                        val inP = ev.assist?.name ?: "Player"
+                        val desc = "Tactical change for $teamName: $inP enters the pitch, replacing $outP."
+                        commentaryItems.add(
+                            MatchCommentaryItem(
+                                minute = min,
+                                extraMinute = extraMin,
+                                isKeyMoment = false,
+                                eventType = "subst",
+                                title = title,
+                                comment = desc
+                            )
+                        )
+                    }
+                }
+            }
+
+            // Half-time milestone
+            if (response.fixture?.status?.short in listOf("HT", "2H", "FT", "AET", "PEN")) {
+                val hScore = response.score?.halftime?.home ?: response.goals?.home ?: 0
+                val aScore = response.score?.halftime?.away ?: response.goals?.away ?: 0
+                commentaryItems.add(
+                    MatchCommentaryItem(
+                        minute = 45,
+                        eventType = "info",
+                        title = "Half Time",
+                        comment = "The referee brings the first half to a close. Halftime score: $homeName $hScore - $aScore $awayName."
+                    )
+                )
+            }
+
+            // Full-time milestone
+            if (response.fixture?.status?.short in listOf("FT", "AET", "PEN")) {
+                val finalH = response.goals?.home ?: 0
+                val finalA = response.goals?.away ?: 0
+                commentaryItems.add(
+                    MatchCommentaryItem(
+                        minute = 90,
+                        eventType = "info",
+                        title = "Full Time",
+                        comment = "Final whistle! Full-time score: $homeName $finalH - $finalA $awayName."
+                    )
+                )
+            }
+
+            // Order descending (latest events at the top)
+            val sortedCommentary = commentaryItems.sortedWith(
+                compareByDescending<MatchCommentaryItem> { it.minute }
+                    .thenByDescending { it.extraMinute ?: 0 }
+            )
+
             ApiResult.Success(
                 MatchDetail(
                     match = response.toMatch(),
@@ -230,7 +352,8 @@ class FootballRepositoryImpl @Inject constructor(
                     venue = response.fixture?.venue?.toVenueInfo(),
                     referee = response.fixture?.referee,
                     homeForm = homeForm,
-                    awayForm = awayForm
+                    awayForm = awayForm,
+                    commentary = sortedCommentary
                 )
             )
         } catch (e: Exception) {
@@ -598,6 +721,67 @@ class FootballRepositoryImpl @Inject constructor(
             results.distinctBy { it.team?.id }
         } catch (e: Exception) {
             emptyList()
+        }
+    }
+
+    override suspend fun searchPlayers(query: String): ApiResult<List<PlayerInfo>> {
+        return try {
+            val q = query.trim()
+            if (q.length < 2) return ApiResult.Success(emptyList())
+
+            val matchedPlayers = mutableListOf<PlayerInfo>()
+
+            // 1. First attempt direct player search via API if query could be a full name
+            try {
+                val apiPlayers = apiService.getPlayers(playerName = q)
+                matchedPlayers += apiPlayers.mapNotNull { p ->
+                    val id = p.player_key?.toInt() ?: p.player_id?.toIntOrNull() ?: return@mapNotNull null
+                    PlayerInfo(
+                        id = id,
+                        name = p.player_name ?: "Unknown",
+                        firstname = null,
+                        lastname = null,
+                        age = p.player_age?.toIntOrNull(),
+                        nationality = p.player_country,
+                        height = null,
+                        weight = null,
+                        photo = p.player_image,
+                        type = p.player_type
+                    )
+                }
+            } catch (_: Exception) { }
+
+            // 2. Scan players pool across top leagues (Premier League, La Liga, etc.) for instant partial search
+            val popularLeagues = listOf(152, 302, 207, 175, 168)
+            for (lid in popularLeagues) {
+                if (matchedPlayers.size >= 15) break
+                try {
+                    val pool = getPlayersPoolSnapshot(lid)
+                    val matches = pool.filter { 
+                        it.player_name?.contains(q, ignoreCase = true) == true 
+                    }.mapNotNull { p ->
+                        val id = p.player_key?.toInt() ?: p.player_id?.toIntOrNull() ?: return@mapNotNull null
+                        PlayerInfo(
+                            id = id,
+                            name = p.player_name ?: "Unknown",
+                            firstname = null,
+                            lastname = null,
+                            age = p.player_age?.toIntOrNull(),
+                            nationality = p.player_country,
+                            height = null,
+                            weight = null,
+                            photo = p.player_image,
+                            type = p.player_type
+                        )
+                    }
+                    matchedPlayers += matches
+                } catch (_: Exception) { }
+            }
+
+            val distinctResults = matchedPlayers.distinctBy { it.id }.take(20)
+            ApiResult.Success(distinctResults)
+        } catch (e: Exception) {
+            ApiResult.Error(e.message ?: "Player search failed")
         }
     }
 

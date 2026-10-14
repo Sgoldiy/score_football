@@ -47,8 +47,17 @@ interface FavouriteClubDao {
     @Query("SELECT * FROM favourite_clubs ORDER BY addedAt DESC")
     fun getFavouriteClubs(): Flow<List<FavouriteClubEntity>>
 
+    @Query("SELECT * FROM favourite_clubs ORDER BY addedAt DESC")
+    suspend fun getFavouriteClubsSync(): List<FavouriteClubEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(clubs: List<FavouriteClubEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(club: FavouriteClubEntity)
+
+    @Query("DELETE FROM favourite_clubs WHERE clubId = :clubId")
+    suspend fun deleteByClubId(clubId: Int)
 
     @Query("DELETE FROM favourite_clubs")
     suspend fun clear()
@@ -72,7 +81,16 @@ interface FavouritePlayerDao {
     fun getFavouritePlayers(): Flow<List<FavouritePlayerEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insert(player: FavouritePlayerEntity)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(players: List<FavouritePlayerEntity>)
+
+    @Query("DELETE FROM favourite_players WHERE playerId = :playerId")
+    suspend fun deleteByPlayerId(playerId: Int)
+
+    @Query("SELECT EXISTS(SELECT 1 FROM favourite_players WHERE playerId = :playerId)")
+    fun isPlayerFavorite(playerId: Int): Flow<Boolean>
 
     @Query("DELETE FROM favourite_players")
     suspend fun clear()

@@ -69,7 +69,7 @@ fun HeadToHeadTab(
                 is ApiResult.Loading -> {
                     item {
                         Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = Color(0xFF4ADE80))
+                            CircularProgressIndicator(color = Color(0xFF00E676))
                         }
                     }
                 }
@@ -167,8 +167,8 @@ private fun TeamSelectorChip(
         onClick = onClick,
         modifier = modifier,
         shape = RoundedCornerShape(20.dp),
-        color = Color(0xFF1E1E1E),
-        border = BorderStroke(0.5.dp, Color(0xFF242424))
+        color = Color(0xFF131620),
+        border = BorderStroke(0.5.dp, Color(0xFF1A1E2A))
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
@@ -213,8 +213,8 @@ fun H2HSummaryCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF161616)),
-        border = BorderStroke(0.5.dp, Color(0xFF242424))
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF131620)),
+        border = BorderStroke(0.5.dp, Color(0xFF1A1E2A))
     ) {
         Row(
             modifier = Modifier
@@ -236,7 +236,7 @@ fun H2HSummaryCard(
                     text = "${h2h.teamAWins}",
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (h2h.teamAWins > h2h.teamBWins) Color(0xFF4ADE80) else Color.White
+                    color = if (h2h.teamAWins > h2h.teamBWins) Color(0xFF00E676) else Color.White
                 )
                 Text("Wins", fontSize = 10.sp, color = Color(0xFF555555))
             }
@@ -269,7 +269,7 @@ fun H2HSummaryCard(
                     text = "${h2h.teamBWins}",
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (h2h.teamBWins > h2h.teamAWins) Color(0xFF4ADE80) else Color.White
+                    color = if (h2h.teamBWins > h2h.teamAWins) Color(0xFF00E676) else Color.White
                 )
                 Text("Wins", fontSize = 10.sp, color = Color(0xFF555555))
             }
@@ -286,8 +286,8 @@ fun PastMeetingRow(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF161616)),
-        border = BorderStroke(0.5.dp, Color(0xFF242424))
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF131620)),
+        border = BorderStroke(0.5.dp, Color(0xFF1A1E2A))
     ) {
         Row(
             modifier = Modifier
@@ -368,7 +368,7 @@ fun StatComparisonBar(stat: ComparisonStat) {
                         .weight(aWeight)
                         .fillMaxHeight()
                         .clip(RoundedCornerShape(topStart = 3.dp, bottomStart = 3.dp))
-                        .background(Color(0xFF4ADE80))
+                        .background(Color(0xFF00E676))
                 )
                 Spacer(Modifier.width(2.dp))
                 Box(
@@ -392,7 +392,7 @@ private fun TeamPickerModal(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = Color(0xFF161616),
+        containerColor = Color(0xFF131620),
         shape = RoundedCornerShape(20.dp),
         title = {
             Text("Select Team", fontWeight = FontWeight.Bold, color = Color.White)
@@ -435,7 +435,7 @@ private fun TeamPickerModal(
         confirmButton = {},
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel", color = Color(0xFF4ADE80))
+                Text("Cancel", color = Color(0xFF00E676))
             }
         }
     )

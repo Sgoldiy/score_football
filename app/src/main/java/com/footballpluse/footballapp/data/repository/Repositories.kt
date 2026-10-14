@@ -124,28 +124,6 @@ class FixturesRepository @Inject constructor(
             ApiResult.Error(e.message ?: "Unknown error")
         }
     }
-
-    suspend fun getPredictions(fixtureId: Int): ApiResult<List<Prediction>> {
-        return try {
-            val predictions = apiService.getPredictions(matchId = fixtureId.toString())
-            ApiResult.Success(predictions.map { it.toPrediction() })
-        } catch (e: Exception) {
-            ApiResult.Error(e.message ?: "Unknown error")
-        }
-    }
-
-    suspend fun getOdds(fixtureId: Int): ApiResult<List<OddsResponse>> {
-        return try {
-            val odds = apiService.getOdds(matchId = fixtureId.toString())
-            ApiResult.Success(odds.map { it.toOddsResponse() })
-        } catch (e: Exception) {
-            ApiResult.Error(e.message ?: "Unknown error")
-        }
-    }
-
-    suspend fun getInjuries(fixtureId: Int): ApiResult<List<Injury>> {
-        return ApiResult.Error("Injuries not available in current API version")
-    }
 }
 
 @Singleton
@@ -156,13 +134,33 @@ class TeamRepository @Inject constructor(private val apiService: ApiService) {
     private val formCache = java.util.concurrent.ConcurrentHashMap<String, Map<Int, String>>()
 
     /**
-     * The v3 get_standings response has NO form field (verified live), so recent form
-     * must be derived from finished league fixtures. Computed once per league/season
-     * for every team and cached.
+     * Recent form resolution:
+     * 1. Checks if standings table has overall_form from upstream
+     * 2. Derives recent form from finished league fixtures
      */
     private suspend fun computeFormsFromFixtures(leagueId: Int, season: Int): Map<Int, String> {
         formCache["${leagueId}_$season"]?.let { return it }
-        val forms = try {
+        val forms = mutableMapOf<Int, String>()
+
+        // 1. Try to get forms directly from league standings table
+        try {
+            val standings = standingsCache.getOrPut(leagueId.toString()) {
+                apiService.getStandings(leagueId = leagueId.toString())
+            }
+            standings.forEach { s ->
+                val tid = s.team_id?.toIntOrNull()
+                val rawForm = s.overall_form
+                if (tid != null && !rawForm.isNullOrBlank()) {
+                    val cleaned = rawForm.filter { it.uppercaseChar() in listOf('W', 'D', 'L') }.uppercase()
+                    if (cleaned.isNotBlank()) {
+                        forms[tid] = cleaned
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+
+        // 2. If forms are still empty or incomplete, compute from fixtures/events
+        try {
             val events = try {
                 apiService.getEvents(from = "$season-07-01", to = "${season + 1}-06-30", leagueId = leagueId.toString())
             } catch (e: Exception) {
@@ -174,8 +172,11 @@ class TeamRepository @Inject constructor(private val apiService: ApiService) {
             }
             val perTeam = mutableMapOf<Int, MutableList<Triple<Long, Int, Int>>>() // teamId -> (timestamp, goalsFor, goalsAgainst)
             // Upstream finished status is "FT" (mapped via mapStatus; the raw
-            // feed also carries literal "Finished" in some payloads).
-            events.filter { it.match_status == "FT" || it.match_status == "Finished" }.forEach { e ->
+            // feed also carries literal "Finished", "AET", "PEN" in some payloads).
+            events.filter { 
+                it.match_status == "FT" || it.match_status == "Finished" || 
+                it.match_status == "AET" || it.match_status == "PEN" || it.match_status == "AP" 
+            }.forEach { e ->
                 val hId = e.match_hometeam_id?.toIntOrNull() ?: return@forEach
                 val aId = e.match_awayteam_id?.toIntOrNull() ?: return@forEach
                 val hG = e.match_hometeam_score?.trim()?.toIntOrNull() ?: return@forEach
@@ -184,17 +185,58 @@ class TeamRepository @Inject constructor(private val apiService: ApiService) {
                 perTeam.getOrPut(hId) { mutableListOf() }.add(Triple(ts, hG, aG))
                 perTeam.getOrPut(aId) { mutableListOf() }.add(Triple(ts, aG, hG))
             }
-            perTeam.mapValues { (_, matches) ->
-                matches.sortedByDescending { it.first }
-                    .take(5)
-                    .map { (ts, gf, ga) -> when { gf > ga -> 'W'; gf == ga -> 'D'; else -> 'L' } }
-                    .joinToString("")
+            perTeam.forEach { (tId, matches) ->
+                if (!forms.containsKey(tId) || forms[tId].isNullOrEmpty()) {
+                    val f = matches.sortedByDescending { it.first }
+                        .take(5)
+                        .map { (_, gf, ga) -> when { gf > ga -> 'W'; gf == ga -> 'D'; else -> 'L' } }
+                        .joinToString("")
+                    if (f.isNotBlank()) {
+                        forms[tId] = f
+                    }
+                }
             }
-        } catch (e: Exception) {
-            emptyMap()
-        }
+        } catch (_: Exception) {}
+
         if (forms.isNotEmpty()) formCache["${leagueId}_$season"] = forms
         return forms
+    }
+
+    /**
+     * Fallback to retrieve last-5 form for a specific team when league-wide batch was missing.
+     */
+    suspend fun getTeamForm(teamId: Int): String? {
+        if (teamId <= 0) return null
+        formCache.values.forEach { map ->
+            map[teamId]?.let { return it }
+        }
+        return try {
+            val events = apiService.getEvents(
+                from = com.footballpluse.footballapp.data.repository.FootballRepositoryImpl.daysFromToday(-120),
+                to = com.footballpluse.footballapp.data.repository.FootballRepositoryImpl.today(),
+                teamId = teamId.toString()
+            )
+            val matches = mutableListOf<Triple<Long, Int, Int>>()
+            events.filter {
+                it.match_status == "FT" || it.match_status == "Finished" ||
+                it.match_status == "AET" || it.match_status == "PEN" || it.match_status == "AP"
+            }.forEach { e ->
+                val hG = e.match_hometeam_score?.trim()?.toIntOrNull() ?: return@forEach
+                val aG = e.match_awayteam_score?.trim()?.toIntOrNull() ?: return@forEach
+                val isHome = e.match_hometeam_id?.toIntOrNull() == teamId
+                val gf = if (isHome) hG else aG
+                val ga = if (isHome) aG else hG
+                val ts = com.footballpluse.footballapp.data.mapper.eventTimestamp(e.match_date, e.match_time)
+                matches.add(Triple(ts, gf, ga))
+            }
+            val f = matches.sortedByDescending { it.first }
+                .take(5)
+                .map { (_, gf, ga) -> when { gf > ga -> 'W'; gf == ga -> 'D'; else -> 'L' } }
+                .joinToString("")
+            f.takeIf { it.isNotBlank() }
+        } catch (_: Exception) {
+            null
+        }
     }
 
     suspend fun getTeamInfo(teamId: Int): ApiResult<TeamInfoResponse> {
@@ -278,10 +320,6 @@ class TeamRepository @Inject constructor(private val apiService: ApiService) {
             ApiResult.Error(e.message ?: "Unknown error")
         }
     }
-
-    suspend fun getTransfers(teamId: Int): ApiResult<List<Transfer>> {
-        return ApiResult.Error("Transfers not available in current API version")
-    }
 }
 
 @Singleton
@@ -293,14 +331,6 @@ class PlayerRepository @Inject constructor(private val apiService: ApiService) {
         } catch (e: Exception) {
             ApiResult.Error(e.message ?: "Unknown error")
         }
-    }
-
-    suspend fun getTrophies(playerId: Int): ApiResult<List<PlayerTrophy>> {
-        return ApiResult.Success(emptyList())
-    }
-
-    suspend fun getSidelined(playerId: Int): ApiResult<List<PlayerSidelined>> {
-        return ApiResult.Success(emptyList())
     }
 }
 
@@ -343,10 +373,6 @@ class LeagueRepository @Inject constructor(private val apiService: ApiService) {
         } catch (e: Exception) {
             ApiResult.Error(e.message ?: "Unknown error")
         }
-    }
-
-    suspend fun getSeasons(): ApiResult<List<Int>> {
-        return ApiResult.Error("Seasons endpoint not available in current API version")
     }
 }
 

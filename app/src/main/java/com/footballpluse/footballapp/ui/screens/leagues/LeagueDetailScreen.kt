@@ -44,6 +44,7 @@ fun LeagueDetailScreen(
     onBackClick: () -> Unit,
     onMatchClick: (Int) -> Unit,
     onTeamClick: (Int) -> Unit,
+    onPlayerClick: (Int) -> Unit = {},
     viewModel: LeagueDetailViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -71,7 +72,7 @@ fun LeagueDetailScreen(
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back", tint = Color.White)
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0F0F0F))
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color(0xFF0D0F14))
             )
         }
     ) { padding ->
@@ -79,10 +80,15 @@ fun LeagueDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(Color(0xFF0F0F0F))
+                .background(Color(0xFF0D0F14))
         ) {
             if (state.leagueInfo != null) {
-                LeagueHeader(state.leagueInfo!!)
+                LeagueHeader(
+                    leagueInfo = state.leagueInfo!!,
+                    selectedSeason = state.selectedSeason,
+                    availableSeasons = state.availableSeasons,
+                    onSeasonSelected = { viewModel.changeSeason(it) }
+                )
             }
 
             LeagueTabRow(
@@ -101,6 +107,8 @@ fun LeagueDetailScreen(
                 when (tabs[tabIndex]) {
                     LeagueTab.STANDINGS -> StandingsTab(
                         standings = state.standings,
+                        isLiveTableMode = state.isLiveTableMode,
+                        onToggleLiveTable = { viewModel.toggleLiveTableMode(it) },
                         onTeamClick = onTeamClick
                     )
                     LeagueTab.FIXTURES -> FixturesTab(
@@ -111,7 +119,8 @@ fun LeagueDetailScreen(
                         topScorers = state.topScorers,
                         topAssists = state.topAssists,
                         topYellowCards = state.topYellowCards,
-                        topRedCards = state.topRedCards
+                        topRedCards = state.topRedCards,
+                        onPlayerClick = onPlayerClick
                     )
                     LeagueTab.SEASON_STATS -> SeasonStatsTab(
                         seasonStats = state.seasonStats
@@ -138,15 +147,15 @@ fun LeagueTabRow(
 ) {
     ScrollableTabRow(
         selectedTabIndex = selectedTab,
-        containerColor = Color(0xFF0F0F0F),
-        contentColor = Color(0xFF4ADE80),
+        containerColor = Color(0xFF0D0F14),
+        contentColor = Color(0xFF00E676),
         edgePadding = 16.dp,
         divider = {},
         indicator = { tabPositions ->
             TabRowDefaults.SecondaryIndicator(
                 modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
                 height = 3.dp,
-                color = Color(0xFF4ADE80)
+                color = Color(0xFF00E676)
             )
         }
     ) {
@@ -168,23 +177,30 @@ fun LeagueTabRow(
 }
 
 @Composable
-fun LeagueHeader(leagueInfo: com.footballpluse.footballapp.domain.model.LeagueInfo) {
+fun LeagueHeader(
+    leagueInfo: com.footballpluse.footballapp.domain.model.LeagueInfo,
+    selectedSeason: Int,
+    availableSeasons: List<Int>,
+    onSeasonSelected: (Int) -> Unit
+) {
+    var seasonMenuExpanded by remember { mutableStateOf(false) }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 10.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
             modifier = Modifier
-                .size(56.dp)
+                .size(54.dp)
                 .clip(CircleShape)
                 .background(Color.White.copy(alpha = 0.05f))
         ) {
             AsyncImage(
                 model = leagueInfo.logo ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(leagueInfo.id, leagueInfo.name, leagueInfo.country),
                 contentDescription = leagueInfo.name,
-                modifier = Modifier.size(40.dp).align(Alignment.Center),
+                modifier = Modifier.size(38.dp).align(Alignment.Center),
                 placeholder = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_league_placeholder),
                 error = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_league_placeholder)
             )
@@ -192,35 +208,91 @@ fun LeagueHeader(leagueInfo: com.footballpluse.footballapp.domain.model.LeagueIn
         Spacer(Modifier.height(6.dp))
         Text(
             text = leagueInfo.name,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.Medium,
+            fontSize = 19.sp,
+            fontWeight = FontWeight.Bold,
             color = Color.White
         )
         if (leagueInfo.country != null) {
             Text(
-                text = "${leagueInfo.country} \u00B7 ${leagueInfo.season ?: ""}",
+                text = leagueInfo.country,
                 fontSize = 11.sp,
                 letterSpacing = 0.08.sp,
                 color = Color(0xFFA0A0A0)
             )
+        }
+        Spacer(Modifier.height(6.dp))
+
+        // Season Switcher Pill
+        Box {
+            Surface(
+                onClick = { seasonMenuExpanded = true },
+                shape = RoundedCornerShape(16.dp),
+                color = Color(0xFF131620),
+                border = BorderStroke(0.5.dp, Color(0xFF1A1E2A))
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Season: ${com.footballpluse.footballapp.data.util.SeasonUtils.displaySeasonLabel(selectedSeason)}",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = Color(0xFF00E676)
+                    )
+                    Spacer(Modifier.width(4.dp))
+                    Text(
+                        text = "\u25BE",
+                        fontSize = 12.sp,
+                        color = Color(0xFF00E676)
+                    )
+                }
+            }
+            DropdownMenu(
+                expanded = seasonMenuExpanded,
+                onDismissRequest = { seasonMenuExpanded = false },
+                modifier = Modifier.background(Color(0xFF131620))
+            ) {
+                availableSeasons.forEach { year ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = com.footballpluse.footballapp.data.util.SeasonUtils.displaySeasonLabel(year),
+                                color = if (year == selectedSeason) Color(0xFF00E676) else Color.White,
+                                fontWeight = if (year == selectedSeason) FontWeight.Bold else FontWeight.Normal,
+                                fontSize = 13.sp
+                            )
+                        },
+                        onClick = {
+                            seasonMenuExpanded = false
+                            onSeasonSelected(year)
+                        }
+                    )
+                }
+            }
         }
     }
 }
 
 // ─── STANDINGS TAB ────────────────────────────────────────────────────────────
 
+enum class StandingsSplit { ALL, HOME, AWAY }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StandingsTab(
     standings: ApiResult<List<StandingRowUiModel>>,
+    isLiveTableMode: Boolean = false,
+    onToggleLiveTable: (Boolean) -> Unit = {},
     onTeamClick: (Int) -> Unit
 ) {
     var selectedTeam by remember { mutableStateOf<StandingRowUiModel?>(null) }
+    var selectedSplit by rememberSaveable { mutableStateOf(StandingsSplit.ALL) }
 
     if (selectedTeam != null) {
         ModalBottomSheet(
             onDismissRequest = { selectedTeam = null },
-            containerColor = Color(0xFF161616),
+            containerColor = Color(0xFF131620),
             shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp)
         ) {
             TeamDetailBottomSheet(selectedTeam!!)
@@ -245,24 +317,116 @@ fun StandingsTab(
                     Text("No standings available", color = Color(0xFFA0A0A0))
                 }
             } else {
-                val items = standings.data
-                val totalRows = items.size
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 80.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    item { StandingsHeaderRow() }
-                    itemsIndexed(items) { index, item ->
-                        StandingRow(
-                            item = item,
-                            isTopThree = item.rank <= 3,
-                            isBottomThree = item.rank > totalRows - 3,
-                            showPromotionDivider = item.rank == 3,
-                            showRelegationDivider = item.rank == totalRows - 3,
-                            onClick = { selectedTeam = item },
-                            onTeamClick = { onTeamClick(item.team.id) }
+                val rawItems = standings.data
+                // Sort by split if HOME or AWAY selected
+                val items = remember(rawItems, selectedSplit) {
+                    when (selectedSplit) {
+                        StandingsSplit.ALL -> rawItems
+                        StandingsSplit.HOME -> rawItems.sortedWith(
+                            compareByDescending<StandingRowUiModel> { it.homeWon * 3 + it.homeDraw }
+                                .thenByDescending { it.homeGoalsFor - it.homeGoalsAgainst }
+                                .thenByDescending { it.homeGoalsFor }
                         )
+                        StandingsSplit.AWAY -> rawItems.sortedWith(
+                            compareByDescending<StandingRowUiModel> { it.awayWon * 3 + it.awayDraw }
+                                .thenByDescending { it.awayGoalsFor - it.awayGoalsAgainst }
+                                .thenByDescending { it.awayGoalsFor }
+                        )
+                    }
+                }
+                val totalRows = items.size
+
+                Column(modifier = Modifier.fillMaxSize()) {
+                    // Split & Live Toggle Bar: [Overall | Home | Away] + [🔴 As It Stands]
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 6.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(20.dp),
+                            color = Color(0xFF131620),
+                            border = BorderStroke(0.5.dp, Color(0xFF1A1E2A))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(3.dp),
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                StandingsSplit.entries.forEach { split ->
+                                    val isSelected = selectedSplit == split
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .background(if (isSelected) Color(0xFF00E676) else Color.Transparent)
+                                            .clickable { selectedSplit = split }
+                                            .padding(horizontal = 12.dp, vertical = 5.dp),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            text = when (split) {
+                                                StandingsSplit.ALL -> "Overall"
+                                                StandingsSplit.HOME -> "Home"
+                                                StandingsSplit.AWAY -> "Away"
+                                            },
+                                            fontSize = 11.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected) Color(0xFF0D0F14) else Color(0xFFA0A0A0)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Live "As It Stands" Toggle Pill
+                        Surface(
+                            onClick = { onToggleLiveTable(!isLiveTableMode) },
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (isLiveTableMode) Color(0xFF00E676).copy(alpha = 0.15f) else Color(0xFF131620),
+                            border = BorderStroke(0.5.dp, if (isLiveTableMode) Color(0xFF00E676) else Color(0xFF1A1E2A))
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(if (isLiveTableMode) Color(0xFF00E676) else Color(0xFFA0A0A0))
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text(
+                                    text = if (isLiveTableMode) "Live Active" else "As It Stands",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isLiveTableMode) Color(0xFF00E676) else Color(0xFFA0A0A0)
+                                )
+                            }
+                        }
+                    }
+
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 80.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        item { StandingsHeaderRow() }
+                        itemsIndexed(items) { index, item ->
+                            val displayRank = if (selectedSplit == StandingsSplit.ALL) item.rank else (index + 1)
+                            StandingRow(
+                                item = item,
+                                split = selectedSplit,
+                                displayRank = displayRank,
+                                isTopThree = displayRank <= 3,
+                                isBottomThree = displayRank > totalRows - 3,
+                                showPromotionDivider = selectedSplit == StandingsSplit.ALL && item.rank == 3,
+                                showRelegationDivider = selectedSplit == StandingsSplit.ALL && item.rank == totalRows - 3,
+                                onClick = { selectedTeam = item },
+                                onTeamClick = { onTeamClick(item.team.id) }
+                            )
+                        }
                     }
                 }
             }
@@ -300,6 +464,8 @@ fun StandingsHeaderRow() {
 @Composable
 fun StandingRow(
     item: StandingRowUiModel,
+    split: StandingsSplit = StandingsSplit.ALL,
+    displayRank: Int = item.rank,
     isTopThree: Boolean,
     isBottomThree: Boolean,
     showPromotionDivider: Boolean,
@@ -307,14 +473,45 @@ fun StandingRow(
     onClick: () -> Unit,
     onTeamClick: () -> Unit
 ) {
+    val played = when (split) {
+        StandingsSplit.ALL -> item.played
+        StandingsSplit.HOME -> item.homePlayed
+        StandingsSplit.AWAY -> item.awayPlayed
+    }
+    val win = when (split) {
+        StandingsSplit.ALL -> item.win
+        StandingsSplit.HOME -> item.homeWon
+        StandingsSplit.AWAY -> item.awayWon
+    }
+    val draw = when (split) {
+        StandingsSplit.ALL -> item.draw
+        StandingsSplit.HOME -> item.homeDraw
+        StandingsSplit.AWAY -> item.awayDraw
+    }
+    val lose = when (split) {
+        StandingsSplit.ALL -> item.lose
+        StandingsSplit.HOME -> item.homeLost
+        StandingsSplit.AWAY -> item.awayLost
+    }
+    val gd = when (split) {
+        StandingsSplit.ALL -> item.goalsDiff
+        StandingsSplit.HOME -> item.homeGoalsFor - item.homeGoalsAgainst
+        StandingsSplit.AWAY -> item.awayGoalsFor - item.awayGoalsAgainst
+    }
+    val pts = when (split) {
+        StandingsSplit.ALL -> item.points
+        StandingsSplit.HOME -> item.homeWon * 3 + item.homeDraw
+        StandingsSplit.AWAY -> item.awayWon * 3 + item.awayDraw
+    }
+
     Column {
         Card(
             modifier = Modifier
                 .fillMaxWidth()
                 .clickable { onClick() },
             shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(0xFF161616)),
-            border = BorderStroke(0.5.dp, Color(0xFF242424))
+            colors = CardDefaults.cardColors(containerColor = Color(0xFF131620)),
+            border = BorderStroke(0.5.dp, Color(0xFF1A1E2A))
         ) {
             Row(
                 modifier = Modifier
@@ -328,7 +525,7 @@ fun StandingRow(
                         .height(40.dp)
                         .background(
                             when {
-                                isTopThree -> Color(0xFF4ADE80)
+                                isTopThree -> Color(0xFF00E676)
                                 isBottomThree -> Color(0xFFEF4444)
                                 else -> Color.Transparent
                             }
@@ -341,13 +538,29 @@ fun StandingRow(
                         .padding(horizontal = 8.dp, vertical = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = item.rank.toString(),
-                        modifier = Modifier.width(24.dp),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isTopThree) Color(0xFF4ADE80) else Color.White
-                    )
+                    // Rank with live change delta (▲ / ▼ / –)
+                    Column(
+                        modifier = Modifier.width(26.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = displayRank.toString(),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isTopThree) Color(0xFF00E676) else Color.White
+                        )
+                        if (item.liveRankChange != 0) {
+                            val isClimbed = item.liveRankChange > 0
+                            val arrow = if (isClimbed) "▲" else "▼"
+                            val arrowColor = if (isClimbed) Color(0xFF00E676) else Color(0xFFEF4444)
+                            Text(
+                                text = "$arrow${kotlin.math.abs(item.liveRankChange)}",
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = arrowColor
+                            )
+                        }
+                    }
 
                     Row(
                         modifier = Modifier.weight(1f),
@@ -373,23 +586,32 @@ fun StandingRow(
                             maxLines = 1,
                             modifier = Modifier.clickable { onTeamClick() }
                         )
+                        if (item.isLive) {
+                            Spacer(Modifier.width(4.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(5.dp)
+                                    .clip(CircleShape)
+                                    .background(Color(0xFF00E676))
+                            )
+                        }
                     }
 
-                    Text(item.played.toString(), modifier = Modifier.width(24.dp), fontSize = 11.sp, color = Color(0xFFA0A0A0), textAlign = TextAlign.Center)
-                    Text(item.win.toString(), modifier = Modifier.width(24.dp), fontSize = 11.sp, color = Color(0xFFA0A0A0), textAlign = TextAlign.Center)
-                    Text(item.draw.toString(), modifier = Modifier.width(24.dp), fontSize = 11.sp, color = Color(0xFFA0A0A0), textAlign = TextAlign.Center)
-                    Text(item.lose.toString(), modifier = Modifier.width(24.dp), fontSize = 11.sp, color = Color(0xFFA0A0A0), textAlign = TextAlign.Center)
+                    Text(played.toString(), modifier = Modifier.width(24.dp), fontSize = 11.sp, color = Color(0xFFA0A0A0), textAlign = TextAlign.Center)
+                    Text(win.toString(), modifier = Modifier.width(24.dp), fontSize = 11.sp, color = Color(0xFFA0A0A0), textAlign = TextAlign.Center)
+                    Text(draw.toString(), modifier = Modifier.width(24.dp), fontSize = 11.sp, color = Color(0xFFA0A0A0), textAlign = TextAlign.Center)
+                    Text(lose.toString(), modifier = Modifier.width(24.dp), fontSize = 11.sp, color = Color(0xFFA0A0A0), textAlign = TextAlign.Center)
 
                     Text(
-                        text = if (item.goalsDiff >= 0) "+${item.goalsDiff}" else item.goalsDiff.toString(),
+                        text = if (gd >= 0) "+$gd" else gd.toString(),
                         modifier = Modifier.width(28.dp),
                         fontSize = 11.sp,
                         textAlign = TextAlign.Center,
-                        color = if (item.goalsDiff >= 0) Color(0xFF4ADE80) else Color(0xFFEF4444)
+                        color = if (gd >= 0) Color(0xFF00E676) else Color(0xFFEF4444)
                     )
 
                     Text(
-                        item.points.toString(),
+                        pts.toString(),
                         modifier = Modifier.width(28.dp),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -409,7 +631,7 @@ fun StandingRow(
         }
 
         if (showPromotionDivider) {
-            DashedLine(color = Color(0xFF4ADE80).copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 2.dp))
+            DashedLine(color = Color(0xFF00E676).copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 2.dp))
         }
         if (showRelegationDivider) {
             DashedLine(color = Color(0xFFEF4444).copy(alpha = 0.5f), modifier = Modifier.padding(vertical = 2.dp))
@@ -431,7 +653,7 @@ fun FormDots(
         val results = form.takeLast(5).padStart(5, 'U')
         results.forEach { result ->
             val color = when (result) {
-                'W' -> Color(0xFF4ADE80)
+                'W' -> Color(0xFF00E676)
                 'D' -> Color(0xFF555555)
                 'L' -> Color(0xFFEF4444)
                 else -> Color(0xFF1E1E1E)
@@ -451,7 +673,7 @@ fun FormDots(
 
 @Composable
 fun DashedLine(
-    color: Color = Color(0xFF4ADE80),
+    color: Color = Color(0xFF00E676),
     modifier: Modifier = Modifier
 ) {
     Canvas(
@@ -475,7 +697,7 @@ fun StandingsRowShimmer() {
     Card(
         modifier = Modifier.fillMaxWidth().height(44.dp),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF161616))
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF131620))
     ) {
         Row(
             modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
@@ -526,7 +748,7 @@ fun TeamDetailBottomSheet(team: StandingRowUiModel) {
         FormDots(form = team.form ?: "UUUUU", dotSize = 10.dp)
 
         Spacer(Modifier.height(16.dp))
-        HorizontalDivider(color = Color(0xFF1E1E1E), thickness = 1.dp)
+        HorizontalDivider(color = Color(0xFF1A1E2A), thickness = 0.5.dp)
 
         StatRow(label = "Goals Scored", value = "${team.goalsFor}")
         StatRow(label = "Goals Conceded", value = "${team.goalsAgainst}")

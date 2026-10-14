@@ -9,6 +9,8 @@ import com.footballpluse.footballapp.domain.model.TeamInfo
 import com.footballpluse.footballapp.domain.repository.FootballRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -18,7 +20,8 @@ sealed class SearchUiState {
     object Loading : SearchUiState()
     data class Success(
         val teams: List<TeamInfo>,
-        val leagues: List<LeagueInfo>
+        val leagues: List<LeagueInfo>,
+        val players: List<com.footballpluse.footballapp.domain.model.PlayerInfo> = emptyList()
     ) : SearchUiState()
     data class Error(val message: String) : SearchUiState()
 }
@@ -62,22 +65,28 @@ class SearchViewModel @Inject constructor(
         _uiState.value = SearchUiState.Loading
         settingsDataStore.addRecentSearch(query)
         
-        // Search teams and leagues in parallel
-        viewModelScope.launch {
+        // Search teams, leagues, and players in parallel
+        coroutineScope {
             try {
-                val teamsResult = repository.searchTeams(query)
-                val leaguesResult = repository.getLeagues() // API-Football search for leagues is sometimes limited, using getLeagues and filtering as fallback
-                
-                val filteredLeagues = if (leaguesResult is ApiResult.Success) {
+                val teamsDeferred = async { repository.searchTeams(query) }
+                val leaguesDeferred = async { repository.getLeagues() }
+                val playersDeferred = async { repository.searchPlayers(query) }
+
+                val leaguesResult = leaguesDeferred.await()
+                val teamsResult = teamsDeferred.await()
+                val playersResult = playersDeferred.await()
+
+                val filteredLeagues = if (leaguesResult is ApiResult.Success<List<LeagueInfo>>) {
                     leaguesResult.data.filter { it.name.contains(query, ignoreCase = true) }
                 } else emptyList()
 
-                val teams = if (teamsResult is ApiResult.Success) teamsResult.data else emptyList()
+                val teams = if (teamsResult is ApiResult.Success<List<TeamInfo>>) teamsResult.data else emptyList()
+                val players = if (playersResult is ApiResult.Success<List<com.footballpluse.footballapp.domain.model.PlayerInfo>>) playersResult.data else emptyList()
 
-                if (teams.isEmpty() && filteredLeagues.isEmpty()) {
+                if (teams.isEmpty() && filteredLeagues.isEmpty() && players.isEmpty()) {
                     _uiState.value = SearchUiState.Error("No results found for \"$query\"")
                 } else {
-                    _uiState.value = SearchUiState.Success(teams, filteredLeagues)
+                    _uiState.value = SearchUiState.Success(teams, filteredLeagues, players)
                 }
             } catch (e: Exception) {
                 _uiState.value = SearchUiState.Error(e.message ?: "Search failed")

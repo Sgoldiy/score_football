@@ -44,6 +44,8 @@ interface UitslagenApiService {
     companion object {
         const val TEAM_LOGO_URL = "https://uitslagen.live/footapi/images/teams_gs/%s.png"
         const val FLAG_URL = "https://uitslagen.live/footapi/images/flags/%s.png"
+        const val PLAYER_IMAGE_URL = "https://holoduke.nl/footapi/images/playerimages/%s.png"
+        const val COACH_IMAGE_URL = "https://holoduke.nl/footapi/images/coachimages/%s.png"
 
         /**
          * Logo URL for a numeric team id, or null when the id is not a usable
@@ -60,5 +62,19 @@ interface UitslagenApiService {
         fun flagUrl(countryOrSlug: String?): String? =
             countryOrSlug?.takeIf { it.isNotBlank() }
                 ?.let { FLAG_URL.format(it.trim().replace(' ', '-').lowercase()) }
+
+        /**
+         * Official player headshot photo URL from the upstream CDN for a numeric player ID.
+         */
+        fun playerImageUrl(playerId: String?): String? =
+            playerId?.takeIf { it.isNotBlank() && it.all { c -> c.isDigit() } }
+                ?.let { PLAYER_IMAGE_URL.format(it) }
+
+        /**
+         * Official head coach photo URL from the upstream CDN for a numeric coach ID.
+         */
+        fun coachImageUrl(coachId: String?): String? =
+            coachId?.takeIf { it.isNotBlank() && it.all { c -> c.isDigit() } }
+                ?.let { COACH_IMAGE_URL.format(it) }
     }
 }

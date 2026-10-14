@@ -19,6 +19,7 @@ class AppSettingsDataStore @Inject constructor(
     companion object {
         private val ONBOARDING_COMPLETED_KEY = booleanPreferencesKey("onboarding_completed")
         private val IS_DARK_THEME_KEY = booleanPreferencesKey("is_dark_theme")
+        private val HIDE_SCORES_MODE_KEY = booleanPreferencesKey("hide_scores_mode")
         // Onboarding favourites (used across the app)
         private val FAVOURITE_LEAGUE_ID_KEY = intPreferencesKey("favourite_league_id")
         private val FAVOURITE_LEAGUE_NAME_KEY = stringPreferencesKey("favourite_league_name")
@@ -67,6 +68,16 @@ class AppSettingsDataStore @Inject constructor(
     suspend fun saveThemeMode(isDark: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[IS_DARK_THEME_KEY] = isDark
+        }
+    }
+
+    // Spoiler-Free Mode (Hide Scores)
+    val hideScoresMode: Flow<Boolean> = context.dataStore.data
+        .map { preferences -> preferences[HIDE_SCORES_MODE_KEY] ?: false }
+
+    suspend fun saveHideScoresMode(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[HIDE_SCORES_MODE_KEY] = enabled
         }
     }
 

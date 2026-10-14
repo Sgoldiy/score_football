@@ -75,31 +75,39 @@ class HomeViewModel @Inject constructor(
     }
 
     private val requestedLeaguesForForm = mutableSetOf<Int>()
+    private val requestedTeamsForForm = mutableSetOf<Int>()
 
     /**
-     * Fetches last-5 form for every team in a league in ONE teamRepository call
-     * (which itself is cached per league/season). The old per-team version fired one
-     * API request per visible match row and exhausted the BASIC plan quota.
+     * Fetches last-5 form for teams:
+     * 1. Fetches league-wide batch once per league/season.
+     * 2. If an individual team's form is not in the league batch, fetches team-specific form.
      */
     fun fetchFormIfNeeded(teamId: Int, leagueId: Int, season: Int) {
-        if (teamId == 0 || leagueId == 0) return
-        // Quota guard: at most 8 league form batches per session (each is one
-        // full-season fixtures request, cached afterwards).
-        if (requestedLeaguesForForm.size >= 8) return
-        if (!requestedLeaguesForForm.add(leagueId)) {
-            // League already requested — individual team lookups will be resolved from
-            // the in-progress batch (formMap is updated for all teams at once below).
-            return
-        }
-        viewModelScope.launch {
-            try {
-                val result = teamRepository.getTeamFormForLeague(leagueId, season)
-                if (result is ApiResult.Success && result.data.isNotEmpty()) {
-                    _formMap.update { it + result.data }
+        if (teamId == 0) return
+
+        // 1. League-wide batch
+        if (leagueId != 0 && requestedLeaguesForForm.add(leagueId)) {
+            viewModelScope.launch {
+                try {
+                    val result = teamRepository.getTeamFormForLeague(leagueId, season)
+                    if (result is ApiResult.Success && result.data.isNotEmpty()) {
+                        _formMap.update { it + result.data }
+                    }
+                } catch (_: Exception) {
                 }
-            } catch (_: Exception) {
-            } finally {
-                requestedLeaguesForForm.remove(leagueId)
+            }
+        }
+
+        // 2. Individual team fallback
+        if (!_formMap.value.containsKey(teamId) && requestedTeamsForForm.add(teamId)) {
+            viewModelScope.launch {
+                try {
+                    val teamForm = teamRepository.getTeamForm(teamId)
+                    if (!teamForm.isNullOrBlank()) {
+                        _formMap.update { it + (teamId to teamForm) }
+                    }
+                } catch (_: Exception) {
+                }
             }
         }
     }

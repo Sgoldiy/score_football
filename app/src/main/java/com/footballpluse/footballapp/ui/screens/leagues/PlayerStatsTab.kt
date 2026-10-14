@@ -31,7 +31,8 @@ fun PlayerStatsTab(
     topScorers: ApiResult<List<PlayerStatUiModel>>,
     topAssists: ApiResult<List<PlayerStatUiModel>>,
     topYellowCards: ApiResult<List<PlayerStatUiModel>>,
-    topRedCards: ApiResult<List<PlayerStatUiModel>>
+    topRedCards: ApiResult<List<PlayerStatUiModel>>,
+    onPlayerClick: (Int) -> Unit = {}
 ) {
     var selectedCategory by remember { mutableStateOf(StatCategory.GOALS) }
 
@@ -61,7 +62,7 @@ fun PlayerStatsTab(
         when (activeResult) {
             is ApiResult.Loading -> {
                 Box(Modifier.fillMaxSize().padding(32.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = Color(0xFF4ADE80))
+                    CircularProgressIndicator(color = Color(0xFF00E676))
                 }
             }
             is ApiResult.Success -> {
@@ -79,7 +80,8 @@ fun PlayerStatsTab(
                         itemsIndexed(players) { _, player ->
                             PlayerStatRow(
                                 player = player,
-                                isSelected = false
+                                isSelected = false,
+                                onPlayerClick = onPlayerClick
                             )
                         }
                     }
@@ -111,17 +113,17 @@ fun StatCategoryChips(
             Surface(
                 onClick = { onCategorySelected(category) },
                 shape = RoundedCornerShape(20.dp),
-                color = if (isSelected) Color(0xFF14532D) else Color(0xFF1E1E1E),
+                color = if (isSelected) Color(0xFF00E676) else Color(0xFF131620),
                 border = BorderStroke(
                     0.5.dp,
-                    if (isSelected) Color(0xFF4ADE80).copy(alpha = 0.5f) else Color(0xFF242424)
+                    if (isSelected) Color(0xFF00E676) else Color(0xFF1A1E2A)
                 )
             ) {
                 Text(
                     text = category.label,
                     fontSize = 11.sp,
-                    fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal,
-                    color = if (isSelected) Color(0xFF4ADE80) else Color(0xFFA0A0A0),
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isSelected) Color(0xFF0D0F14) else Color(0xFFA0A0A0),
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
                 )
             }
@@ -177,8 +179,8 @@ private fun StatsSummaryCard(
     Card(
         modifier = modifier.clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF161616)),
-        border = BorderStroke(0.5.dp, Color(0xFF242424))
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF131620)),
+        border = BorderStroke(0.5.dp, Color(0xFF1A1E2A))
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Text(
@@ -200,7 +202,7 @@ private fun StatsSummaryCard(
                 text = value,
                 fontSize = 22.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Color(0xFF4ADE80)
+                color = Color(0xFF00E676)
             )
             Text(
                 text = clubName,
@@ -216,7 +218,8 @@ private fun StatsSummaryCard(
 @Composable
 fun PlayerStatRow(
     player: PlayerStatUiModel,
-    isSelected: Boolean
+    isSelected: Boolean,
+    onPlayerClick: (Int) -> Unit = {}
 ) {
     val animatedProgress by animateFloatAsState(
         targetValue = if (isSelected) player.progressFraction else player.progressFraction,
@@ -232,10 +235,14 @@ fun PlayerStatRow(
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = player.playerId != null) {
+                player.playerId?.let(onPlayerClick)
+            },
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFF161616)),
-        border = BorderStroke(0.5.dp, Color(0xFF242424))
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF131620)),
+        border = BorderStroke(0.5.dp, Color(0xFF1A1E2A))
     ) {
         Row(
             modifier = Modifier
@@ -251,6 +258,9 @@ fun PlayerStatRow(
                 modifier = Modifier.width(28.dp)
             )
 
+            val avatarUrl = player.avatarUrl?.takeIf { it.isNotBlank() }
+                ?: player.playerId?.let { com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.playerImageUrl(it.toString()) }
+
             Box(
                 modifier = Modifier
                     .size(34.dp)
@@ -258,11 +268,14 @@ fun PlayerStatRow(
                     .background(getAvatarColor(player.playerName)),
                 contentAlignment = Alignment.Center
             ) {
-                if (player.avatarUrl != null) {
+                if (avatarUrl != null) {
                     AsyncImage(
-                        model = player.avatarUrl,
-                        contentDescription = null,
-                        modifier = Modifier.size(34.dp).clip(CircleShape)
+                        model = avatarUrl,
+                        contentDescription = player.playerName,
+                        modifier = Modifier.size(34.dp).clip(CircleShape),
+                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                        placeholder = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_placeholder),
+                        error = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_placeholder)
                     )
                 } else {
                     Text(
@@ -341,7 +354,7 @@ fun StatProgressBar(
                 .fillMaxHeight()
                 .fillMaxWidth(fraction = progress.coerceIn(0f, 1f))
                 .clip(RoundedCornerShape(2.dp))
-                .background(Color(0xFF4ADE80))
+                .background(Color(0xFF00E676))
         )
     }
 }

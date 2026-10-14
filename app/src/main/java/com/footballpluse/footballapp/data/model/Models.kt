@@ -50,7 +50,8 @@ data class ApiVenue(
 data class ApiCoach(
     val coach_name: String?,
     val coach_country: String?,
-    val coach_age: String?
+    val coach_age: String?,
+    val coach_image: String? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -287,7 +288,8 @@ data class ApiMatchPlayerStatistic(
     val player_pen_miss: String?,
     val player_pen_save: String?,
     val player_pen_won: String?,
-    val match_id: String?
+    val match_id: String?,
+    val player_image: String? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -313,7 +315,8 @@ data class ApiLineupPlayer(
     @Json(name = "lineup_player") val player: String?,
     @Json(name = "lineup_number") val player_number: String?,
     @Json(name = "lineup_position") val player_pos: String?,
-    @Json(name = "player_key") val player_key: String?
+    @Json(name = "player_key") val player_key: String?,
+    val player_image: String? = null
 )
 
 @JsonClass(generateAdapter = true)
@@ -634,7 +637,8 @@ data class LineupPlayer(
     val name: String?,
     val number: Int?,
     val pos: String?,
-    val grid: String?
+    val grid: String?,
+    val photo: String? = null
 )
 
 @JsonClass(generateAdapter = true)

@@ -50,12 +50,12 @@ fun NotificationsScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = DeepNavy,
+                    containerColor = Color(0xFF0D0F14),
                     titleContentColor = Color.White
                 )
             )
         },
-        containerColor = DeepNavy
+        containerColor = Color(0xFF0D0F14)
     ) { padding ->
         Column(
             modifier = Modifier
@@ -124,8 +124,9 @@ private fun NotificationToggle(
 ) {
     Surface(
         onClick = { onCheckedChange(!checked) },
-        color = Color.White.copy(alpha = 0.05f),
-        shape = RoundedCornerShape(12.dp)
+        color = Color(0xFF131620),
+        shape = RoundedCornerShape(12.dp),
+        border = androidx.compose.foundation.BorderStroke(0.5.dp, Color(0xFF1A1E2A))
     ) {
         Row(
             modifier = Modifier
