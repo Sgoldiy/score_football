@@ -307,6 +307,11 @@ private fun HomeContent(
             .sortedWith(
                 compareByDescending<List<Match>> { group -> group.first().league.id == favouriteLeagueId }
                     .thenByDescending { group -> group.any { it.isLive } }
+                    .thenBy { group ->
+                        val l = group.first().league
+                        com.footballpluse.footballapp.data.util.PopularLeagues.getPopularityRank(l.id, l.name)
+                    }
+                    .thenBy { group -> group.first().league.name }
             )
     }
 
@@ -344,26 +349,11 @@ private fun HomeContent(
     }
 
     LaunchedEffect(allToday) {
-        allToday.forEach { match ->
+        val uniqueLeagues = allToday.map { match ->
             val season = match.league.season ?: currentSeason
-            onFetchForm(match.homeTeam.id, match.league.id, season)
-            onFetchForm(match.awayTeam.id, match.league.id, season)
-        }
-    }
-
-    LaunchedEffect(listState.firstVisibleItemIndex) {
-        val visibleKeys = listState.layoutInfo.visibleItemsInfo.mapNotNull { it.key as? String }
-        val teamsToFetch = visibleKeys.mapNotNull { key ->
-            leagueGroupMap[key]?.flatMap { match ->
-                val season = match.league.season ?: currentSeason
-                listOf(
-                    Triple(match.homeTeam.id, match.league.id, season),
-                    Triple(match.awayTeam.id, match.league.id, season)
-                )
-            }
-        }.flatten().distinctBy { it.first }
-
-        teamsToFetch.forEach { (teamId, leagueId, season) ->
+            Triple(match.homeTeam.id, match.league.id, season)
+        }.distinctBy { it.second }
+        uniqueLeagues.forEach { (teamId, leagueId, season) ->
             onFetchForm(teamId, leagueId, season)
         }
     }
@@ -722,7 +712,15 @@ private fun LeagueGroupHeader(
     isExpanded: Boolean,
     onToggleExpand: () -> Unit
 ) {
-    val leagueLogo = league.logo ?: leagueBadgeUrl(league.id, league.name)
+    val canonicalCountry = remember(league.id, league.name, league.country) {
+        com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.countryFor(league.id, league.name, league.country)
+    }
+    val bestLogo = remember(league.id, league.name, league.logo, canonicalCountry) {
+        league.logo?.ifBlank { null }
+            ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(league.id, league.name, canonicalCountry)
+            ?: leagueBadgeUrl(league.id, league.name)
+            ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.flagUrl(canonicalCountry)
+    }
     Row(
         modifier = Modifier.fillMaxWidth()
             .background(if (isMyLeague) Color(0xFF0D1A0D) else Color(0xFF161A26))
@@ -737,32 +735,13 @@ private fun LeagueGroupHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         AsyncImage(
-            model = leagueLogo,
-            contentDescription = null,
+            model = bestLogo,
+            contentDescription = canonicalCountry,
             modifier = Modifier.size(18.dp),
             placeholder = painterResource(R.drawable.ic_league_placeholder),
             error = painterResource(R.drawable.ic_league_placeholder)
         )
         Spacer(Modifier.width(8.dp))
-        val canonicalCountry = remember(league.id, league.name, league.country) {
-            com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.countryFor(league.id, league.name, league.country)
-        }
-        val flagUrl = remember(canonicalCountry) {
-            com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.flagUrl(canonicalCountry)
-        }
-        if (!flagUrl.isNullOrBlank()) {
-            AsyncImage(
-                model = flagUrl,
-                contentDescription = canonicalCountry,
-                modifier = Modifier
-                    .padding(end = 6.dp)
-                    .size(width = 14.dp, height = 10.dp)
-                    .clip(RoundedCornerShape(2.dp)),
-                contentScale = ContentScale.Crop,
-                placeholder = painterResource(R.drawable.ic_placeholder),
-                error = painterResource(R.drawable.ic_placeholder)
-            )
-        }
         Text(
             if (canonicalCountry.isNotBlank() && canonicalCountry != "World" && canonicalCountry != "Europe") {
                 "$canonicalCountry · ${league.name}"
@@ -817,12 +796,20 @@ private fun MatchRow(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.width(42.dp)
         ) {
-            if (match.isLive) {
+            if (match.status.short == "HT") {
                 Text(
-                    "${match.elapsed ?: 0}'",
+                    "HT",
+                    fontSize = 11.sp,
+                    color = Color(0xFFFFB300),
+                    fontWeight = FontWeight.Bold
+                )
+            } else if (match.isLive) {
+                val min = match.elapsed?.coerceAtLeast(1) ?: 1
+                Text(
+                    "$min'",
                     fontSize = 11.sp,
                     color = Color(0xFFFF4444),
-                    fontWeight = FontWeight.Medium
+                    fontWeight = FontWeight.Bold
                 )
             } else {
                 Text(

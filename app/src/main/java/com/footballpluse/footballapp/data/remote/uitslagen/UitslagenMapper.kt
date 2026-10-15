@@ -92,8 +92,13 @@ object UitslagenMapper {
             league_id = lId,
             league_name = lName,
             match_date = row.date,               // kept in upstream dd/MM/yyyy format
-            match_time = row.time,
-            match_status = phase.label,
+            match_status = when {
+                phase.label == "HT" -> "HT"
+                phase.isLive && phase.minute != null -> "${phase.minute}"
+                phase.isLive && row.status?.toIntOrNull() != null -> row.status
+                phase.isLive -> "1"
+                else -> phase.label
+            },
             match_live = if (phase.isLive) "1" else null,
             match_hometeam_id = row.gs_localteamid,
             match_hometeam_name = row.localteam,

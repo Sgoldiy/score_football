@@ -343,33 +343,31 @@ fun FixturesList(
     onFetchForm: (Int, Int, Int) -> Unit,
     onMatchClick: (String) -> Unit
 ) {
-    val grouped = remember(matches) { matches.groupBy { it.league } }
+    val grouped = remember(matches) {
+        matches.groupBy { it.league }
+            .entries
+            .sortedWith(
+                compareByDescending<Map.Entry<com.footballpluse.footballapp.domain.model.LeagueInfo, List<Match>>> { entry ->
+                    entry.value.any { it.isLive }
+                }.thenBy { entry ->
+                    com.footballpluse.footballapp.data.util.PopularLeagues.getPopularityRank(entry.key.id, entry.key.name)
+                }.thenBy { entry ->
+                    entry.key.name
+                }
+            )
+            .map { it.key to it.value }
+    }
     val expandedLeagues = remember { mutableStateMapOf<Int, Boolean>() }
     val listState = rememberLazyListState()
 
-    LaunchedEffect(listState.firstVisibleItemIndex, grouped) {
-        val visibleKeys = listState.layoutInfo.visibleItemsInfo.mapNotNull { it.key as? Int }
-        val teamsToFetch = visibleKeys.flatMap { leagueId ->
-            val leagueMatches = grouped.entries.firstOrNull { it.key.id == leagueId }?.value.orEmpty()
-            leagueMatches.flatMap { match ->
-                val season = match.league.season ?: com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()
-                listOf(
-                    Triple(match.homeTeam.id, match.league.id, season),
-                    Triple(match.awayTeam.id, match.league.id, season)
-                )
-            }
-        }.distinctBy { it.first }
-
-        teamsToFetch.forEach { (teamId, leagueId, season) ->
-            onFetchForm(teamId, leagueId, season)
-        }
-    }
-
     LaunchedEffect(matches) {
-        matches.forEach { match ->
+        val uniqueLeagues = matches.map { match ->
             val season = match.league.season ?: com.footballpluse.footballapp.data.util.SeasonUtils.currentSeasonStartYear()
-            onFetchForm(match.homeTeam.id, match.league.id, season)
-            onFetchForm(match.awayTeam.id, match.league.id, season)
+            Triple(match.homeTeam.id, match.league.id, season)
+        }.distinctBy { it.second }
+
+        uniqueLeagues.forEach { (teamId, leagueId, season) ->
+            onFetchForm(teamId, leagueId, season)
         }
     }
 
@@ -416,33 +414,22 @@ fun FixturesList(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier.weight(1f)
                             ) {
+                                val canonicalCountry = remember(league.id, league.name, league.country) {
+                                    com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.countryFor(league.id, league.name, league.country)
+                                }
+                                val bestLogo = remember(league.id, league.name, league.logo, canonicalCountry) {
+                                    league.logo?.ifBlank { null }
+                                        ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(league.id, league.name, canonicalCountry)
+                                        ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.flagUrl(canonicalCountry)
+                                }
                                 AsyncImage(
-                                    model = league.logo ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.logoUrlFor(league.id, league.name, league.country),
-                                    contentDescription = null,
+                                    model = bestLogo,
+                                    contentDescription = canonicalCountry,
                                     modifier = Modifier.size(18.dp),
                                     placeholder = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_league_placeholder),
                                     error = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_league_placeholder)
                                 )
                                 Spacer(Modifier.width(8.dp))
-                                val canonicalCountry = remember(league.id, league.name, league.country) {
-                                    com.footballpluse.footballapp.data.remote.uitslagen.UitslagenLeagues.countryFor(league.id, league.name, league.country)
-                                }
-                                val flagUrl = remember(canonicalCountry) {
-                                    com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.flagUrl(canonicalCountry)
-                                }
-                                if (!flagUrl.isNullOrBlank()) {
-                                    AsyncImage(
-                                        model = flagUrl,
-                                        contentDescription = canonicalCountry,
-                                        modifier = Modifier
-                                            .padding(end = 6.dp)
-                                            .size(width = 14.dp, height = 10.dp)
-                                            .clip(RoundedCornerShape(2.dp)),
-                                        contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                                        placeholder = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_placeholder),
-                                        error = androidx.compose.ui.res.painterResource(com.footballpluse.footballapp.R.drawable.ic_placeholder)
-                                    )
-                                }
                                 Text(
                                     text = if (canonicalCountry.isNotBlank() && canonicalCountry != "World" && canonicalCountry != "Europe") {
                                         "$canonicalCountry · ${league.name}"

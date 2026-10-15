@@ -113,8 +113,29 @@ fun ApiEvent.toFixtureResponse(): FixtureResponse {
     val awayId = match_awayteam_id.toIntOr(0)
     val isoDate = normalizeDateToIso(match_date) ?: match_date
     val timestamp = eventTimestamp(match_date, match_time)
-    val elapsed = match_status.minuteToElapsed()
-    val statusShort = mapStatus(match_status, match_live, elapsed)
+    val rawElapsed = match_status.minuteToElapsed()
+    val isLiveCalculated = isLiveStatus(match_status, match_live)
+    val elapsed = when {
+        rawElapsed != null && rawElapsed > 0 -> rawElapsed
+        isLiveCalculated && timestamp > 0L -> {
+            val nowSec = System.currentTimeMillis() / 1000L
+            val diffMin = ((nowSec - timestamp) / 60L).toInt()
+            when {
+                diffMin <= 0 -> 1
+                diffMin <= 45 -> diffMin
+                diffMin <= 60 -> 45
+                diffMin <= 105 -> diffMin - 15
+                else -> 90
+            }
+        }
+        isLiveCalculated -> 1
+        else -> null
+    }
+    val statusShort = when {
+        match_status == "HT" -> "HT"
+        isLiveCalculated -> "LIVE"
+        else -> mapStatus(match_status, match_live, elapsed)
+    }
     val isLive = statusShort == "LIVE"
 
     fun winner(isHome: Boolean): Boolean? {

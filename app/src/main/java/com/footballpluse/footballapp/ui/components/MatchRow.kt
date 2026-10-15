@@ -54,7 +54,25 @@ fun MatchRow(
             contentAlignment = Alignment.Center
         ) {
             when {
+                match.status.short == "HT" -> {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(Color(0xFF1A1A0A))
+                            .border(0.5.dp, Color(0xFF3A3A12), RoundedCornerShape(4.dp))
+                            .padding(horizontal = 4.dp, vertical = 2.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "HT",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFFFB300)
+                        )
+                    }
+                }
                 isLive -> {
+                    val min = match.elapsed?.coerceAtLeast(1) ?: 1
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(4.dp))
@@ -67,7 +85,7 @@ fun MatchRow(
                             LivePulse(color = Color(0xFFFF4444), dotSize = 5.dp)
                             Spacer(Modifier.width(3.dp))
                             Text(
-                                text = "${match.elapsed ?: 0}'",
+                                text = "$min'",
                                 fontSize = 9.sp,
                                 fontWeight = FontWeight.W600,
                                 color = Color(0xFFFF4444)

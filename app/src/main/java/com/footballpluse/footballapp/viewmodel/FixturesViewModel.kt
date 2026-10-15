@@ -73,31 +73,41 @@ class FixturesViewModel @Inject constructor(
         }
     }
 
+    private var fixturesJob: kotlinx.coroutines.Job? = null
+    private val requestedLeaguesForForm = java.util.concurrent.ConcurrentHashMap.newKeySet<Int>()
+    private val requestedTeamsForForm = java.util.concurrent.ConcurrentHashMap.newKeySet<Int>()
+
     fun fetchFormIfNeeded(teamId: Int, leagueId: Int, season: Int) {
         if (teamId == 0) return
-        if (_formMap.value.containsKey(teamId)) return
-        viewModelScope.launch {
-            if (_formMap.value.containsKey(teamId)) return@launch
-            
-            // Temporary placeholder
-            _formMap.update { it + (teamId to "") }
-            
-            val result = teamRepository.getTeamStatistics(teamId, leagueId, season)
-            if (result is ApiResult.Success) {
-                val form = result.data.form ?: ""
-                if (form.isNotEmpty()) {
-                    _formMap.update { it + (teamId to form) }
-                } else {
-                    _formMap.update { it - teamId }
-                }
-            } else {
-                _formMap.update { it - teamId }
+
+        // 1. League-wide batch
+        if (leagueId != 0 && requestedLeaguesForForm.add(leagueId)) {
+            viewModelScope.launch {
+                try {
+                    val result = teamRepository.getTeamFormForLeague(leagueId, season)
+                    if (result is ApiResult.Success && result.data.isNotEmpty()) {
+                        _formMap.update { it + result.data }
+                    }
+                } catch (_: Exception) {}
+            }
+        }
+
+        // 2. Individual team fallback
+        if (!_formMap.value.containsKey(teamId) && requestedTeamsForForm.add(teamId)) {
+            viewModelScope.launch {
+                try {
+                    val teamForm = teamRepository.getTeamForm(teamId)
+                    if (!teamForm.isNullOrBlank()) {
+                        _formMap.update { it + (teamId to teamForm) }
+                    }
+                } catch (_: Exception) {}
             }
         }
     }
 
     fun getFixturesByDate(date: String) {
-        viewModelScope.launch {
+        fixturesJob?.cancel()
+        fixturesJob = viewModelScope.launch {
             repository.getFixturesByDate(date).collectLatest {
                 _fixturesState.value = it
             }

@@ -94,8 +94,16 @@ private fun MatchHeader(match: Match, isLive: Boolean) {
                 Spacer(Modifier.width(5.dp))
             }
             Text(
-                if (isLive) "${match.elapsed ?: ""}'" else match.status.short,
-                color = if (isLive) LiveGreen else Color.White.copy(alpha = 0.7f),
+                when {
+                    match.status.short == "HT" -> "HT"
+                    isLive -> "${match.elapsed?.coerceAtLeast(1) ?: 1}'"
+                    else -> match.status.short
+                },
+                color = when {
+                    match.status.short == "HT" -> Color(0xFFFFB300)
+                    isLive -> LiveGreen
+                    else -> Color.White.copy(alpha = 0.7f)
+                },
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Black
             )
