@@ -273,6 +273,34 @@ class UitslagenMapperTest {
         assertTrue(UitslagenMapper.inRangeUtc("2026-10-06", "2026-10-06", "2026-10-06"))
     }
 
+    @Test
+    fun `player page parses from captured players json and maps to ApiPlayer`() {
+        val playerPage = moshi.adapter(UitslagenPlayerPage::class.java).fromJson(resource("players.json"))!!
+        assertEquals("92076", playerPage.id)
+        assertEquals("Jay", playerPage.firstname)
+        assertEquals("Nantwich Town", playerPage.team)
+        assertTrue(playerPage.statistics?.isNotEmpty() == true)
+
+        val apiPlayer = UitslagenMapper.playerPageToApiPlayer(playerPage)
+        assertEquals(92076L, apiPlayer.player_key)
+        assertEquals("A. Leitch-Smith", apiPlayer.player_name)
+        assertEquals("Attacker", apiPlayer.player_type)
+        assertEquals("England", apiPlayer.player_country)
+        assertNotNull(apiPlayer.player_image)
+    }
+
+    @Test
+    fun `team page squad parses appearences and maps match played properly`() {
+        val teamPage = moshi.adapter(UitslagenTeamPage::class.java).fromJson(resource("team_gs.json"))!!
+        val squad = teamPage.squad
+        assertNotNull(squad)
+        assertTrue(squad!!.isNotEmpty())
+
+        val apiTeam = UitslagenMapper.teamPageToApiTeam(teamPage)
+        assertNotNull(apiTeam.players)
+        assertTrue(apiTeam.players!!.isNotEmpty())
+    }
+
     private fun assertFalse2(v: Boolean) {
         if (v) throw AssertionError("expected false")
     }

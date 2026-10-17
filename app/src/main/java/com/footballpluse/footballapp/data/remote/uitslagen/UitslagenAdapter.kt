@@ -1,5 +1,7 @@
 package com.footballpluse.footballapp.data.remote.uitslagen
 
+import android.util.Log
+
 import com.footballpluse.footballapp.data.model.ApiCountry
 import com.footballpluse.footballapp.data.model.ApiEvent
 import com.footballpluse.footballapp.data.model.ApiLeague
@@ -175,16 +177,30 @@ class UitslagenAdapter @Inject constructor(
     override suspend fun getTeams(leagueId: String?, teamId: String?): List<ApiTeam> = try {
         when {
             !teamId.isNullOrBlank() -> {
+                Log.d("UitslagenAdapter", "getTeams(teamId=$teamId) fetching...")
                 val page = cached("team|$teamId", BLOCK_TTL_MS) { api.teamPage(teamId) }
-                listOf(UitslagenMapper.teamPageToApiTeam(page))
+                val mapped = listOf(UitslagenMapper.teamPageToApiTeam(page))
+                Log.d("UitslagenAdapter", "getTeams(teamId=$teamId) success: squadSize=${page.squad?.size ?: 0}")
+                mapped
             }
             !leagueId.isNullOrBlank() -> {
-                val key = UitslagenLeagues.keyFor(leagueId.toIntOrNull() ?: 0) ?: return emptyList()
-                blockToTeams(key, leagueId)
+                Log.d("UitslagenAdapter", "getTeams(leagueId=$leagueId) fetching...")
+                val key = UitslagenLeagues.keyFor(leagueId.toIntOrNull() ?: 0)
+                if (key == null) {
+                    Log.w("UitslagenAdapter", "No league key found for leagueId=$leagueId")
+                    emptyList()
+                } else {
+                    val teams = blockToTeams(key, leagueId)
+                    Log.d("UitslagenAdapter", "getTeams(leagueId=$leagueId) returned ${teams.size} teams")
+                    teams
+                }
             }
             else -> emptyList()
         }
-    } catch (_: Exception) { emptyList() }
+    } catch (e: Exception) {
+        Log.e("UitslagenAdapter", "getTeams failed for leagueId=$leagueId teamId=$teamId", e)
+        emptyList()
+    }
 
     private suspend fun blockToTeams(key: String, leagueId: String): List<ApiTeam> {
         val block = cached("block|$key", BLOCK_TTL_MS) { api.fixturesV2Small(key) }
@@ -193,14 +209,25 @@ class UitslagenAdapter @Inject constructor(
 
     override suspend fun getPlayers(playerId: String?, playerName: String?): List<ApiPlayer> = try {
         when {
-            !playerId.isNullOrBlank() -> listOf(
-                UitslagenMapper.playerPageToApiPlayer(cached("player|$playerId", BLOCK_TTL_MS) { api.playerPage(playerId) })
-            )
-            !playerName.isNullOrBlank() ->
-                UitslagenMapper.searchPlayers(api.search(playerName))
+            !playerId.isNullOrBlank() -> {
+                Log.d("UitslagenAdapter", "getPlayers(playerId=$playerId) fetching...")
+                val page = cached("player|$playerId", BLOCK_TTL_MS) { api.playerPage(playerId) }
+                val mapped = listOf(UitslagenMapper.playerPageToApiPlayer(page))
+                Log.d("UitslagenAdapter", "getPlayers(playerId=$playerId) success: ${mapped.firstOrNull()?.player_name}")
+                mapped
+            }
+            !playerName.isNullOrBlank() -> {
+                Log.d("UitslagenAdapter", "getPlayers(playerName=$playerName) searching...")
+                val hits = UitslagenMapper.searchPlayers(api.search(playerName))
+                Log.d("UitslagenAdapter", "getPlayers(playerName=$playerName) returned ${hits.size} players")
+                hits
+            }
             else -> emptyList()
         }
-    } catch (_: Exception) { emptyList() }
+    } catch (e: Exception) {
+        Log.e("UitslagenAdapter", "getPlayers failed for playerId=$playerId playerName=$playerName", e)
+        emptyList()
+    }
 
     // ─── Standings (real table from the league block) ─────────────────────────
 
@@ -375,10 +402,21 @@ class UitslagenAdapter @Inject constructor(
     // ─── Not available upstream (UI removed) ──────────────────────────────────
 
     override suspend fun getTopScorers(leagueId: String): List<ApiTopScorer> = try {
-        val key = UitslagenLeagues.keyFor(leagueId.toIntOrNull() ?: 0) ?: return emptyList()
-        val block = cached("block|$key", BLOCK_TTL_MS) { api.fixturesV2Small(key) }
-        UitslagenMapper.topScorers(block)
-    } catch (_: Exception) { emptyList() }
+        Log.d("UitslagenAdapter", "getTopScorers(leagueId=$leagueId) fetching...")
+        val key = UitslagenLeagues.keyFor(leagueId.toIntOrNull() ?: 0)
+        if (key == null) {
+            Log.w("UitslagenAdapter", "No league key for topScorers leagueId=$leagueId")
+            emptyList()
+        } else {
+            val block = cached("block|$key", BLOCK_TTL_MS) { api.fixturesV2Small(key) }
+            val scorers = UitslagenMapper.topScorers(block)
+            Log.d("UitslagenAdapter", "getTopScorers(leagueId=$leagueId, key=$key) mapped ${scorers.size} scorers")
+            scorers
+        }
+    } catch (e: Exception) {
+        Log.e("UitslagenAdapter", "getTopScorers failed for leagueId=$leagueId", e)
+        emptyList()
+    }
 
     // ─── Feed helpers ─────────────────────────────────────────────────────────
 

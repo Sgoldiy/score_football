@@ -8,6 +8,9 @@ import coil.memory.MemoryCache
 import com.google.firebase.FirebaseApp
 import dagger.hilt.android.HiltAndroidApp
 
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
+
 @HiltAndroidApp
 class FootballApplication : Application(), ImageLoaderFactory {
     override fun onCreate() {
@@ -16,7 +19,21 @@ class FootballApplication : Application(), ImageLoaderFactory {
     }
 
     override fun newImageLoader(): ImageLoader {
+        val okHttpClient = OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(15, TimeUnit.SECONDS)
+            .followRedirects(true)
+            .followSslRedirects(true)
+            .addInterceptor { chain ->
+                val req = chain.request().newBuilder()
+                    .header("User-Agent", "FootballPulse/1.0 (Android)")
+                    .build()
+                chain.proceed(req)
+            }
+            .build()
+
         return ImageLoader.Builder(this)
+            .okHttpClient(okHttpClient)
             .memoryCache {
                 MemoryCache.Builder(this)
                     .maxSizePercent(0.25)

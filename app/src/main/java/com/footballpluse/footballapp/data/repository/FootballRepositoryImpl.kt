@@ -1,5 +1,7 @@
 package com.footballpluse.footballapp.data.repository
 
+import android.util.Log
+
 import com.footballpluse.footballapp.data.local.db.FixtureDao
 import com.footballpluse.footballapp.data.local.db.LeagueDao
 import com.footballpluse.footballapp.data.local.db.StandingDao
@@ -488,10 +490,25 @@ class FootballRepositoryImpl @Inject constructor(
     override suspend fun getPlayerDetail(playerId: Int, season: Int): ApiResult<PlayerDetail> {
         return try {
             val players = apiService.getPlayers(playerId = playerId.toString())
-            val firstPlayer = players.firstOrNull() ?: return ApiResult.Error("Player not found")
+            val firstPlayer = players.firstOrNull()
+            if (firstPlayer != null) {
+                val resolvedPlayer = if (firstPlayer.player_image.isNullOrBlank()) {
+                    firstPlayer.copy(player_image = com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.playerImageUrl(playerId.toString()))
+                } else firstPlayer
+                val statsResponse = resolvedPlayer.toPlayerProfileStatisticsResponse()
+                return ApiResult.Success(statsResponse.toPlayerDetail())
+            }
 
-            val statsResponse = firstPlayer.toPlayerProfileStatisticsResponse()
-            ApiResult.Success(statsResponse.toPlayerDetail())
+            // Fallback 1: check playersPoolCache in case the player was loaded from league squads
+            playersPoolCache?.second?.find { (it.player_key ?: it.player_id?.toLongOrNull()) == playerId.toLong() }?.let { poolPlayer ->
+                val resolvedPoolPlayer = if (poolPlayer.player_image.isNullOrBlank()) {
+                    poolPlayer.copy(player_image = com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.playerImageUrl(playerId.toString()))
+                } else poolPlayer
+                val statsResponse = resolvedPoolPlayer.toPlayerProfileStatisticsResponse()
+                return ApiResult.Success(statsResponse.toPlayerDetail())
+            }
+
+            ApiResult.Error("Player not found")
         } catch (e: Exception) {
             ApiResult.Error(e.message ?: "Failed to load player details")
         }
@@ -659,13 +676,62 @@ class FootballRepositoryImpl @Inject constructor(
     private var playersPoolCache: Pair<Int, List<ApiPlayer>>? = null
 
     suspend fun getPlayersPoolSnapshot(leagueId: Int): List<ApiPlayer> {
-        playersPoolCache?.let { (lid, players) -> if (lid == leagueId) return players }
+        playersPoolCache?.let { (lid, players) ->
+            if (lid == leagueId) {
+                Log.d("FootballRepo", "getPlayersPoolSnapshot(leagueId=$leagueId) returning ${players.size} cached players")
+                return players
+            }
+        }
+        Log.d("FootballRepo", "getPlayersPoolSnapshot(leagueId=$leagueId) fetching teams...")
         val teams = try {
             kotlinx.coroutines.withTimeoutOrNull(25_000) {
                 apiService.getTeams(leagueId = leagueId.toString())
             }
-        } catch (_: Exception) { null }
-        val players = teams?.flatMap { it.players ?: emptyList() } ?: emptyList()
+        } catch (e: Exception) {
+            Log.e("FootballRepo", "getTeams(leagueId=$leagueId) failed", e)
+            null
+        } ?: emptyList()
+        Log.d("FootballRepo", "getPlayersPoolSnapshot(leagueId=$leagueId) got ${teams.size} teams")
+
+        var players = teams.flatMap { team ->
+            val tName = team.team_name
+            val tKey = team.team_key
+            (team.players ?: emptyList()).map { player ->
+                player.copy(
+                    team_name = player.team_name ?: tName,
+                    team_key = player.team_key ?: tKey
+                )
+            }
+        }
+
+        // When table blocks omit inline squads, fetch squads for the league's top clubs
+        if (players.isEmpty() && teams.isNotEmpty()) {
+            val targetTeams = teams.take(8)
+            Log.d("FootballRepo", "Inline squads empty; fetching squads for top ${targetTeams.size} clubs...")
+            players = kotlinx.coroutines.coroutineScope {
+                targetTeams.map { team ->
+                    async {
+                        val tKey = team.team_key ?: return@async emptyList<ApiPlayer>()
+                        try {
+                            val teamDetails = apiService.getTeams(teamId = tKey)
+                            val squad = teamDetails.firstOrNull()?.players.orEmpty().map { player ->
+                                player.copy(
+                                    team_name = player.team_name ?: team.team_name,
+                                    team_key = player.team_key ?: tKey
+                                )
+                            }
+                            Log.d("FootballRepo", "Fetched squad for ${team.team_name} (id=$tKey): ${squad.size} players")
+                            squad
+                        } catch (e: Exception) {
+                            Log.e("FootballRepo", "Failed fetching squad for ${team.team_name} (id=$tKey)", e)
+                            emptyList()
+                        }
+                    }
+                }.awaitAll().flatten()
+            }
+        }
+
+        Log.d("FootballRepo", "getPlayersPoolSnapshot(leagueId=$leagueId) total players assembled: ${players.size}")
         if (players.isNotEmpty()) playersPoolCache = leagueId to players
         return players
     }

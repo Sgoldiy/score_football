@@ -322,11 +322,38 @@ data class UitslagenSquadPlayer(
     val injured: String? = null,
     val minutes: String? = null,
     val appearances: String? = null,
+    val appearences: String? = null,
     val goals: String? = null,
     val yellowcards: String? = null,
     val redcards: String? = null,
     val isCaptain: String? = null,
-    val rating: String? = null
+    val rating: String? = null,
+    val shotsTotal: String? = null,
+    val passes: String? = null,
+    val keyPasses: String? = null,
+    val nationality: String? = null,
+    val birthcountry: String? = null
+)
+
+@JsonClass(generateAdapter = false)
+data class UitslagenPlayerStatistic(
+    val name: String? = null,
+    val teamid: String? = null,
+    val league: String? = null,
+    val leagueid: String? = null,
+    val season: String? = null,
+    val minutes: String? = null,
+    val appearences: String? = null,
+    val appearances: String? = null,
+    val goals: String? = null,
+    val assists: String? = null,
+    val rating: String? = null,
+    val yellowcards: String? = null,
+    val redcards: String? = null,
+    val shotsTotal: String? = null,
+    val shotsOn: String? = null,
+    val keyPasses: String? = null,
+    val passes: String? = null
 )
 
 @JsonClass(generateAdapter = false)
@@ -347,5 +374,6 @@ data class UitslagenPlayerPage(
     val preferredFoot: String? = null,
     val marketvalue: String? = null,
     val team: String? = null,
-    val teamid: String? = null
+    val teamid: String? = null,
+    val statistics: List<UitslagenPlayerStatistic>? = null
 )

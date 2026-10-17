@@ -314,8 +314,10 @@ private fun HeroPlayerSection(player: PlayerProfileStatisticsResponse, onPlayerC
                 .padding(20.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val photoUrl = player.player?.photo?.takeIf { it.isNotBlank() }
+                ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.playerImageUrl(player.player?.id?.toString())
             PlayerAvatar(
-                url = player.player?.photo,
+                url = photoUrl,
                 name = player.player?.name,
                 modifier = Modifier.size(120.dp),
                 ringColor = LiveGreen.copy(alpha = 0.6f),
@@ -460,8 +462,10 @@ private fun PlayerRankCard(player: PlayerProfileStatisticsResponse, mode: String
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Spacer(Modifier.height(8.dp))
+                val photoUrl = player.player?.photo?.takeIf { it.isNotBlank() }
+                    ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.playerImageUrl(player.player?.id?.toString())
                 PlayerAvatar(
-                    player.player?.photo,
+                    photoUrl,
                     player.player?.name,
                     Modifier.size(76.dp),
                     ringColor = formColor.copy(alpha = 0.5f)
@@ -857,8 +861,10 @@ private fun PodiumCol(
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(contentAlignment = Alignment.BottomEnd) {
+                    val photoUrl = player.player?.photo?.takeIf { it.isNotBlank() }
+                        ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.playerImageUrl(player.player?.id?.toString())
                     PlayerAvatar(
-                        url = player.player?.photo,
+                        url = photoUrl,
                         name = player.player?.name,
                         modifier = Modifier.size(if (rank == 1) 56.dp else 46.dp),
                         ringColor = color.copy(alpha = 0.6f)

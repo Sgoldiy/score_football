@@ -484,7 +484,7 @@ fun PlayersTabContent(
         is PlayersStatsUiState.Error -> {
             StatsErrorContent(
                 message = state.message,
-                onRetry = { viewModel.onTabSelected(StatsTab.PLAYERS) }
+                onRetry = { viewModel.onTabSelected(StatsTab.PLAYERS, force = true) }
             )
         }
     }
@@ -522,10 +522,13 @@ fun TopScorerHeroCard(
                             .background(Color(0xFF131620)),
                         contentAlignment = Alignment.Center
                     ) {
+                        val photoUrl = player.photo?.takeIf { it.isNotBlank() }
+                            ?: (if (player.id > 0) com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.playerImageUrl(player.id.toString()) else null)
                         AsyncImage(
-                            model = player.photo,
+                            model = photoUrl,
                             contentDescription = player.name,
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.fillMaxSize().clip(CircleShape),
+                            contentScale = ContentScale.Crop,
                             placeholder = painterResource(R.drawable.ic_placeholder),
                             error = painterResource(R.drawable.ic_placeholder)
                         )
@@ -749,10 +752,13 @@ fun PlayerStatLeaderboard(
                             ),
                         contentAlignment = Alignment.Center
                     ) {
+                        val photoUrl = player.photo?.takeIf { it.isNotBlank() }
+                            ?: (if (player.id > 0) com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.playerImageUrl(player.id.toString()) else null)
                         AsyncImage(
-                            model = player.photo,
+                            model = photoUrl,
                             contentDescription = player.name,
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.fillMaxSize().clip(CircleShape),
+                            contentScale = ContentScale.Crop,
                             placeholder = painterResource(R.drawable.ic_placeholder),
                             error = painterResource(R.drawable.ic_placeholder)
                         )
@@ -763,7 +769,7 @@ fun PlayerStatLeaderboard(
                     // Name + team
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = player.name?.split(" ")?.lastOrNull() ?: player.name ?: "",
+                            text = player.name ?: "",
                             color = Color.White,
                             fontSize = 13.sp,
                             fontWeight = FontWeight.SemiBold,
@@ -991,7 +997,9 @@ fun PlayerRatingsLeaderboard(
             players.forEachIndexed { index, playerStats ->
                 val player = playerStats.player ?: return@forEachIndexed
                 val stats = playerStats.statistics?.firstOrNull()
-                val rating = stats?.games?.rating ?: "0.0"
+                val ratingVal = stats?.games?.rating
+                val formattedRating = ratingVal?.toFloatOrNull()?.let { String.format(Locale.US, "%.2f", it) }
+                    ?: ratingVal?.take(4) ?: "0.00"
 
                 Row(
                     modifier = Modifier
@@ -1012,15 +1020,20 @@ fun PlayerRatingsLeaderboard(
                     // Photo
                     Box(
                         modifier = Modifier
-                            .size(32.dp)
+                            .size(36.dp)
                             .clip(CircleShape)
                             .background(Color(0xFF131620)),
                         contentAlignment = Alignment.Center
                     ) {
+                        val photoUrl = player.photo?.takeIf { it.isNotBlank() }
+                            ?: (if (player.id > 0) com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.playerImageUrl(player.id.toString()) else null)
                         AsyncImage(
-                            model = player.photo,
+                            model = photoUrl,
                             contentDescription = player.name,
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier.fillMaxSize().clip(CircleShape),
+                            contentScale = ContentScale.Crop,
+                            placeholder = painterResource(R.drawable.ic_placeholder),
+                            error = painterResource(R.drawable.ic_placeholder)
                         )
                     }
 
@@ -1059,7 +1072,7 @@ fun PlayerRatingsLeaderboard(
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            text = rating.take(4),
+                            text = formattedRating,
                             color = Color(0xFF0D0F14),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold
@@ -2087,10 +2100,13 @@ fun TopScorersAdvancedCard(
                             .background(Color(0xFF131620)),
                         contentAlignment = Alignment.Center
                     ) {
+                        val photoUrl = player?.photo?.takeIf { it.isNotBlank() }
+                            ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.playerImageUrl(player?.id?.toString())
                         AsyncImage(
-                            model = player?.photo,
+                            model = photoUrl,
                             contentDescription = player?.name,
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.fillMaxSize().clip(CircleShape),
+                            contentScale = ContentScale.Crop,
                             placeholder = painterResource(R.drawable.ic_placeholder),
                             error = painterResource(R.drawable.ic_placeholder)
                         )
@@ -2339,10 +2355,13 @@ fun TopRatedList(players: List<PlayerProfileStatisticsResponse>, onPlayerClick: 
                             .background(Color(0xFF131620)),
                         contentAlignment = Alignment.Center
                     ) {
+                        val photoUrl = item.player?.photo?.takeIf { it.isNotBlank() }
+                            ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.playerImageUrl(item.player?.id?.toString())
                         AsyncImage(
-                            model = item.player?.photo,
+                            model = photoUrl,
                             contentDescription = item.player?.name,
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.fillMaxSize().clip(CircleShape),
+                            contentScale = ContentScale.Crop,
                             placeholder = painterResource(R.drawable.ic_placeholder),
                             error = painterResource(R.drawable.ic_placeholder)
                         )
@@ -3336,10 +3355,13 @@ fun PodiumCol(
                     .background(Color(0xFF131620)),
                 contentAlignment = Alignment.Center
             ) {
+                val photoUrl = player.player?.photo?.takeIf { it.isNotBlank() }
+                    ?: com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.playerImageUrl(player.player?.id?.toString())
                 AsyncImage(
-                    model = player.player?.photo,
+                    model = photoUrl,
                     contentDescription = player.player?.name,
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier.fillMaxSize().clip(CircleShape),
+                    contentScale = ContentScale.Crop,
                     placeholder = painterResource(R.drawable.ic_placeholder),
                     error = painterResource(R.drawable.ic_placeholder)
                 )

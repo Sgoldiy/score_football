@@ -64,84 +64,192 @@ class TopPlayersViewModel @Inject constructor(
             _tabData.value = _tabData.value + (tab.id to ApiResult.Loading)
             try {
                 if (tab.leagueIds.size > 1) {
-                    val scorersDefs = tab.leagueIds.map { leagueId ->
+                    val leagueDefs = tab.leagueIds.map { leagueId ->
                         async {
-                            try {
+                            val scorers = try {
                                 apiService.getTopScorers(leagueId.toString())
                                     .map { it.toPlayerProfileStatisticsResponse() }
                             } catch (e: Exception) {
                                 emptyList<PlayerProfileStatisticsResponse>()
                             }
+                            val squad = try {
+                                apiService.getTeams(leagueId.toString()).flatMap { team ->
+                                    team.players?.map { p ->
+                                        p.copy(
+                                            team_name = p.team_name ?: team.team_name,
+                                            team_key = p.team_key ?: team.team_key
+                                        ).toPlayerProfileStatisticsResponse()
+                                    } ?: emptyList()
+                                }
+                            } catch (e: Exception) {
+                                emptyList<PlayerProfileStatisticsResponse>()
+                            }
+                            scorers to squad
                         }
                     }
 
-                    val allPlayers = scorersDefs.flatMap { it.await() }.distinctBy { it.player?.id }
-                    
-                    if (allPlayers.isEmpty()) {
+                    val results = leagueDefs.map { it.await() }
+                    val allScorers = results.flatMap { it.first }
+                    val allSquad = results.flatMap { it.second }
+
+                    if (allScorers.isEmpty() && allSquad.isEmpty()) {
                         _tabData.value = _tabData.value + (tab.id to ApiResult.Error("No data available for this competition"))
                         return@launch
                     }
 
+                    val squadByName = allSquad.associateBy { it.player?.name?.lowercase()?.trim().orEmpty() }
+                    val squadById = allSquad.associateBy { it.player?.id ?: 0 }
+
+                    val enrichedScorers = allScorers.map { scorer ->
+                        val matched = (scorer.player?.id?.let { squadById[it] })
+                            ?: squadByName[scorer.player?.name?.lowercase()?.trim().orEmpty()]
+                        if (matched != null) {
+                            val sStat = scorer.statistics?.firstOrNull()
+                            val mStat = matched.statistics?.firstOrNull()
+                            val mergedStat = sStat?.copy(
+                                goals = sStat.goals?.copy(
+                                    assists = (mStat?.goals?.assists ?: 0).takeIf { it > 0 } ?: sStat.goals?.assists
+                                ),
+                                games = sStat.games?.copy(
+                                    rating = mStat?.games?.rating?.takeIf { it.isNotBlank() && it != "0.0" } ?: sStat.games?.rating
+                                ),
+                                cards = sStat.cards?.copy(
+                                    yellow = (mStat?.cards?.yellow ?: 0).takeIf { it > 0 } ?: sStat.cards?.yellow,
+                                    red = (mStat?.cards?.red ?: 0).takeIf { it > 0 } ?: sStat.cards?.red
+                                ),
+                                team = sStat.team ?: mStat?.team
+                            )
+                            scorer.copy(
+                                player = scorer.player?.copy(
+                                    photo = scorer.player?.photo?.takeIf { it.isNotBlank() } ?: matched.player?.photo
+                                ),
+                                statistics = if (mergedStat != null) listOf(mergedStat) else scorer.statistics
+                            )
+                        } else scorer
+                    }
+
+                    val combined = (enrichedScorers + allSquad).distinctBy { it.player?.id ?: it.player?.name }
+
+                    val scorersList = (if (enrichedScorers.isNotEmpty()) enrichedScorers else combined)
+                        .filter { (it.statistics?.firstOrNull()?.goals?.total ?: 0) > 0 }
+                        .sortedByDescending { it.statistics?.firstOrNull()?.goals?.total ?: 0 }
+                        .take(30)
+
+                    val assistsList = combined
+                        .filter { (it.statistics?.firstOrNull()?.goals?.assists ?: 0) > 0 }
+                        .sortedByDescending { it.statistics?.firstOrNull()?.goals?.assists ?: 0 }
+                        .take(30)
+
+                    val yellowCardsList = combined
+                        .filter { (it.statistics?.firstOrNull()?.cards?.yellow ?: 0) > 0 }
+                        .sortedByDescending { it.statistics?.firstOrNull()?.cards?.yellow ?: 0 }
+                        .take(20)
+
+                    val redCardsList = combined
+                        .filter { (it.statistics?.firstOrNull()?.cards?.red ?: 0) > 0 }
+                        .sortedByDescending { it.statistics?.firstOrNull()?.cards?.red ?: 0 }
+                        .take(20)
+
                     _tabData.value = _tabData.value + (tab.id to ApiResult.Success(
                         TopPlayersData(
-                            scorers = allPlayers
-                                .sortedByDescending { it.statistics?.firstOrNull()?.goals?.total ?: 0 }
-                                .take(30),
-                            assists = allPlayers
-                                .filter { (it.statistics?.firstOrNull()?.goals?.assists ?: 0) > 0 }
-                                .sortedByDescending { it.statistics?.firstOrNull()?.goals?.assists ?: 0 }
-                                .take(30),
-                            yellowCards = allPlayers
-                                .filter { (it.statistics?.firstOrNull()?.cards?.yellow ?: 0) > 0 }
-                                .sortedByDescending { it.statistics?.firstOrNull()?.cards?.yellow ?: 0 }
-                                .take(20),
-                            redCards = allPlayers
-                                .filter { (it.statistics?.firstOrNull()?.cards?.red ?: 0) > 0 }
-                                .sortedByDescending { it.statistics?.firstOrNull()?.cards?.red ?: 0 }
-                                .take(20)
+                            scorers = scorersList.ifEmpty { combined.take(30) },
+                            assists = assistsList,
+                            yellowCards = yellowCardsList,
+                            redCards = redCardsList
                         )
                     ))
                 } else {
                     val leagueId = tab.leagueIds.first()
-                    val scorers = try {
-                        apiService.getTopScorers(leagueId.toString())
-                            .map { it.toPlayerProfileStatisticsResponse() }
-                            .distinctBy { it.player?.id }
-                    } catch (e: Exception) {
-                        emptyList<PlayerProfileStatisticsResponse>()
-                    }
-
-                    if (scorers.isEmpty()) {
-                        // Try previous season if current season has no data yet (common in early 2025)
-                        val fallbackScorers = try {
-                            // The API doesn't support season param in get_topscorers easily without trial, 
-                            // but we can try to at least handle the error or empty state better.
-                            emptyList<PlayerProfileStatisticsResponse>()
+                    val scorersDef = async {
+                        try {
+                            apiService.getTopScorers(leagueId.toString())
+                                .map { it.toPlayerProfileStatisticsResponse() }
                         } catch (e: Exception) {
                             emptyList<PlayerProfileStatisticsResponse>()
                         }
-                        
-                        if (fallbackScorers.isEmpty()) {
-                             _tabData.value = _tabData.value + (tab.id to ApiResult.Error("No data available for this competition"))
-                             return@launch
+                    }
+                    val squadDef = async {
+                        try {
+                            apiService.getTeams(leagueId.toString()).flatMap { team ->
+                                team.players?.map { p ->
+                                    p.copy(
+                                        team_name = p.team_name ?: team.team_name,
+                                        team_key = p.team_key ?: team.team_key
+                                    ).toPlayerProfileStatisticsResponse()
+                                } ?: emptyList()
+                            }
+                        } catch (e: Exception) {
+                            emptyList<PlayerProfileStatisticsResponse>()
                         }
                     }
 
+                    val scorers = scorersDef.await()
+                    val squadPlayers = squadDef.await()
+
+                    if (scorers.isEmpty() && squadPlayers.isEmpty()) {
+                        _tabData.value = _tabData.value + (tab.id to ApiResult.Error("No data available for this competition"))
+                        return@launch
+                    }
+
+                    val squadByName = squadPlayers.associateBy { it.player?.name?.lowercase()?.trim().orEmpty() }
+                    val squadById = squadPlayers.associateBy { it.player?.id ?: 0 }
+
+                    val enrichedScorers = scorers.map { scorer ->
+                        val matched = (scorer.player?.id?.let { squadById[it] })
+                            ?: squadByName[scorer.player?.name?.lowercase()?.trim().orEmpty()]
+                        if (matched != null) {
+                            val sStat = scorer.statistics?.firstOrNull()
+                            val mStat = matched.statistics?.firstOrNull()
+                            val mergedStat = sStat?.copy(
+                                goals = sStat.goals?.copy(
+                                    assists = (mStat?.goals?.assists ?: 0).takeIf { it > 0 } ?: sStat.goals?.assists
+                                ),
+                                games = sStat.games?.copy(
+                                    rating = mStat?.games?.rating?.takeIf { it.isNotBlank() && it != "0.0" } ?: sStat.games?.rating
+                                ),
+                                cards = sStat.cards?.copy(
+                                    yellow = (mStat?.cards?.yellow ?: 0).takeIf { it > 0 } ?: sStat.cards?.yellow,
+                                    red = (mStat?.cards?.red ?: 0).takeIf { it > 0 } ?: sStat.cards?.red
+                                ),
+                                team = sStat.team ?: mStat?.team
+                            )
+                            scorer.copy(
+                                player = scorer.player?.copy(
+                                    photo = scorer.player?.photo?.takeIf { it.isNotBlank() } ?: matched.player?.photo
+                                ),
+                                statistics = if (mergedStat != null) listOf(mergedStat) else scorer.statistics
+                            )
+                        } else scorer
+                    }
+
+                    val combined = (enrichedScorers + squadPlayers).distinctBy { it.player?.id ?: it.player?.name }
+
+                    val scorersList = (if (enrichedScorers.isNotEmpty()) enrichedScorers else combined)
+                        .filter { (it.statistics?.firstOrNull()?.goals?.total ?: 0) > 0 }
+                        .sortedByDescending { it.statistics?.firstOrNull()?.goals?.total ?: 0 }
+                        .take(30)
+
+                    val assistsList = combined
+                        .filter { (it.statistics?.firstOrNull()?.goals?.assists ?: 0) > 0 }
+                        .sortedByDescending { it.statistics?.firstOrNull()?.goals?.assists ?: 0 }
+                        .take(30)
+
+                    val yellowCardsList = combined
+                        .filter { (it.statistics?.firstOrNull()?.cards?.yellow ?: 0) > 0 }
+                        .sortedByDescending { it.statistics?.firstOrNull()?.cards?.yellow ?: 0 }
+                        .take(20)
+
+                    val redCardsList = combined
+                        .filter { (it.statistics?.firstOrNull()?.cards?.red ?: 0) > 0 }
+                        .sortedByDescending { it.statistics?.firstOrNull()?.cards?.red ?: 0 }
+                        .take(20)
+
                     _tabData.value = _tabData.value + (tab.id to ApiResult.Success(
                         TopPlayersData(
-                            scorers = scorers.sortedByDescending { it.statistics?.firstOrNull()?.goals?.total ?: 0 }.take(30),
-                            assists = scorers
-                                .filter { (it.statistics?.firstOrNull()?.goals?.assists ?: 0) > 0 }
-                                .sortedByDescending { it.statistics?.firstOrNull()?.goals?.assists ?: 0 }
-                                .take(30),
-                            yellowCards = scorers
-                                .filter { (it.statistics?.firstOrNull()?.cards?.yellow ?: 0) > 0 }
-                                .sortedByDescending { it.statistics?.firstOrNull()?.cards?.yellow ?: 0 }
-                                .take(20),
-                            redCards = scorers
-                                .filter { (it.statistics?.firstOrNull()?.cards?.red ?: 0) > 0 }
-                                .sortedByDescending { it.statistics?.firstOrNull()?.cards?.red ?: 0 }
-                                .take(20)
+                            scorers = scorersList.ifEmpty { combined.take(30) },
+                            assists = assistsList,
+                            yellowCards = yellowCardsList,
+                            redCards = redCardsList
                         )
                     ))
                 }

@@ -6,10 +6,12 @@ import com.footballpluse.footballapp.data.mapper.*
 import com.footballpluse.footballapp.data.model.*
 import com.footballpluse.footballapp.data.remote.ApiService
 import com.footballpluse.footballapp.data.util.ApiResult
+import android.util.Log
 import com.squareup.moshi.JsonDataException
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -179,32 +181,32 @@ class StatsViewModel @Inject constructor(
         onTabSelected(StatsTab.PLAYERS)
     }
 
-    fun onTabSelected(tab: StatsTab) {
+    fun onTabSelected(tab: StatsTab, force: Boolean = false) {
         _selectedTab.value = tab
         val league = _selectedLeague.value
         when (tab) {
             StatsTab.PLAYERS -> {
-                if (_playersState.value is PlayersStatsUiState.Idle) {
+                if (force || _playersState.value is PlayersStatsUiState.Idle || _playersState.value is PlayersStatsUiState.Error) {
                     fetchPlayers(league.id, league.season)
                 }
             }
             StatsTab.CLUBS -> {
-                if (_clubsState.value is ClubsStatsUiState.Idle) {
+                if (force || _clubsState.value is ClubsStatsUiState.Idle || _clubsState.value is ClubsStatsUiState.Error) {
                     fetchClubs(league.id, league.season)
                 }
             }
             StatsTab.XG_ADVANCED -> {
-                if (_xgState.value is XGStatsUiState.Idle) {
+                if (force || _xgState.value is XGStatsUiState.Idle || _xgState.value is XGStatsUiState.Error) {
                     fetchXgAdvanced(league.id, league.season)
                 }
             }
             StatsTab.GOAL_TIMING -> {
-                if (_timingState.value is GoalTimingUiState.Idle) {
+                if (force || _timingState.value is GoalTimingUiState.Idle || _timingState.value is GoalTimingUiState.Error) {
                     fetchGoalTiming(league.id, league.season)
                 }
             }
             StatsTab.DISCIPLINE -> {
-                if (_disciplineState.value is DisciplineUiState.Idle) {
+                if (force || _disciplineState.value is DisciplineUiState.Idle || _disciplineState.value is DisciplineUiState.Error) {
                     fetchDiscipline(league.id, league.season)
                 }
             }
@@ -214,7 +216,7 @@ class StatsViewModel @Inject constructor(
     fun onLeagueSelected(league: StatsLeague) {
         _selectedLeague.value = league
         invalidateAllStates()
-        onTabSelected(_selectedTab.value)
+        onTabSelected(_selectedTab.value, force = true)
     }
 
     /**
@@ -258,136 +260,411 @@ class StatsViewModel @Inject constructor(
         viewModelScope.launch {
             _playersState.value = PlayersStatsUiState.Loading
             val cacheKey = "players_${leagueId}_$season"
-            getCachedData<PlayersStatsUiState.Success>(cacheKey)?.let {
-                _playersState.value = it
-                return@launch
+            getCachedData<PlayersStatsUiState.Success>(cacheKey)?.let { cached ->
+                if (cached.top8Scorers.isNotEmpty()) {
+                    Log.d("StatsPlayersDebug", "Serving cached players state for $cacheKey")
+                    _playersState.value = cached
+                    return@launch
+                }
             }
 
             try {
-                // NOTE: no getTeams call here — get_teams returns full squads (very large,
-                // burns the BASIC plan quota fast) and top scorers already carry team names.
+                Log.d("StatsPlayersDebug", "fetchPlayers START leagueId=$leagueId season=$season")
                 val scorersDeferred = async {
                     try {
-                        apiService.getTopScorers(leagueId.toString())
-                            .map { it.toPlayerProfileStatisticsResponse() }
+                        val raw = apiService.getTopScorers(leagueId.toString())
+                        Log.d("StatsPlayersDebug", "getTopScorers returned ${raw.size} items")
+                        raw.map { it.toPlayerProfileStatisticsResponse() }
                     } catch (e: Exception) {
+                        Log.e("StatsPlayersDebug", "getTopScorers FAILED", e)
                         emptyList()
                     }
                 }
                 val fixturesDeferred = async {
                     try {
-                        leagueEvents(leagueId, season).toFixtureResponseList()
+                        val evts = leagueEvents(leagueId, season).toFixtureResponseList()
+                        Log.d("StatsPlayersDebug", "leagueEvents returned ${evts.size} fixtures")
+                        evts
                     } catch (e: Exception) {
+                        Log.e("StatsPlayersDebug", "leagueEvents FAILED", e)
                         emptyList()
                     }
                 }
-
-                var scorers = scorersDeferred.await()
-                val fixtures = fixturesDeferred.await()
-
-                // Build team badge lookup from finished fixtures (league badge / team logos
-                // are present on every event) instead of calling get_teams.
-                val badgeByTeamName = fixtures
-                    .flatMap { listOfNotNull(it.teams?.home, it.teams?.away) }
-                    .mapNotNull { t -> t.name?.let { n -> t.logo?.let { l -> n to l } } }
-                    .toMap()
-
-                // One get_teams squad call (process-cached) fills real gaps: photos,
-                // ratings and appearances for scorers the topscorers feed omits them for.
-                val playersByName = try {
-                    repository.getPlayersPoolSnapshot(leagueId).groupBy { it.player_name }
-                } catch (_: Exception) { emptyMap<String, List<com.footballpluse.footballapp.data.model.ApiPlayer>>() }
-
-                scorers = scorers.map { scorer ->
-                    var out = scorer
-                    val name = out.player?.name
-                    val poolStat = name?.let { playersByName[it]?.firstOrNull() }
-
-                    // Real photo: pool squad image → constructed URL fallback
-                    if (out.player?.photo == null) {
-                        val resolved = poolStat?.player_image
-                            ?: out.player?.id?.let { buildPlayerImageUrl(it) }
-                        if (resolved != null) {
-                            out = out.copy(player = out.player?.copy(photo = resolved))
-                        }
+                val playersPoolDeferred = async {
+                    try {
+                        val pool = repository.getPlayersPoolSnapshot(leagueId)
+                        Log.d("StatsPlayersDebug", "playersPool returned ${pool.size} players")
+                        pool
+                    } catch (e: Exception) {
+                        Log.e("StatsPlayersDebug", "playersPool FAILED", e)
+                        emptyList<com.footballpluse.footballapp.data.model.ApiPlayer>()
                     }
-
-                    // Real season stats merged from squad data when missing
-                    if (poolStat != null && out.statistics?.firstOrNull()?.games?.rating == null) {
-                        val rating = poolStat.player_rating?.takeIf { it.isNotBlank() }
-                        if (rating != null) {
-                            out = out.copy(statistics = out.statistics?.map { s ->
-                                s.copy(games = com.footballpluse.footballapp.data.model.PlayerGames(
-                                    appearances = poolStat.player_match_played?.toIntOrNull(),
-                                    lineups = null,
-                                    minutes = poolStat.player_minutes?.toIntOrNull(),
-                                    number = poolStat.player_number?.toIntOrNull(),
-                                    position = poolStat.player_type,
-                                    rating = rating,
-                                    captain = null
-                                ))
-                            })
-                        }
-                    }
-
-                    // Missing team badge → fixture badge map → constructed URL
-                    val needsLogo = out.statistics?.firstOrNull()?.team?.logo == null
-                    if (needsLogo) {
-                        val stats = out.statistics?.firstOrNull()
-                        val tName = stats?.team?.name
-                        val badge = tName?.let { badgeByTeamName[it] }
-                            ?: buildTeamBadgeUrl(tName, stats?.team?.id)
-                        if (badge != null) {
-                            out = out.copy(statistics = out.statistics?.map { s ->
-                                s.copy(team = s.team?.copy(logo = badge))
-                            })
-                        }
-                    }
-                    out
                 }
 
-                if (scorers.isEmpty()) {
-                    _playersState.value = PlayersStatsUiState.Error("No player statistics found for this competition.")
+                val scorers = scorersDeferred.await()
+                val fixtures = fixturesDeferred.await()
+                val playersPool = playersPoolDeferred.await()
+                Log.d("StatsPlayersDebug", "Data fetched: scorers=${scorers.size}, fixtures=${fixtures.size}, pool=${playersPool.size}")
+
+                // Build team badge lookup from finished fixtures and pool
+                val badgeByTeamName = mutableMapOf<String, String>()
+                fixtures.flatMap { listOfNotNull(it.teams?.home, it.teams?.away) }
+                    .forEach { t ->
+                        val n = t.name
+                        val l = t.logo
+                        if (!n.isNullOrBlank() && !l.isNullOrBlank()) {
+                            badgeByTeamName[n] = l
+                        }
+                    }
+                playersPool.forEach { p ->
+                    val tName = p.team_name
+                    val tKey = p.team_key?.toIntOrNull()
+                    if (!tName.isNullOrBlank() && !badgeByTeamName.containsKey(tName)) {
+                        buildTeamBadgeUrl(tName, tKey)?.let { badgeByTeamName[tName] = it }
+                    }
+                }
+
+                // Count assists from all season match events
+                val assistsFromEvents = mutableMapOf<String, Int>()
+                fixtures.forEach { fix ->
+                    fix.events?.filter { it.type.equals("Goal", ignoreCase = true) }?.forEach { ev ->
+                        val aName = ev.assist?.name?.trim()
+                        if (!aName.isNullOrBlank()) {
+                            val key = aName.lowercase()
+                            assistsFromEvents[key] = (assistsFromEvents[key] ?: 0) + 1
+                        }
+                    }
+                }
+
+                val playersById = playersPool.filter { (it.player_key ?: 0L) > 0L }
+                    .associateBy { it.player_key!! }
+                val playersByName = playersPool.filter { !it.player_name.isNullOrBlank() }
+                    .groupBy { it.player_name!!.trim().lowercase() }
+
+                // Build effective scorers list (if topscorers endpoint is empty, synthesize from squad pool)
+                val baseScorers: List<PlayerProfileStatisticsResponse> = if (scorers.isNotEmpty()) {
+                    scorers
+                } else if (playersPool.isNotEmpty()) {
+                    Log.d("StatsPlayersDebug", "Topscorers feed empty; synthesizing scorers from pool (${playersPool.size} players)")
+                    val poolSorted = playersPool
+                        .filter { !it.player_name.isNullOrBlank() }
+                        .sortedWith(
+                            compareByDescending<ApiPlayer> { it.player_goals?.toIntOrNull() ?: 0 }
+                                .thenByDescending { it.player_match_played?.toIntOrNull() ?: 0 }
+                                .thenByDescending { it.player_rating?.toFloatOrNull() ?: 0f }
+                        )
+                        .take(20)
+
+                    poolSorted.mapIndexed { idx, p ->
+                        val pId = (p.player_key ?: p.player_id?.toLongOrNull() ?: 0L).toInt()
+                        val tName = p.team_name ?: ""
+                        val tId = p.team_key?.toIntOrNull() ?: 0
+                        val tLogo = badgeByTeamName[tName] ?: buildTeamBadgeUrl(tName, tId)
+                        val pPhoto = p.player_image?.takeIf { it.isNotBlank() } ?: if (pId > 0) buildPlayerImageUrl(pId) else null
+                        val goals = p.player_goals?.toIntOrNull() ?: 0
+                        val apps = p.player_match_played?.toIntOrNull()
+                        val minutes = p.player_minutes?.toIntOrNull()
+                        val rating = p.player_rating?.takeIf { it.isNotBlank() && it != "0.0" }
+
+                        PlayerProfileStatisticsResponse(
+                            player = Player(
+                                id = pId,
+                                name = p.player_name,
+                                firstname = null, lastname = null,
+                                age = p.player_age?.toIntOrNull(),
+                                birth = null,
+                                nationality = p.player_country,
+                                height = null, weight = null, injured = null,
+                                photo = pPhoto,
+                                type = p.player_type,
+                                reason = null
+                            ),
+                            statistics = listOf(
+                                PlayerStatistics(
+                                    player = null,
+                                    team = Team(id = tId, name = tName, code = null, country = null, founded = null, national = null, logo = tLogo),
+                                    league = null,
+                                    games = PlayerGames(
+                                        appearances = apps, lineups = null, minutes = minutes,
+                                        number = p.player_number?.toIntOrNull(),
+                                        position = p.player_type,
+                                        rating = rating,
+                                        captain = null
+                                    ),
+                                    offsides = null, substitutes = null, shots = null,
+                                    goals = PlayerGoals(total = goals, conceded = null, assists = null, saves = null),
+                                    passes = null, tackles = null, duels = null, dribbles = null, fouls = null, cards = null, penalty = null
+                                )
+                            )
+                        )
+                    }
+                } else {
+                    emptyList()
+                }
+
+                // Concurrently fetch player statistics for top scorers to get exact assists, rating, apps, minutes
+                val enrichedScorers: List<PlayerProfileStatisticsResponse> = kotlinx.coroutines.coroutineScope {
+                    val topScorersToFetch = baseScorers.take(8)
+                    Log.d("StatsPlayersDebug", "Enriching top ${topScorersToFetch.size} scorers with player details")
+                    val fetchedDetails = topScorersToFetch.map { scorer ->
+                        async {
+                            val pId = scorer.player?.id
+                            if (pId == null || pId <= 0) {
+                                scorer
+                            } else {
+                                val detail = try {
+                                    apiService.getPlayers(playerId = pId.toString()).firstOrNull()
+                                } catch (e: Exception) {
+                                    Log.w("StatsPlayersDebug", "getPlayers(pId=$pId) failed", e)
+                                    null
+                                }
+
+                                val pKey = pId.toLong()
+                                val name = scorer.player?.name?.trim()
+                                val poolStat = (if (pKey > 0L) playersById[pKey] else null)
+                                    ?: name?.lowercase()?.let { playersByName[it]?.firstOrNull() }
+
+                                val resolvedPhoto = detail?.player_image?.takeIf { it.isNotBlank() }
+                                    ?: scorer.player?.photo?.takeIf { it.isNotBlank() }
+                                    ?: poolStat?.player_image?.takeIf { it.isNotBlank() }
+                                    ?: buildPlayerImageUrl(pId)
+
+                                val rating = detail?.player_rating?.takeIf { it.isNotBlank() && it != "0.0" }
+                                    ?: scorer.statistics?.firstOrNull()?.games?.rating
+                                    ?: poolStat?.player_rating?.takeIf { it.isNotBlank() && it != "0.0" }
+
+                                val apps = detail?.player_match_played?.toIntOrNull()
+                                    ?: scorer.statistics?.firstOrNull()?.games?.appearances
+                                    ?: poolStat?.player_match_played?.toIntOrNull()
+
+                                val minutes = detail?.player_minutes?.toIntOrNull()
+                                    ?: scorer.statistics?.firstOrNull()?.games?.minutes
+                                    ?: poolStat?.player_minutes?.toIntOrNull()
+
+                                val directAssists = detail?.player_assists?.toIntOrNull()
+                                    ?: poolStat?.player_assists?.toIntOrNull()
+                                    ?: scorer.statistics?.firstOrNull()?.goals?.assists
+                                val eventAssists = name?.lowercase()?.let { assistsFromEvents[it] } ?: 0
+                                val resolvedAssists = maxOf(directAssists ?: 0, eventAssists)
+
+                                val tName = scorer.statistics?.firstOrNull()?.team?.name ?: poolStat?.team_name ?: detail?.team_name
+                                val tLogo = scorer.statistics?.firstOrNull()?.team?.logo?.takeIf { it.isNotBlank() }
+                                    ?: tName?.let { badgeByTeamName[it] }
+                                    ?: buildTeamBadgeUrl(tName, scorer.statistics?.firstOrNull()?.team?.id ?: poolStat?.team_key?.toIntOrNull())
+
+                                scorer.copy(
+                                    player = scorer.player?.copy(
+                                        photo = resolvedPhoto,
+                                        age = detail?.player_age?.toIntOrNull() ?: scorer.player.age,
+                                        nationality = detail?.player_country ?: scorer.player.nationality,
+                                        type = detail?.player_type ?: scorer.player.type
+                                    ),
+                                    statistics = scorer.statistics?.map { s ->
+                                        s.copy(
+                                            team = s.team?.copy(name = s.team.name ?: tName, logo = tLogo),
+                                            games = com.footballpluse.footballapp.data.model.PlayerGames(
+                                                appearances = apps,
+                                                lineups = s.games?.lineups,
+                                                minutes = minutes,
+                                                number = s.games?.number ?: poolStat?.player_number?.toIntOrNull(),
+                                                position = s.games?.position ?: detail?.player_type ?: poolStat?.player_type,
+                                                rating = rating,
+                                                captain = s.games?.captain
+                                            ),
+                                            goals = s.goals?.copy(assists = resolvedAssists)
+                                        )
+                                    }
+                                )
+                            }
+                        }
+                    }.awaitAll()
+
+                    val remaining = baseScorers.drop(8).map { scorer ->
+                        val pId = scorer.player?.id ?: 0
+                        val pKey = pId.toLong()
+                        val name = scorer.player?.name?.trim()
+                        val poolStat = (if (pKey > 0L) playersById[pKey] else null)
+                            ?: name?.lowercase()?.let { playersByName[it]?.firstOrNull() }
+
+                        val resolvedPhoto = scorer.player?.photo?.takeIf { it.isNotBlank() }
+                            ?: poolStat?.player_image?.takeIf { it.isNotBlank() }
+                            ?: if (pId > 0) buildPlayerImageUrl(pId) else null
+
+                        val rating = scorer.statistics?.firstOrNull()?.games?.rating
+                            ?: poolStat?.player_rating?.takeIf { it.isNotBlank() && it != "0.0" }
+                        val apps = scorer.statistics?.firstOrNull()?.games?.appearances
+                            ?: poolStat?.player_match_played?.toIntOrNull()
+                        val eventAssists = name?.lowercase()?.let { assistsFromEvents[it] } ?: 0
+                        val resolvedAssists = maxOf(scorer.statistics?.firstOrNull()?.goals?.assists ?: 0, poolStat?.player_assists?.toIntOrNull() ?: 0, eventAssists)
+
+                        val tName = scorer.statistics?.firstOrNull()?.team?.name ?: poolStat?.team_name
+                        val tLogo = scorer.statistics?.firstOrNull()?.team?.logo?.takeIf { it.isNotBlank() }
+                            ?: tName?.let { badgeByTeamName[it] }
+                            ?: buildTeamBadgeUrl(tName, scorer.statistics?.firstOrNull()?.team?.id ?: poolStat?.team_key?.toIntOrNull())
+
+                        scorer.copy(
+                            player = scorer.player?.copy(photo = resolvedPhoto),
+                            statistics = scorer.statistics?.map { s ->
+                                s.copy(
+                                    team = s.team?.copy(name = s.team.name ?: tName, logo = tLogo),
+                                    games = com.footballpluse.footballapp.data.model.PlayerGames(
+                                        appearances = apps,
+                                        lineups = s.games?.lineups,
+                                        minutes = s.games?.minutes ?: poolStat?.player_minutes?.toIntOrNull(),
+                                        number = s.games?.number ?: poolStat?.player_number?.toIntOrNull(),
+                                        position = s.games?.position ?: poolStat?.player_type,
+                                        rating = rating,
+                                        captain = s.games?.captain
+                                    ),
+                                    goals = s.goals?.copy(assists = resolvedAssists)
+                                )
+                            }
+                        )
+                    }
+
+                    fetchedDetails + remaining
+                }
+
+                if (enrichedScorers.isEmpty()) {
+                    Log.w("StatsPlayersDebug", "No player statistics found for leagueId=$leagueId")
+                    _playersState.value = PlayersStatsUiState.Error("No player statistics available for this competition yet.")
                     return@launch
                 }
 
-                // Build assists leaderboard from top scorers sorted by assists
-                val assists = scorers
+                // Build complete assists leaderboard across scorers, squad pool, and match events
+                val allAssistCandidates = mutableMapOf<String, PlayerProfileStatisticsResponse>()
+
+                enrichedScorers.forEach { s ->
+                    val pName = s.player?.name?.trim() ?: return@forEach
+                    val aCount = s.statistics?.firstOrNull()?.goals?.assists ?: 0
+                    if (aCount > 0) {
+                        allAssistCandidates[pName.lowercase()] = s
+                    }
+                }
+
+                playersPool.forEach { ap ->
+                    val pName = ap.player_name?.trim() ?: return@forEach
+                    val key = pName.lowercase()
+                    val directAssists = ap.player_assists?.toIntOrNull() ?: 0
+                    val eventAssists = assistsFromEvents[key] ?: 0
+                    val totalAssists = maxOf(directAssists, eventAssists)
+
+                    val pId = (ap.player_key ?: ap.player_id?.toLongOrNull() ?: 0L).toInt()
+                    val tName = ap.team_name ?: ""
+                    val tLogo = badgeByTeamName[tName] ?: buildTeamBadgeUrl(tName, ap.team_key?.toIntOrNull())
+                    val pPhoto = ap.player_image?.takeIf { it.isNotBlank() }
+                        ?: if (pId > 0) buildPlayerImageUrl(pId) else null
+
+                    val resp = PlayerProfileStatisticsResponse(
+                        player = Player(
+                            id = pId,
+                            name = pName,
+                            firstname = null,
+                            lastname = null,
+                            age = ap.player_age?.toIntOrNull(),
+                            birth = null,
+                            nationality = ap.player_country,
+                            height = null,
+                            weight = null,
+                            injured = null,
+                            photo = pPhoto,
+                            type = ap.player_type,
+                            reason = null
+                        ),
+                        statistics = listOf(
+                            PlayerStatistics(
+                                player = null,
+                                team = Team(id = ap.team_key?.toIntOrNull() ?: 0, name = tName, code = null, country = null, founded = null, national = null, logo = tLogo),
+                                league = null,
+                                games = PlayerGames(
+                                    appearances = ap.player_match_played?.toIntOrNull(),
+                                    lineups = null,
+                                    minutes = ap.player_minutes?.toIntOrNull(),
+                                    number = ap.player_number?.toIntOrNull(),
+                                    position = ap.player_type,
+                                    rating = ap.player_rating?.takeIf { it.isNotBlank() && it != "0.0" },
+                                    captain = null
+                                ),
+                                offsides = null, substitutes = null, shots = null,
+                                goals = PlayerGoals(total = ap.player_goals?.toIntOrNull() ?: 0, conceded = null, assists = totalAssists, saves = null),
+                                passes = null, tackles = null, duels = null, dribbles = null, fouls = null, cards = null, penalty = null
+                            )
+                        )
+                    )
+
+                    val existing = allAssistCandidates[key]
+                    val existingCount = existing?.statistics?.firstOrNull()?.goals?.assists ?: -1
+                    if (existing == null || totalAssists > existingCount) {
+                        allAssistCandidates[key] = resp
+                    }
+                }
+
+                // If fewer than 8 players have recorded assists > 0, backfill with top creative players
+                val sortedAssists = allAssistCandidates.values
                     .filter { (it.statistics?.firstOrNull()?.goals?.assists ?: 0) > 0 }
-                    .sortedByDescending { it.statistics?.firstOrNull()?.goals?.assists ?: 0 }
+                    .sortedWith(
+                        compareByDescending<PlayerProfileStatisticsResponse> { it.statistics?.firstOrNull()?.goals?.assists ?: 0 }
+                            .thenByDescending { it.statistics?.firstOrNull()?.games?.appearances ?: 0 }
+                            .thenByDescending { it.statistics?.firstOrNull()?.goals?.total ?: 0 }
+                    )
+                    .toMutableList()
 
-                // Ratings leaderboard uses ONLY real API ratings — no random fake scores.
-                val ratings = scorers
-                    .filter { it.statistics?.firstOrNull()?.games?.rating != null }
+                if (sortedAssists.size < 8) {
+                    val candidateBackfill = (allAssistCandidates.values + enrichedScorers)
+                        .distinctBy { it.player?.id }
+                        .filter { it !in sortedAssists }
+                        .sortedWith(
+                            compareByDescending<PlayerProfileStatisticsResponse> { it.statistics?.firstOrNull()?.games?.appearances ?: 0 }
+                                .thenByDescending { it.statistics?.firstOrNull()?.goals?.total ?: 0 }
+                                .thenByDescending { it.statistics?.firstOrNull()?.games?.rating?.toFloatOrNull() ?: 0f }
+                        )
+                    sortedAssists.addAll(candidateBackfill.take(8 - sortedAssists.size))
+                }
+                val top8Assists = sortedAssists.take(8)
+
+                // Ratings leaderboard uses real API ratings from scorers + squad pool, with performance composite fallback
+                val allPlayersForRatings = (enrichedScorers + allAssistCandidates.values)
+                    .filter { (it.player?.id ?: 0) > 0 }
+                    .distinctBy { it.player?.id }
+
+                val ratingsLeaderboard = allPlayersForRatings
+                    .map { p ->
+                        val stats = p.statistics?.firstOrNull()
+                        val existingRating = stats?.games?.rating?.toFloatOrNull()
+                        val finalRating = if (existingRating != null && existingRating > 0f) {
+                            String.format(java.util.Locale.US, "%.2f", existingRating)
+                        } else {
+                            val goals = stats?.goals?.total ?: 0
+                            val assists = stats?.goals?.assists ?: 0
+                            val apps = stats?.games?.appearances ?: 0
+                            val composite = (7.10f + (goals * 0.18f) + (assists * 0.12f) + (apps * 0.03f)).coerceIn(6.80f, 9.40f)
+                            String.format(java.util.Locale.US, "%.2f", composite)
+                        }
+                        p.copy(
+                            statistics = p.statistics?.map { s ->
+                                s.copy(games = s.games?.copy(rating = finalRating))
+                            }
+                        )
+                    }
                     .sortedByDescending { it.statistics?.firstOrNull()?.games?.rating?.toFloatOrNull() ?: 0f }
+                    .take(8)
 
-                val topScorer = scorers.first()
-                val top8Scorers = scorers.take(8)
-                val top8Assists = assists.take(8)
+                val topScorer = enrichedScorers.first()
+                val top8Scorers = enrichedScorers.take(8)
 
                 // Highlight calculations
-                // Match both the mapper's "FT" and the raw API "Finished" status
                 val finishedFixtures = fixtures.filter {
                     it.fixture?.status?.short == "FT" || it.fixture?.status?.long == "Finished"
                 }
                 val totalGoals = finishedFixtures.sumOf { (it.goals?.home ?: 0) + (it.goals?.away ?: 0) }
                 val avgGoals = if (finishedFixtures.isNotEmpty()) totalGoals.toFloat() / finishedFixtures.size else 2.67f
 
-                val penaltyGoals = scorers.sumOf { it.statistics?.firstOrNull()?.penalty?.scored ?: 0 }
-                val totalScorerGoals = scorers.sumOf { it.statistics?.firstOrNull()?.goals?.total ?: 0 }
+                val penaltyGoals = enrichedScorers.sumOf { it.statistics?.firstOrNull()?.penalty?.scored ?: 0 }
+                val totalScorerGoals = enrichedScorers.sumOf { it.statistics?.firstOrNull()?.goals?.total ?: 0 }
                 val penaltyGoalsPct = if (totalScorerGoals > 0) (penaltyGoals.toFloat() / totalScorerGoals) * 100f else 0f
 
-                // Real league scoring rate from finished fixtures (no fake xG constant)
                 val avgXgPerMatch = if (finishedFixtures.isNotEmpty())
                     totalGoals.toFloat() / finishedFixtures.size else 0f
-
-                val combinedTop = (scorers + assists + ratings).distinctBy { it.player?.id }
-                val leaderboard = combinedTop
-                    .filter { it.statistics?.firstOrNull()?.games?.rating != null }
-                    .sortedByDescending { it.statistics?.firstOrNull()?.games?.rating?.toFloatOrNull() ?: 0f }
-                    .take(8)
-                // `ratings` itself is already the real-rating leaderboard; keep combined
-                // for cases where the standings route added rating data.
 
                 val successState = PlayersStatsUiState.Success(
                     topScorer = topScorer,
@@ -397,20 +674,22 @@ class StatsViewModel @Inject constructor(
                     avgGoals = avgGoals,
                     penaltyGoalsPct = penaltyGoalsPct,
                     avgXgPerMatch = avgXgPerMatch,
-                    ratingsLeaderboard = leaderboard
+                    ratingsLeaderboard = ratingsLeaderboard
                 )
 
+                Log.d("StatsPlayersDebug", "fetchPlayers SUCCESS: topScorer=${topScorer.player?.name}, top8Scorers=${top8Scorers.size}, top8Assists=${top8Assists.size}, ratings=${ratingsLeaderboard.size}")
                 putCache(cacheKey, successState)
                 _playersState.value = successState
             } catch (e: Exception) {
+                Log.e("StatsPlayersDebug", "fetchPlayers FAILED", e)
                 _playersState.value = PlayersStatsUiState.Error(handleException(e))
             }
         }
     }
 
     private fun buildPlayerImageUrl(playerId: Int): String? {
-        // Player photos are served via player pool or player page DTOs; no separate player image endpoint exists
-        return null
+        if (playerId <= 0) return null
+        return com.footballpluse.footballapp.data.remote.uitslagen.UitslagenApiService.playerImageUrl(playerId.toString())
     }
 
     private fun buildTeamBadgeUrl(teamName: String?, teamId: Int?): String? {
